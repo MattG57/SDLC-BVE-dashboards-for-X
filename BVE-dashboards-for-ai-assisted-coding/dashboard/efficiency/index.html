@@ -719,6 +719,11 @@ function DriversSection({ days, users, selectedUser }) {
         </div>
         <div className="Box p-3" style={{ flex: '1 1 300px' }}>
           <h4 className="f6 color-fg-muted mb-1">Daily Avg / Dev{selectedUser ? ` vs ${selectedUser}` : ''}</h4>
+          {selectedUser && toggles['cli_session_count'] && (
+            <div className="flash flash-warn mb-2" style={{ fontSize: '0.75rem', padding: '8px' }}>
+              <strong>Note:</strong> CLI session data is only available at organization level. Individual developer CLI metrics are not provided by the GitHub API.
+            </div>
+          )}
           <Chart options={totalsOpts} />
         </div>
       </div>
