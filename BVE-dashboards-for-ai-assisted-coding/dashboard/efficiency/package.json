@@ -1,0 +1,16 @@
+{
+  "name": "ai-assisted-coding-efficiency-dashboard",
+  "version": "1.0.0",
+  "description": "Efficiency dashboard for AI Assisted Coding metrics",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "verify": "node ../../data/verify_math.cjs"
+  },
+  "devDependencies": {
+    "vitest": "^1.1.0",
+    "happy-dom": "^12.10.3"
+  }
+}

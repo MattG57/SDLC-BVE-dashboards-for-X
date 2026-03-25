@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark" data-dark-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Assisted Coding — Efficiency Dashboard</title>
+
+<!-- Primer CSS -->
+<link rel="stylesheet" href="https://unpkg.com/@primer/css@21.3.1/dist/primer.css">
+
+<!-- Highcharts -->
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/highcharts.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/modules/accessibility.js"></script>
+
+<!-- React -->
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<style>
+  body { background: var(--bgColor-default); }
+  .efficiency-page { max-width: 1280px; margin: 0 auto; padding: 24px 16px; }
+
+  /* KPI cards with GitHub feel */
+  .kpi-card { text-align: center; }
+  .kpi-value { font-size: 2rem; font-weight: 600; line-height: 1.2; }
+  .kpi-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; }
+  .kpi-sub { font-size: 0.75rem; }
+  .kpi-unit { font-size: 1.1rem; font-weight: 400; opacity: 0.65; margin-left: 2px; }
+
+  /* Hero KPI — stands out from supporting cards */
+  .kpi-hero .kpi-value { font-size: 3rem; }
+  .kpi-hero .kpi-label { font-size: 0.85rem; }
+  .kpi-hero .kpi-sub { font-size: 0.85rem; }
+  .kpi-hero { border-top: 3px solid var(--borderColor-accent-emphasis); }
+
+  /* Section dividers */
+  .section-row { margin-bottom: 32px; padding-top: 8px; }
+
+  /* Chart containers */
+  .chart-container { min-height: 320px; }
+  .chart-container-sm { min-height: 240px; }
+
+  /* Method comparison — selected row accent */
+  .method-row-selected { border-left: 3px solid #58a6ff; background: rgba(88,166,255,0.06); }
+
+  /* Toggle checkboxes row */
+  .driver-toggles { display: flex; flex-wrap: wrap; gap: 8px; }
+  .driver-toggles label { font-size: 0.8rem; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+
+  /* Confidence grid */
+  .confidence-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 768px) { .confidence-grid { grid-template-columns: 1fr; } }
+
+  /* Recon status dots */
+  .status-match { color: var(--fgColor-success); }
+  .status-minor { color: var(--fgColor-attention); }
+  .status-material { color: var(--fgColor-danger); }
+  .status-missing { color: var(--fgColor-muted); }
+
+  /* Upload area */
+  .upload-area { border: 2px dashed var(--borderColor-default); border-radius: 6px;
+    padding: 24px; text-align: center; transition: border-color 0.15s; }
+  .upload-area:hover { border-color: var(--fgColor-accent); }
+  .upload-area input[type="file"] { margin-top: 8px; }
+
+  /* Section spacing */
+  .section-row { margin-bottom: 32px; }
+
+  /* Highcharts dark theme overrides */
+  .highcharts-background { fill: transparent !important; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-type="module">
+
+/* ═══════════════════════════════════════════════════════
+   HIGHCHARTS DARK THEME (GitHub-aligned)
+   ═══════════════════════════════════════════════════════ */
+Highcharts.setOptions({
+  chart: { backgroundColor: 'transparent', style: { fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif' } },
+  colors: ['#58a6ff', '#3fb950', '#d29922', '#f85149', '#bc8cff', '#f778ba', '#79c0ff', '#56d364'],
+  title: { style: { color: '#e6edf3', fontSize: '14px', fontWeight: '600' } },
+  subtitle: { style: { color: '#8b949e', fontSize: '12px' } },
+  xAxis: { labels: { style: { color: '#8b949e' } }, gridLineColor: '#30363d', lineColor: '#30363d', tickColor: '#30363d' },
+  yAxis: { labels: { style: { color: '#8b949e' } }, gridLineColor: '#30363d', title: { style: { color: '#8b949e' } } },
+  legend: { itemStyle: { color: '#e6edf3' }, itemHoverStyle: { color: '#58a6ff' } },
+  tooltip: { backgroundColor: '#161b22', borderColor: '#30363d', style: { color: '#e6edf3' } },
+  plotOptions: { series: { animation: { duration: 400 } } },
+  credits: { enabled: false },
+});
+
+/* ═══════════════════════════════════════════════════════
+   DATA PROCESSING LAYER
+   ═══════════════════════════════════════════════════════ */
+
+function safeDiv(a, b) { return b && b !== 0 ? a / b : null; }
+
+function flattenDayTotal(dt) {
+  let loc_suggested_to_add = dt.loc_suggested_to_add_sum || 0;
+  let loc_suggested_to_delete = dt.loc_suggested_to_delete_sum || 0;
+  let loc_added = dt.loc_added_sum || 0;
+  let loc_deleted = dt.loc_deleted_sum || 0;
+
+  if (loc_added === 0 && Array.isArray(dt.totals_by_ide)) {
+    loc_suggested_to_add = dt.totals_by_ide.reduce((s, i) => s + (i.loc_suggested_to_add_sum || 0), 0);
+    loc_suggested_to_delete = dt.totals_by_ide.reduce((s, i) => s + (i.loc_suggested_to_delete_sum || 0), 0);
+    loc_added = dt.totals_by_ide.reduce((s, i) => s + (i.loc_added_sum || 0), 0);
+    loc_deleted = dt.totals_by_ide.reduce((s, i) => s + (i.loc_deleted_sum || 0), 0);
+  }
+
+  const pr = dt.pull_requests || {};
+  const cli = dt.totals_by_cli || {};
+
+  return {
+    day: dt.day,
+    enterprise_id: dt.enterprise_id,
+    daily_active_users: dt.daily_active_users || 0,
+    daily_active_cli_users: dt.daily_active_cli_users || 0,
+    weekly_active_users: dt.weekly_active_users || 0,
+    monthly_active_users: dt.monthly_active_users || 0,
+    monthly_active_chat_users: dt.monthly_active_chat_users || 0,
+    monthly_active_agent_users: dt.monthly_active_agent_users || 0,
+    user_initiated_interaction_count: dt.user_initiated_interaction_count || 0,
+    code_generation_activity_count: dt.code_generation_activity_count || 0,
+    code_acceptance_activity_count: dt.code_acceptance_activity_count || 0,
+    loc_suggested_to_add_sum: loc_suggested_to_add,
+    loc_suggested_to_delete_sum: loc_suggested_to_delete,
+    loc_added_sum: loc_added,
+    loc_deleted_sum: loc_deleted,
+    pr_total_reviewed: pr.total_reviewed || 0,
+    pr_total_created: pr.total_created || 0,
+    pr_total_created_by_copilot: pr.total_created_by_copilot || 0,
+    pr_total_reviewed_by_copilot: pr.total_reviewed_by_copilot || 0,
+    cli_session_count: cli.session_count || 0,
+    cli_request_count: cli.request_count || 0,
+    agent_mode_interaction_count: Array.isArray(dt.totals_by_feature)
+      ? (dt.totals_by_feature.find(f => f.feature === 'chat_panel_agent_mode') || {}).user_initiated_interaction_count || 0
+      : 0,
+  };
+}
+
+function flattenUserReport(records) {
+  return records.map(u => {
+    let loc_add = u.loc_added_sum || 0;
+    if (loc_add === 0 && Array.isArray(u.totals_by_ide)) {
+      loc_add = u.totals_by_ide.reduce((s, i) => s + (i.loc_added_sum || 0), 0);
+    }
+    return {
+      day: u.day, enterprise_id: u.enterprise_id,
+      user_id: u.user_id, user_login: u.user_login,
+      user_initiated_interaction_count: u.user_initiated_interaction_count || 0,
+      code_generation_activity_count: u.code_generation_activity_count || 0,
+      code_acceptance_activity_count: u.code_acceptance_activity_count || 0,
+      loc_suggested_to_add_sum: u.loc_suggested_to_add_sum || 0,
+      loc_added_sum: loc_add,
+      loc_deleted_sum: u.loc_deleted_sum || 0,
+      used_agent: !!u.used_agent, used_chat: !!u.used_chat,
+      agent_mode_interaction_count: Array.isArray(u.totals_by_feature)
+        ? (u.totals_by_feature.find(f => f.feature === 'chat_panel_agent_mode') || {}).user_initiated_interaction_count || 0
+        : 0,
+    };
+  });
+}
+
+/* ── Estimation method definitions ── */
+const ESTIMATION_METHODS = [
+  { key: 'interactions', label: 'Interactions-Based',
+    descFn: (cfg) => `1 hour saved per ${cfg.est_interactions_per_hour || 20} interactions`,
+    formulaFn: (cfg) => `hrs_saved_day = interactions / ${cfg.est_interactions_per_hour || 20}`,
+    calc: (d, cfg) => d.user_initiated_interaction_count / (cfg.est_interactions_per_hour || 20) },
+  { key: 'loc', label: 'LoC-Based',
+    descFn: (cfg) => `${cfg.est_hrs_per_kloc || 2} hours saved per 1,000 LoC added`,
+    formulaFn: (cfg) => `hrs_saved_day = (loc_added / 1000) × ${cfg.est_hrs_per_kloc || 2}`,
+    calc: (d, cfg) => (d.loc_added_sum / 1000) * (cfg.est_hrs_per_kloc || 2) },
+  { key: 'manual_daily_pct', label: 'Manual Daily %',
+    descFn: () => 'Configured daily time-saved percentage',
+    formulaFn: () => 'hrs_saved_day = pct × baseline_hrs / workdays × active_devs',
+    calc: (d, cfg) => {
+      const p = cfg.cfg_time_saved_pct_day, b = cfg.cfg_baseline_hours_per_dev_per_week, w = cfg.cfg_workdays_per_week || 5;
+      return (p != null && b != null) ? (p * b / w) * d.daily_active_users : null;
+    }},
+];
+
+function computeDerived(days, config, selectedMethod) {
+  const method = ESTIMATION_METHODS.find(m => m.key === selectedMethod) || ESTIMATION_METHODS[0];
+  return days.map(d => {
+    const dau = d.daily_active_users;
+
+    // All methods compute their estimate (for comparison in Data Quality)
+    const estimates = {};
+    for (const m of ESTIMATION_METHODS) {
+      const raw = m.calc(d, config);
+      estimates['est_' + m.key + '_hrs_day'] = raw;
+      estimates['est_' + m.key + '_hrs_per_dev_day'] = safeDiv(raw, dau);
+    }
+
+    // Selected method drives the Impact section
+    const selectedHrsDay = method.calc(d, config);
+    const selectedHrsPerDevDay = safeDiv(selectedHrsDay, dau);
+    const wdays = config.cfg_workdays_per_week || 5;
+
+    return {
+      ...d,
+      ...estimates,
+      interactions_per_active_dev: safeDiv(d.user_initiated_interaction_count, dau),
+      generations_per_active_dev: safeDiv(d.code_generation_activity_count, dau),
+      acceptances_per_active_dev: safeDiv(d.code_acceptance_activity_count, dau),
+      loc10_added_per_active_dev: safeDiv(d.loc_added_sum / 10, dau),
+      agent_mode_per_active_dev: safeDiv(d.agent_mode_interaction_count, dau),
+      cli_sessions_per_active_dev: safeDiv(d.cli_session_count, dau),
+      acceptance_rate: safeDiv(d.code_acceptance_activity_count, d.code_generation_activity_count),
+      // Selected method outputs
+      time_saved_hours_total_day: selectedHrsDay,
+      time_saved_hours_per_dev_per_day: selectedHrsPerDevDay,
+    };
+  });
+}
+
+function buildReconciliation(entDays, userDays) {
+  const METRICS = [
+    { group: 'active_users', name: 'daily_active_users', label: 'Active Devs', agg: 'count_distinct' },
+    { group: 'activity', name: 'user_initiated_interaction_count', label: 'Interactions', agg: 'sum' },
+    { group: 'activity', name: 'code_generation_activity_count', label: 'Generations', agg: 'sum' },
+    { group: 'activity', name: 'code_acceptance_activity_count', label: 'Acceptances', agg: 'sum' },
+    { group: 'loc', name: 'loc_added_sum', label: 'LoC Added', agg: 'sum' },
+    { group: 'loc', name: 'loc_deleted_sum', label: 'LoC Deleted', agg: 'sum' },
+  ];
+  const byDay = {};
+  for (const u of userDays) { (byDay[u.day] = byDay[u.day] || []).push(u); }
+
+  const rows = [];
+  for (const ent of entDays) {
+    const dayU = byDay[ent.day] || [];
+    for (const m of METRICS) {
+      const ev = ent[m.name];
+      const uv = m.agg === 'count_distinct' ? new Set(dayU.map(u => u.user_id)).size : dayU.reduce((s, u) => s + (u[m.name] || 0), 0);
+      const diff = ev != null ? ev - uv : null;
+      const pct = ev ? diff / ev : null;
+      let status = dayU.length === 0 ? 'missing_user_data' : pct == null ? 'not_comparable' : Math.abs(pct) <= 0.001 ? 'match' : Math.abs(pct) <= 0.05 ? 'minor_difference' : 'material_difference';
+      rows.push({ day: ent.day, group: m.group, label: m.label, enterprise: ev, user_sum: uv, diff, pct, status });
+    }
+  }
+  return rows;
+}
+
+/* ═══════════════════════════════════════════════════════
+   REACT COMPONENTS
+   ═══════════════════════════════════════════════════════ */
+const { useState, useEffect, useRef, useCallback } = React;
+
+/* ── Formatting helpers ── */
+const fmt = n => n == null ? '—' : Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+const fmtDec = (n, d=1) => n == null ? '—' : Number(n).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
+const fmtKloc = n => n == null ? '—' : fmtDec(n / 1000, 1) + 'K';
+const fmtCurrency = n => n == null ? '—' : '$' + Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+const fmtPct = n => n == null ? '—' : (n * 100).toFixed(1) + '%';
+const fmtCompact = n => {
+  if (n == null) return '—';
+  if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (Math.abs(n) >= 1e3) return (n / 1e3).toFixed(0) + 'K';
+  return fmt(n);
+};
+
+/* ── Highcharts wrapper ── */
+function Chart({ options, className = 'chart-container' }) {
+  const ref = useRef(null);
+  const chartRef = useRef(null);
+  useEffect(() => {
+    if (ref.current) {
+      chartRef.current = Highcharts.chart(ref.current, options);
+    }
+    return () => { if (chartRef.current) chartRef.current.destroy(); };
+  }, [JSON.stringify(options)]);
+  return <div ref={ref} className={className} />;
+}
+
+/* ── KPI Card ── */
+function KpiCard({ label, value, unit, sub, color, hero }) {
+  return (
+    <div className={`Box p-3 kpi-card${hero ? ' kpi-hero' : ''}`}>
+      <div className="kpi-label color-fg-muted">{label}</div>
+      <div className="kpi-value" style={color ? { color } : {}}>{value}{unit && <span className="kpi-unit">{unit}</span>}</div>
+      {sub && <div className="kpi-sub color-fg-muted">{sub}</div>}
+    </div>
+  );
+}
+
+/* ── File Upload Panel ── */
+function UploadPanel({ onData }) {
+  const [processing, setProcessing] = useState(false);
+  const filesRef = useRef(null);
+
+  const handleProcess = useCallback(async () => {
+    const files = filesRef.current?.files;
+    if (!files || !files.length) { alert('Select at least one JSON file.'); return; }
+    setProcessing(true);
+    try {
+      const readFile = f => new Promise((res, rej) => { const r = new FileReader(); r.onload = e => res(e.target.result); r.onerror = rej; r.readAsText(f); });
+
+      const entDays = [];
+      const userRecs = [];
+      const names = [];
+      let config = { cfg_time_saved_pct_day: null, cfg_baseline_hours_per_dev_per_week: null, cfg_workdays_per_week: 5, cfg_labor_cost_per_hour: null, est_interactions_per_hour: 20, est_hrs_per_kloc: 2 };
+
+      for (const f of files) {
+        const raw = await readFile(f);
+        const d = JSON.parse(raw);
+        names.push(f.name);
+
+        // Auto-detect: config files have cfg_ keys at top level, source files have enterprise_report
+        const isConfig = Object.keys(d).some(k => k.startsWith('cfg_') || k.startsWith('est_'));
+        const isSource = d.enterprise_report || d.user_report;
+
+        if (isConfig && !isSource) {
+          if (d.cfg_time_saved_pct_day != null) config.cfg_time_saved_pct_day = d.cfg_time_saved_pct_day;
+          if (d.cfg_baseline_hours_per_dev_per_week != null) config.cfg_baseline_hours_per_dev_per_week = d.cfg_baseline_hours_per_dev_per_week;
+          if (d.cfg_workdays_per_week != null) config.cfg_workdays_per_week = d.cfg_workdays_per_week;
+          if (d.cfg_labor_cost_per_hour != null) config.cfg_labor_cost_per_hour = d.cfg_labor_cost_per_hour;
+          if (d.est_interactions_per_hour != null) config.est_interactions_per_hour = d.est_interactions_per_hour;
+          if (d.est_hrs_per_kloc != null) config.est_hrs_per_kloc = d.est_hrs_per_kloc;
+        } else {
+          if (d.enterprise_report?.day_totals) entDays.push(...d.enterprise_report.day_totals.map(flattenDayTotal));
+          if (Array.isArray(d.user_report)) userRecs.push(...flattenUserReport(d.user_report));
+        }
+      }
+
+      if (!entDays.length) { alert('No source data found. Select at least one file containing enterprise_report.'); setProcessing(false); return; }
+
+      // Dedup enterprise by day (last wins)
+      const dayMap = {};
+      for (const r of entDays) dayMap[r.day] = r;
+      const enterprise = Object.values(dayMap).sort((a, b) => a.day.localeCompare(b.day));
+
+      // Dedup users by day+login (last wins)
+      const userMap = {};
+      for (const r of userRecs) userMap[r.day + '|' + r.user_login] = r;
+      const users = Object.values(userMap);
+
+      const recon = buildReconciliation(enterprise, users);
+      onData({ enterprise, users, recon, config, fileNames: names });
+    } catch (e) { console.error(e); alert('Error: ' + e.message); }
+    setProcessing(false);
+  }, [onData]);
+
+  return (
+    <div className="Box color-shadow-medium p-4 mb-4">
+      <h3 className="f4 mb-2">Source Data</h3>
+      <p className="f6 color-fg-muted mb-3">Upload one or more JSON files — source data and config are detected automatically.</p>
+      <div className="d-flex flex-wrap" style={{ gap: '16px', alignItems: 'flex-end' }}>
+        <div style={{ flex: '1 1 300px' }}>
+          <input type="file" ref={filesRef} accept=".json" multiple className="form-control" />
+        </div>
+        <button className="btn btn-primary" onClick={handleProcess} disabled={processing}>
+          {processing ? 'Processing…' : 'Process & Build'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── Config Panel (collapsible, bottom of page) ── */
+function ConfigPanel({ config, onApply, isOpen, onToggle }) {
+  const [pct, setPct] = useState(config.cfg_time_saved_pct_day ?? '');
+  const [base, setBase] = useState(config.cfg_baseline_hours_per_dev_per_week ?? '');
+  const [wdays, setWdays] = useState(config.cfg_workdays_per_week ?? 5);
+  const [cost, setCost] = useState(config.cfg_labor_cost_per_hour ?? '');
+  const [intPerHr, setIntPerHr] = useState(config.est_interactions_per_hour ?? 20);
+  const [hrsPerKloc, setHrsPerKloc] = useState(config.est_hrs_per_kloc ?? 2);
+
+  useEffect(() => {
+    setPct(config.cfg_time_saved_pct_day ?? '');
+    setBase(config.cfg_baseline_hours_per_dev_per_week ?? '');
+    setWdays(config.cfg_workdays_per_week ?? 5);
+    setCost(config.cfg_labor_cost_per_hour ?? '');
+    setIntPerHr(config.est_interactions_per_hour ?? 20);
+    setHrsPerKloc(config.est_hrs_per_kloc ?? 2);
+  }, [config]);
+
+  const apply = () => {
+    onApply({
+      cfg_time_saved_pct_day: parseFloat(pct) || null,
+      cfg_baseline_hours_per_dev_per_week: parseFloat(base) || null,
+      cfg_workdays_per_week: parseFloat(wdays) || 5,
+      cfg_labor_cost_per_hour: parseFloat(cost) || null,
+      est_interactions_per_hour: parseFloat(intPerHr) || 20,
+      est_hrs_per_kloc: parseFloat(hrsPerKloc) || 2,
+    });
+  };
+
+  const downloadConfig = () => {
+    const obj = {
+      cfg_time_saved_pct_day: parseFloat(pct) || null,
+      cfg_baseline_hours_per_dev_per_week: parseFloat(base) || null,
+      cfg_workdays_per_week: parseFloat(wdays) || 5,
+      cfg_labor_cost_per_hour: parseFloat(cost) || null,
+      est_interactions_per_hour: parseFloat(intPerHr) || 20,
+      est_hrs_per_kloc: parseFloat(hrsPerKloc) || 2,
+    };
+    const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'config.json'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const summary = `${config.est_interactions_per_hour || 20} int/hr · ${config.est_hrs_per_kloc || 2} hrs/KLoC` +
+    (config.cfg_time_saved_pct_day != null ? ` · ${fmtPct(config.cfg_time_saved_pct_day)} manual` : '') +
+    (config.cfg_labor_cost_per_hour != null ? ` · $${config.cfg_labor_cost_per_hour}/hr` : '');
+
+  return (
+    <div className="Box mt-4" style={{ borderColor: isOpen ? 'var(--borderColor-accent-emphasis)' : undefined }}>
+      <div className="Box-header d-flex flex-items-center flex-justify-between" style={{ cursor: 'pointer' }} onClick={onToggle}>
+        <div className="d-flex flex-items-center" style={{ gap: '8px' }}>
+          <span style={{ transition: 'transform 0.15s', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', display: 'inline-block' }}>▶</span>
+          <h4 className="f5 mb-0">Configuration</h4>
+          <span className="Label Label--secondary f6">all methods</span>
+        </div>
+        <span className="f6 color-fg-muted">{summary}</span>
+      </div>
+
+      {isOpen && (
+        <div className="Box-body">
+          <p className="f6 color-fg-muted mb-3">Edit the estimation parameters below. Changes take effect when you click Apply.</p>
+
+          <h5 className="f6 color-fg-muted text-bold mb-2">Estimation Constants</h5>
+          <div className="d-flex flex-wrap mb-3" style={{ gap: '12px', alignItems: 'flex-end' }}>
+            <div className="form-group mb-0" style={{ flex: '1 1 180px' }}>
+              <label className="f6 color-fg-muted">Interactions per Hour Saved</label>
+              <input type="number" className="form-control input-sm" step="1" min="1" value={intPerHr} onChange={e => setIntPerHr(e.target.value)} />
+            </div>
+            <div className="form-group mb-0" style={{ flex: '1 1 180px' }}>
+              <label className="f6 color-fg-muted">Hrs Saved per 1K LoC Added</label>
+              <input type="number" className="form-control input-sm" step="0.5" min="0" value={hrsPerKloc} onChange={e => setHrsPerKloc(e.target.value)} />
+            </div>
+          </div>
+
+          <h5 className="f6 color-fg-muted text-bold mb-2">Manual Daily % Parameters</h5>
+          <div className="d-flex flex-wrap mb-3" style={{ gap: '12px', alignItems: 'flex-end' }}>
+            <div className="form-group mb-0" style={{ flex: '1 1 160px' }}>
+              <label className="f6 color-fg-muted">Time Saved % (0–1)</label>
+              <input type="number" className="form-control input-sm" step="0.01" min="0" max="1" value={pct} onChange={e => setPct(e.target.value)} placeholder="0.20" />
+            </div>
+            <div className="form-group mb-0" style={{ flex: '1 1 160px' }}>
+              <label className="f6 color-fg-muted">Baseline Hrs / Dev / Week</label>
+              <input type="number" className="form-control input-sm" step="0.5" min="0" value={base} onChange={e => setBase(e.target.value)} placeholder="30" />
+            </div>
+          </div>
+
+          <h5 className="f6 color-fg-muted text-bold mb-2">Shared</h5>
+          <div className="d-flex flex-wrap" style={{ gap: '12px', alignItems: 'flex-end' }}>
+            <div className="form-group mb-0" style={{ flex: '1 1 120px' }}>
+              <label className="f6 color-fg-muted">Workdays / Week</label>
+              <input type="number" className="form-control input-sm" step="1" min="1" max="7" value={wdays} onChange={e => setWdays(e.target.value)} />
+            </div>
+            <div className="form-group mb-0" style={{ flex: '1 1 140px' }}>
+              <label className="f6 color-fg-muted">Labor Cost $/hr</label>
+              <input type="number" className="form-control input-sm" step="1" min="0" value={cost} onChange={e => setCost(e.target.value)} placeholder="75" />
+            </div>
+          </div>
+          <div className="d-flex flex-items-center mt-3" style={{ gap: '8px' }}>
+            <button className="btn btn-sm btn-primary" onClick={apply}>Apply &amp; Recalculate</button>
+            <button className="btn btn-sm btn-outline" onClick={downloadConfig}>Download config.json</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION A — IMPACT
+   ═══════════════════════════════════════════════════════ */
+function ImpactSection({ days, config, method, onMethodChange, users, selectedUser }) {
+  const n = days.length;
+  const methodDef = ESTIMATION_METHODS.find(m => m.key === method) || ESTIMATION_METHODS[0];
+  const needsCfg = method === 'manual_daily_pct' && (config.cfg_time_saved_pct_day == null || config.cfg_baseline_hours_per_dev_per_week == null);
+
+  if (needsCfg) {
+    return (
+      <div className="section-row">
+        <SectionHeader title="Impact" desc={impactDesc} />
+        <div className="Box p-4 text-center">
+          <span className="f3 d-block mb-2">⚙️</span>
+          <p className="f5 color-fg-muted">The Manual Daily % method requires configuration. Open the Configuration panel at the bottom, or switch to an activity-based method.</p>
+          <div className="d-flex flex-justify-center mt-2">
+            <select className="form-select form-select-sm" value={method} onChange={e => onMethodChange(e.target.value)} style={{ width: 'auto', background: 'var(--bgColor-muted)', color: 'var(--fgColor-default)', border: '1px solid var(--borderColor-default)' }}>
+              {ESTIMATION_METHODS.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
+            </select>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const totalHoursSaved = days.reduce((s, d) => s + (d.time_saved_hours_total_day || 0), 0);
+  const avgHrsPerDevDay = (() => { const v = days.map(d => d.time_saved_hours_per_dev_per_day).filter(v => v != null); return v.length ? v.reduce((a,b)=>a+b,0)/v.length : null; })();
+  const avgActiveDevs = Math.round(days.reduce((s, d) => s + d.daily_active_users, 0) / n);
+  const laborCost = config.cfg_labor_cost_per_hour != null ? totalHoursSaved * config.cfg_labor_cost_per_hour : null;
+  const orgHrsSavedPerDay = totalHoursSaved / n;
+  const fteEquiv = totalHoursSaved / (8 * n);  // full-time equivalent devs saved per day
+  const wdays = config.cfg_workdays_per_week || 5;
+  const baselineHrsPerDay = (config.cfg_baseline_hours_per_dev_per_week || 40) / wdays;
+  const pctTimeSavedPerDev = avgHrsPerDevDay != null ? avgHrsPerDevDay / baselineHrsPerDay : null;
+  
+  // Extract organization identifier for description
+  const enterpriseId = days[0]?.enterpriseId;
+  const orgIdentifier = enterpriseId ? `Enterprise ${enterpriseId}` : 'your organization';
+  const impactDesc = `Estimated Individual and Total Efficiency Impact for ${orgIdentifier}`;
+
+
+  // Build user overlay series for Impact chart
+  const userDayMap = {};
+  if (selectedUser && users) {
+    users.filter(u => u.user_login === selectedUser).forEach(u => { userDayMap[u.day] = u; });
+  }
+  const hasUserData = Object.keys(userDayMap).length > 0;
+  const userHrsSeries = hasUserData ? days.map(d => {
+    const u = userDayMap[d.day];
+    if (!u) return null;
+    return methodDef.calc({ ...u, daily_active_users: 1 }, config);
+  }) : null;
+
+  const chartOpts = {
+    chart: { type: 'areaspline', height: 300 },
+    title: { text: null },
+    subtitle: { text: methodDef.label + ': ' + methodDef.descFn(config) },
+    xAxis: { categories: days.map(d => d.day), labels: { rotation: -45, style: { fontSize: '10px' } } },
+    yAxis: [
+      { title: { text: 'Hrs Saved / Dev / Day' }, min: 0 },
+      { title: { text: 'Total Hours Saved' }, opposite: true, min: 0 },
+    ],
+    tooltip: { shared: true, valueDecimals: 1 },
+    legend: { symbolWidth: 16 },
+    series: [
+      { name: 'Avg Hrs / Dev / Day', data: days.map(d => d.time_saved_hours_per_dev_per_day), yAxis: 0, color: '#58a6ff', fillOpacity: 0.08, marker: { radius: 3 } },
+      { name: 'Org Total Hrs', data: days.map(d => d.time_saved_hours_total_day != null ? Math.round(d.time_saved_hours_total_day * 10) / 10 : null), type: 'column', yAxis: 1, color: '#3fb950', opacity: 0.7, pointPadding: 0.1 },
+      ...(userHrsSeries ? [{ name: selectedUser + ' Hrs', data: userHrsSeries, type: 'spline', yAxis: 0, color: '#f78166', dashStyle: 'ShortDash', marker: { radius: 4, symbol: 'diamond', lineWidth: 1, lineColor: '#f78166', fillColor: '#0d1117' }, lineWidth: 2.5 }] : []),
+    ],
+  };
+
+  return (
+    <div className="section-row">
+      <div className="mb-3 pb-2 d-flex flex-items-end flex-justify-between" style={{ borderBottom: '1px solid var(--borderColor-default)', borderTop: '2px solid var(--borderColor-muted)', paddingTop: '12px' }}>
+        <div>
+          <h2 className="f2 color-fg-accent">Impact</h2>
+          <p className="f6 color-fg-muted">{impactDesc}</p>
+        </div>
+        <div className="d-flex flex-items-center" style={{ gap: '8px' }}>
+          <span className="f6 color-fg-muted">Method:</span>
+          <select className="form-select form-select-sm" value={method} onChange={e => onMethodChange(e.target.value)} style={{ width: 'auto', background: 'var(--bgColor-muted)', color: 'var(--fgColor-default)', border: '1px solid var(--borderColor-default)' }}>
+            {ESTIMATION_METHODS.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* Hero card + supporting cards */}
+      <div className="d-flex flex-wrap mb-3" style={{ gap: '12px', alignItems: 'stretch' }}>
+        <div style={{ flex: '0 0 200px' }}><KpiCard hero label="Total Hours Saved" value={fmtDec(totalHoursSaved, 0)} unit="hrs" sub={`across ${n} days`} color="#58a6ff" /></div>
+        <div style={{ flex: '1 1 0', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px' }}>
+          <KpiCard label="Org Hrs / Day" value={fmtDec(orgHrsSavedPerDay, 1)} unit="hrs" sub="all devs combined" />
+          <KpiCard label="Hrs / Dev / Day" value={fmtDec(avgHrsPerDevDay, 2)} unit="hrs" sub={pctTimeSavedPerDev != null ? fmtPct(pctTimeSavedPerDev) + ` of ${baselineHrsPerDay.toFixed(0)}h workday` : 'per active developer'} />
+          <KpiCard label="Economic Value" value={fmtCurrency(laborCost)} sub={laborCost != null ? `at $${config.cfg_labor_cost_per_hour}/hr` : 'set labor cost in config'} color="#3fb950" />
+        </div>
+      </div>
+
+      <div className="Box p-3">
+        <Chart options={chartOpts} />
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION B — DRIVERS
+   ═══════════════════════════════════════════════════════ */
+
+const DRIVER_SERIES = [
+  { key: 'user_initiated_interaction_count', perDev: 'interactions_per_active_dev', label: 'Interactions', color: '#58a6ff', scale: 1 },
+  { key: 'code_generation_activity_count', perDev: 'generations_per_active_dev', label: 'Suggestions', color: '#3fb950', scale: 1 },
+  { key: 'code_acceptance_activity_count', perDev: 'acceptances_per_active_dev', label: 'Accepts', color: '#d29922', scale: 1 },
+  { key: 'loc_added_sum', perDev: 'loc10_added_per_active_dev', label: 'LoC/10 Added', color: '#bc8cff', scale: 10 },
+  { key: 'agent_mode_interaction_count', perDev: 'agent_mode_per_active_dev', label: 'Agent Mode', color: '#f778ba', scale: 1 },
+  { key: 'cli_session_count', perDev: 'cli_sessions_per_active_dev', label: 'CLI Sessions', color: '#79c0ff', scale: 1 },
+];
+
+function DriversSection({ days, users, selectedUser }) {
+  const [toggles, setToggles] = useState(() => {
+    const t = {};
+    DRIVER_SERIES.forEach(s => t[s.key] = true);
+    return t;
+  });
+
+  const n = days.length;
+  const labels = days.map(d => d.day);
+  const sum = (k) => days.reduce((s, d) => s + (d[k] || 0), 0);
+  const avgDau = days.reduce((s, d) => s + d.daily_active_users, 0) / n;
+
+  const acceptRate = safeDiv(sum('code_acceptance_activity_count'), sum('code_generation_activity_count'));
+
+  // Build user day map
+  const userDayMap = {};
+  if (selectedUser && users) {
+    users.filter(u => u.user_login === selectedUser).forEach(u => { userDayMap[u.day] = u; });
+  }
+  const hasUserData = Object.keys(userDayMap).length > 0;
+
+  // Per-dev trend chart — only series with perDev field and toggled on
+  const perDevSeries = DRIVER_SERIES.filter(s => s.perDev && toggles[s.key]).map(s => ({
+    name: s.label + ' / Dev',
+    data: days.map(d => d[s.perDev] != null ? Math.round(d[s.perDev] * 100) / 100 : null),
+    color: s.color,
+  }));
+
+  // Individual user overlay series (dashed)
+  if (hasUserData) {
+    const USER_DRIVER_MAP = [
+      { key: 'user_initiated_interaction_count', label: 'Interactions', color: '#58a6ff', scale: 1 },
+      { key: 'code_generation_activity_count', label: 'Suggestions', color: '#3fb950', scale: 1 },
+      { key: 'code_acceptance_activity_count', label: 'Accepts', color: '#d29922', scale: 1 },
+      { key: 'loc_added_sum', label: 'LoC/10 Added', color: '#bc8cff', scale: 10 },
+      { key: 'agent_mode_interaction_count', label: 'Agent Mode', color: '#f778ba', scale: 1 },
+    ];
+    for (const s of USER_DRIVER_MAP) {
+      const driverDef = DRIVER_SERIES.find(ds => ds.key === s.key);
+      if (!driverDef || !driverDef.perDev || !toggles[s.key]) continue;
+      perDevSeries.push({
+        name: selectedUser + ' ' + s.label,
+        data: days.map(d => {
+          const u = userDayMap[d.day];
+          if (!u) return null;
+          return Math.round((u[s.key] / (s.scale || 1)) * 100) / 100;
+        }),
+        color: s.color,
+        dashStyle: 'Dash',
+        marker: { radius: 3, symbol: 'diamond' },
+        lineWidth: 2,
+      });
+    }
+  }
+
+  const trendOpts = {
+    chart: { type: 'spline', height: 320 },
+    title: { text: null },
+    xAxis: { categories: labels, labels: { rotation: -45, style: { fontSize: '10px' } } },
+    yAxis: { title: { text: 'Per Active Dev' }, min: 0 },
+    tooltip: { shared: true, valueDecimals: 2 },
+    series: perDevSeries,
+  };
+
+  // Activity profile bar — daily average per dev, with optional user comparison
+  const activeDrivers = DRIVER_SERIES.filter(s => s.perDev && toggles[s.key]);
+  const avgPerDevData = activeDrivers.map(s => {
+    const vals = days.map(d => d[s.perDev]).filter(v => v != null);
+    return vals.length ? Math.round((vals.reduce((a,b) => a+b, 0) / vals.length) * 100) / 100 : 0;
+  });
+
+  const userAvgData = hasUserData ? activeDrivers.map(s => {
+    const userDays = days.map(d => userDayMap[d.day]).filter(Boolean);
+    if (!userDays.length) return 0;
+    const vals = userDays.map(u => u[s.key] / (s.scale || 1));
+    return Math.round((vals.reduce((a,b) => a+b, 0) / vals.length) * 100) / 100;
+  }) : null;
+
+  const profileSeries = [
+    { name: 'Org Avg / Dev / Day', data: avgPerDevData.map((y, i) => ({ y, color: activeDrivers[i].color })) },
+  ];
+  if (userAvgData) {
+    profileSeries.push({
+      name: selectedUser + ' Avg / Day',
+      data: userAvgData.map((y, i) => ({ y, color: 'transparent', borderColor: activeDrivers[i].color })),
+      borderWidth: 2,
+      dashStyle: 'Dash',
+    });
+  }
+
+  const barHeight = Math.max(200, activeDrivers.length * (hasUserData ? 60 : 44) + 80);
+  const totalsOpts = {
+    chart: { type: 'bar', height: barHeight },
+    title: { text: null },
+    xAxis: { categories: activeDrivers.map(s => s.label), labels: { style: { fontSize: '12px' } } },
+    yAxis: { title: { text: 'Daily Avg' } },
+    tooltip: { shared: true, valueSuffix: ' / day', valueDecimals: 1 },
+    plotOptions: { bar: { borderRadius: 3, groupPadding: 0.15, dataLabels: { enabled: true, format: '{y:,.1f}', style: { color: '#e6edf3', textOutline: 'none', fontSize: '11px' } } } },
+    series: profileSeries,
+  };
+
+  const toggle = (key) => setToggles(prev => ({ ...prev, [key]: !prev[key] }));
+
+  return (
+    <div className="section-row">
+      <SectionHeader title="Drivers" desc="Activity Levels for Upstream Drivers" />
+
+      {/* KPIs */}
+      <div className="d-flex flex-wrap mb-3" style={{ gap: '12px' }}>
+        <div style={{ flex: '1 1 150px' }}><KpiCard label="Active Devs / Day" value={fmt(Math.round(avgDau))} unit="avg" sub={`across ${n} days`} /></div>
+        <div style={{ flex: '1 1 150px' }}><KpiCard label="Total Interactions" value={fmtCompact(sum('user_initiated_interaction_count'))} sub={fmtDec(safeDiv(sum('user_initiated_interaction_count'), n), 0) + ' / day'} /></div>
+        <div style={{ flex: '1 1 150px' }}><KpiCard label="LoC Added" value={fmtCompact(sum('loc_added_sum'))} sub={fmtDec(safeDiv(sum('loc_added_sum'), n), 0) + ' / day'} color="#bc8cff" /></div>
+      </div>
+
+      {/* Toggle checkboxes — only series with data */}
+      <div className="d-flex flex-items-center flex-wrap mb-3 px-2" style={{ gap: '12px' }}>
+        <span className="f6 color-fg-muted text-bold">Show:</span>
+        <div className="driver-toggles">
+          {DRIVER_SERIES.filter(s => s.perDev && sum(s.key) > 0).map(s => (
+            <label key={s.key} className="color-fg-default">
+              <input type="checkbox" checked={toggles[s.key]} onChange={() => toggle(s.key)} />
+              <span className="ml-1" style={{ color: s.color }}>●</span> {s.label}
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Charts */}
+      <div className="d-flex flex-wrap" style={{ gap: '16px' }}>
+        <div className="Box p-3" style={{ flex: '2 1 480px' }}>
+          <h4 className="f6 color-fg-muted mb-1">Daily Trend — Per Active Developer</h4>
+          <Chart options={trendOpts} />
+        </div>
+        <div className="Box p-3" style={{ flex: '1 1 300px' }}>
+          <h4 className="f6 color-fg-muted mb-1">Daily Avg / Dev{selectedUser ? ` vs ${selectedUser}` : ''}</h4>
+          <Chart options={totalsOpts} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION C — CONFIDENCE
+   ═══════════════════════════════════════════════════════ */
+function ConfidenceSection({ days, recon, config, method, onMethodChange }) {
+  const n = days.length;
+  const userDaysPresent = new Set(recon.map(r => r.day)).size;
+
+  const statusCounts = { match: 0, minor_difference: 0, material_difference: 0, missing_user_data: 0 };
+  for (const r of recon) statusCounts[r.status] = (statusCounts[r.status] || 0) + 1;
+  const total = recon.length;
+
+  const [showDetail, setShowDetail] = useState(false);
+
+  const methodDef = ESTIMATION_METHODS.find(m => m.key === method) || ESTIMATION_METHODS[0];
+
+  // All-methods comparison: avg hrs/dev/day for each method
+  const methodComparison = ESTIMATION_METHODS.map(m => {
+    const field = 'est_' + m.key + '_hrs_per_dev_day';
+    const vals = days.map(d => d[field]).filter(v => v != null);
+    const avg = vals.length ? vals.reduce((a,b) => a+b, 0) / vals.length : null;
+    const totalField = 'est_' + m.key + '_hrs_day';
+    const totalHrs = days.reduce((s, d) => s + (d[totalField] || 0), 0);
+    const needsCfg = m.key === 'manual_daily_pct' && (config.cfg_time_saved_pct_day == null || config.cfg_baseline_hours_per_dev_per_week == null);
+    return { ...m, avgPerDevDay: avg, totalHrs, needsCfg, isSelected: m.key === method };
+  });
+
+  return (
+    <div className="section-row">
+      <SectionHeader title="Confidence" desc="How the estimate is made, what it assumes, and how reliable the underlying data is." />
+      <div className="confidence-grid">
+
+        {/* Left — Method & Assumptions */}
+        <div className="Box p-3">
+          <h4 className="f5 mb-2">Estimation Method</h4>
+
+          <div className="d-flex flex-items-center mb-2" style={{ gap: '8px' }}>
+            <span className="Label Label--accent">{methodDef.key}</span>
+            <span className="f6 color-fg-muted">{methodDef.descFn(config)}</span>
+          </div>
+          <p className="f6 color-fg-muted mb-3" style={{ fontFamily: 'monospace', background: 'var(--bgColor-muted)', padding: '8px', borderRadius: '6px' }}>
+            {methodDef.formulaFn(config)}
+          </p>
+
+          {method === 'manual_daily_pct' && (
+            <>
+              <h5 className="f6 color-fg-muted text-bold mb-1">Configured Values</h5>
+              <table className="width-full f6">
+                <tbody>
+                  <tr><td className="color-fg-muted py-1">Time Saved % (daily)</td><td className="py-1 text-bold">{config.cfg_time_saved_pct_day != null ? fmtPct(config.cfg_time_saved_pct_day) : '—'}</td></tr>
+                  <tr><td className="color-fg-muted py-1">Baseline Hours / Dev / Week</td><td className="py-1 text-bold">{config.cfg_baseline_hours_per_dev_per_week ?? '—'}</td></tr>
+                </tbody>
+              </table>
+            </>
+          )}
+
+          <h5 className="f6 color-fg-muted text-bold mt-3 mb-1">Shared Configuration</h5>
+          <table className="width-full f6">
+            <tbody>
+              <tr><td className="color-fg-muted py-1">Workdays / Week</td><td className="py-1 text-bold">{config.cfg_workdays_per_week ?? 5}</td></tr>
+              <tr><td className="color-fg-muted py-1">Labor Cost / Hour</td><td className="py-1 text-bold">{config.cfg_labor_cost_per_hour != null ? fmtCurrency(config.cfg_labor_cost_per_hour) : '—'}</td></tr>
+            </tbody>
+          </table>
+
+          <h5 className="f6 color-fg-muted text-bold mt-3 mb-1">Definitions</h5>
+          <p className="f6 color-fg-muted"><strong>Interactions-Based:</strong> 1 hour of time saved per {config.est_interactions_per_hour || 20} user-initiated interactions.</p>
+          <p className="f6 color-fg-muted"><strong>LoC-Based:</strong> {config.est_hrs_per_kloc || 2} hours of time saved per 1,000 lines of code added.</p>
+          <p className="f6 color-fg-muted"><strong>Active Dev:</strong> daily_active_users from Copilot enterprise telemetry.</p>
+        </div>
+
+        {/* Right — Data Quality */}
+        <div className="Box p-3">
+          <h4 className="f5 mb-2">Data Quality</h4>
+
+          {/* All methods comparison */}
+          <h5 className="f6 color-fg-muted text-bold mb-2">Method Comparison</h5>
+          <table className="width-full f6 mb-3">
+            <thead>
+              <tr>
+                <th className="color-fg-muted py-1 f6" style={{ fontWeight: 500 }}>Method</th>
+                <th className="color-fg-muted py-1 f6 text-right" style={{ fontWeight: 500 }}>Avg Hrs/Dev/Day</th>
+                <th className="color-fg-muted py-1 f6 text-right" style={{ fontWeight: 500 }}>Total Hrs ({n}d)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {methodComparison.map(m => (
+                <tr key={m.key} className={m.isSelected ? 'method-row-selected' : ''}>
+                  <td className="py-1" style={{ paddingLeft: m.isSelected ? '9px' : '12px' }}>
+                    {m.isSelected && <span style={{ color: '#58a6ff', marginRight: '4px' }}>●</span>}
+                    {m.label}
+                    {m.needsCfg && <span className="Label Label--secondary ml-1" style={{ fontSize: '0.6rem' }}>needs config</span>}
+                  </td>
+                  <td className="py-1 text-right text-bold">{m.needsCfg ? '—' : fmtDec(m.avgPerDevDay, 2)}</td>
+                  <td className="py-1 text-right">{m.needsCfg ? '—' : fmtDec(m.totalHrs, 0)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <h5 className="f6 color-fg-muted text-bold mb-1">Coverage</h5>
+          <div className="d-flex flex-justify-between f6 py-1"><span className="color-fg-muted">Days Loaded</span><span>{n} / 28</span></div>
+          <div className="d-flex flex-justify-between f6 py-1"><span className="color-fg-muted">Enterprise Days</span><span>{n}</span></div>
+          <div className="d-flex flex-justify-between f6 py-1 mb-3"><span className="color-fg-muted">User Days (reconciliation)</span><span>{userDaysPresent}</span></div>
+
+          <h5 className="f6 color-fg-muted text-bold mb-2">Reconciliation</h5>
+          <div className="d-flex flex-wrap" style={{ gap: '8px' }}>
+            <ReconBadge label="Match" count={statusCounts.match} cls="status-match" />
+            <ReconBadge label="Minor" count={statusCounts.minor_difference} cls="status-minor" />
+            <ReconBadge label="Material" count={statusCounts.material_difference} cls="status-material" />
+            <ReconBadge label="Missing" count={statusCounts.missing_user_data} cls="status-missing" />
+          </div>
+          <p className="f6 color-fg-muted mt-2">{total} checks across {n} days × {n > 0 ? Math.round(total / n) : 0} metrics</p>
+
+          <button className="btn btn-sm btn-outline mt-3" onClick={() => setShowDetail(!showDetail)}>
+            {showDetail ? 'Hide' : 'Show'} Reconciliation Detail
+          </button>
+        </div>
+      </div>
+
+      {/* Reconciliation detail table */}
+      {showDetail && (
+        <div className="Box mt-3" style={{ overflow: 'auto', maxHeight: '400px' }}>
+          <table className="width-full f6">
+            <thead>
+              <tr>
+                <th className="color-fg-muted p-2">Day</th>
+                <th className="color-fg-muted p-2">Metric</th>
+                <th className="color-fg-muted p-2 text-right">Enterprise</th>
+                <th className="color-fg-muted p-2 text-right">User Sum</th>
+                <th className="color-fg-muted p-2 text-right">Diff %</th>
+                <th className="color-fg-muted p-2">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recon.map((r, i) => (
+                <tr key={i}>
+                  <td className="p-2">{r.day}</td>
+                  <td className="p-2">{r.label}</td>
+                  <td className="p-2 text-right">{fmt(r.enterprise)}</td>
+                  <td className="p-2 text-right">{fmt(r.user_sum)}</td>
+                  <td className="p-2 text-right">{r.pct != null ? fmtPct(r.pct) : '—'}</td>
+                  <td className="p-2"><StatusLabel status={r.status} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReconBadge({ label, count, cls }) {
+  return (
+    <div className="Box text-center px-3 py-2" style={{ minWidth: '80px' }}>
+      <div className={`f3 text-bold ${cls}`}>{count}</div>
+      <div className="f6 color-fg-muted">{label}</div>
+    </div>
+  );
+}
+
+function StatusLabel({ status }) {
+  const map = {
+    match: { cls: 'Label--success', text: 'Match' },
+    minor_difference: { cls: 'Label--attention', text: 'Minor' },
+    material_difference: { cls: 'Label--danger', text: 'Material' },
+    missing_user_data: { cls: 'Label--secondary', text: 'Missing' },
+    not_comparable: { cls: 'Label--secondary', text: 'N/A' },
+  };
+  const m = map[status] || map.not_comparable;
+  return <span className={`Label ${m.cls}`}>{m.text}</span>;
+}
+
+/* ── Section Header ── */
+function SectionHeader({ title, desc }) {
+  return (
+    <div className="mb-3 pb-2" style={{ borderBottom: '1px solid var(--borderColor-default)', borderTop: '2px solid var(--borderColor-muted)', paddingTop: '12px' }}>
+      <h2 className="f2 color-fg-accent">{title}</h2>
+      <p className="f6 color-fg-muted">{desc}</p>
+    </div>
+  );
+}
+
+/* ── Source summary bar ── */
+function SourceSummary({ data }) {
+  const { enterprise, users, recon, fileNames } = data;
+  const n = enterprise.length;
+  const range = n > 0 ? `${enterprise[0].day} → ${enterprise[n-1].day}` : 'none';
+  return (
+    <div className="flash flash-success f6 mb-3">
+      <strong>{fileNames.join(', ')}</strong> loaded · {n} enterprise days ({range}) · {users.length} user-day records · {recon.length} reconciliation checks
+    </div>
+  );
+}
+
+/* ── Developer Search ── */
+function DevSearch({ users, selectedUser, onSelect }) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const logins = React.useMemo(() => [...new Set(users.map(u => u.user_login))].sort(), [users]);
+  const filtered = query ? logins.filter(l => l.toLowerCase().includes(query.toLowerCase())).slice(0, 10) : logins.slice(0, 10);
+
+  const select = (login) => { onSelect(login); setQuery(''); setOpen(false); };
+  const clear = () => { onSelect(null); setQuery(''); };
+
+  if (!users.length) return null;
+
+  return (
+    <div className="d-flex flex-items-center mb-3" style={{ gap: '8px', position: 'relative' }}>
+      <span className="f6 color-fg-muted text-bold">Developer:</span>
+      <span className="f6 color-fg-muted" style={{ fontStyle: 'italic' }}>Overlay individual developer data to compare to Org averages</span>
+      {selectedUser ? (
+        <div className="d-flex flex-items-center" style={{ gap: '6px' }}>
+          <span className="Label Label--accent">{selectedUser}</span>
+          <button className="btn-octicon" onClick={clear} title="Clear" style={{ color: 'var(--fgColor-muted)', cursor: 'pointer', background: 'none', border: 'none', fontSize: '14px' }}>✕</button>
+        </div>
+      ) : (
+        <div style={{ position: 'relative', width: '220px' }}>
+          <input
+            type="text" className="form-control input-sm" placeholder="Search by login…"
+            value={query} onChange={e => { setQuery(e.target.value); setOpen(true); }}
+            onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
+          />
+          {open && filtered.length > 0 && (
+            <div className="Box color-shadow-large" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, maxHeight: '200px', overflow: 'auto' }}>
+              {filtered.map(l => (
+                <div key={l} className="Box-row px-3 py-1 f6" style={{ cursor: 'pointer' }} onMouseDown={() => select(l)}>
+                  {l}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {selectedUser && <span className="f6 color-fg-muted">(dashed lines on charts)</span>}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   APP
+   ═══════════════════════════════════════════════════════ */
+function App() {
+  const [data, setData] = useState(null);
+  const [config, setConfig] = useState({ cfg_time_saved_pct_day: null, cfg_baseline_hours_per_dev_per_week: null, cfg_workdays_per_week: 5, cfg_labor_cost_per_hour: null, est_interactions_per_hour: 20, est_hrs_per_kloc: 2 });
+  const [configOpen, setConfigOpen] = useState(false);
+  const [method, setMethod] = useState('interactions');
+  const [selectedUser, setSelectedUser] = useState(null);
+  // Recompute derived fields whenever method or config changes
+  const recompute = useCallback((baseEnterprise, cfg, m) => {
+    return computeDerived(baseEnterprise, cfg, m);
+  }, []);
+
+  const handleData = useCallback((d) => {
+    // Store raw (un-derived) enterprise days for recomputation
+    const enriched = computeDerived(d.enterprise, d.config, method);
+    setData({ ...d, enterprise: enriched, baseEnterprise: d.enterprise });
+    setConfig(d.config);
+  }, [method]);
+
+  const handleMethodChange = useCallback((newMethod) => {
+    setMethod(newMethod);
+    if (data) {
+      const enriched = recompute(data.baseEnterprise, config, newMethod);
+      setData(prev => ({ ...prev, enterprise: enriched }));
+    }
+  }, [data, config, recompute]);
+
+  const handleConfigApply = useCallback((newCfg) => {
+    setConfig(newCfg);
+    if (data) {
+      const enriched = recompute(data.baseEnterprise, newCfg, method);
+      setData(prev => ({ ...prev, enterprise: enriched, config: newCfg }));
+    }
+  }, [data, method, recompute]);
+
+  return (
+    <div className="efficiency-page">
+      <div className="mb-4">
+        <h1 className="f1">AI Assisted Coding</h1>
+        <p className="f4 color-fg-muted">Understand how Individual Efficiency is improving</p>
+      </div>
+
+      <UploadPanel onData={handleData} />
+
+      {data && (
+        <>
+          <SourceSummary data={data} />
+          <DevSearch users={data.users} selectedUser={selectedUser} onSelect={setSelectedUser} />
+          <ImpactSection days={data.enterprise} config={config} method={method} onMethodChange={handleMethodChange} users={data.users} selectedUser={selectedUser} />
+          <DriversSection days={data.enterprise} users={data.users} selectedUser={selectedUser} />
+          <ConfidenceSection days={data.enterprise} recon={data.recon} config={config} method={method} onMethodChange={handleMethodChange} />
+          <ConfigPanel config={config} onApply={handleConfigApply} isOpen={configOpen} onToggle={() => setConfigOpen(o => !o)} />
+        </>
+      )}
+
+      {!data && (
+        <div className="Box p-5 text-center color-fg-muted">
+          <p className="f3 mb-2">No data loaded</p>
+          <p className="f5">Upload an AI Assisted Coding source JSON above to build the efficiency view.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

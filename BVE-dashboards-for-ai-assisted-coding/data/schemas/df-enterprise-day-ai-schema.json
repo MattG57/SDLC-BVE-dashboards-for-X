@@ -1,0 +1,720 @@
+{
+  "_meta": {
+    "area": "AI Assisted Coding",
+    "goal": "Time Efficiency Impact",
+    "window": "28d",
+    "scope": "enterprise",
+    "dataframe": "df_enterprise_day",
+    "grain": "one row per enterprise day",
+    "file_role": "df_enterprise_day_ai_schema_json",
+    "merge_strategy": "single_only",
+    "description": "Enterprise daily telemetry extended with context, configured daily inputs, and derived fields used by the Time Efficiency dashboard."
+  },
+  "field_categories": {
+    "source": "Directly present in enterprise telemetry.",
+    "flattened_source": "Flattened from nested enterprise telemetry objects.",
+    "context": "Injected from query/page context, not present in telemetry.",
+    "configured": "Provided from external config or testing inputs.",
+    "derived": "Calculated from source and/or configured fields."
+  },
+  "fields": {
+    "day": {
+      "category": "source",
+      "type": "date",
+      "source": "enterprise_report.day_totals[*].day",
+      "purpose": "Primary daily key for the enterprise trend series.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "all_rows",
+        "joins",
+        "trend_charts"
+      ],
+      "notes": "One row per day in the selected 28-day enterprise window."
+    },
+    "enterprise_id": {
+      "category": "source",
+      "type": "string",
+      "source": "enterprise_report.day_totals[*].enterprise_id",
+      "purpose": "Enterprise identifier from telemetry.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "joins",
+        "debugging"
+      ],
+      "notes": "Kept as source identifier."
+    },
+    "report_start_day": {
+      "category": "context",
+      "type": "date",
+      "source": "selected/report window context",
+      "purpose": "Start of the report window used to build the dataframe.",
+      "calculation": "Injected from selected report/window context.",
+      "dependencies": [],
+      "required_for": [
+        "documentation",
+        "auditing"
+      ],
+      "notes": "Not present in enterprise day_totals payload."
+    },
+    "report_end_day": {
+      "category": "context",
+      "type": "date",
+      "source": "selected/report window context",
+      "purpose": "End of the report window used to build the dataframe.",
+      "calculation": "Injected from selected report/window context.",
+      "dependencies": [],
+      "required_for": [
+        "documentation",
+        "auditing"
+      ],
+      "notes": "Not present in enterprise day_totals payload."
+    },
+    "enterprise_slug": {
+      "category": "context",
+      "type": "string",
+      "source": "query/runtime context",
+      "purpose": "Human-meaningful enterprise key used by the query layer.",
+      "calculation": "Injected from runtime/query context.",
+      "dependencies": [],
+      "required_for": [
+        "documentation",
+        "debugging"
+      ],
+      "notes": "Optional if only enterprise_id is needed."
+    },
+    "scope_type": {
+      "category": "context",
+      "type": "string",
+      "source": "page/model context",
+      "purpose": "Normalized scope label for downstream logic.",
+      "calculation": "Constant value: 'enterprise'.",
+      "dependencies": [],
+      "required_for": [
+        "page_logic",
+        "future_generalization"
+      ],
+      "notes": "Allows the same dashboard logic to extend later to org/team/repo scopes."
+    },
+    "scope_key": {
+      "category": "context",
+      "type": "string",
+      "source": "page/model context",
+      "purpose": "Normalized scope identifier used by shared logic.",
+      "calculation": "Typically enterprise_slug or enterprise_id.",
+      "dependencies": [
+        "enterprise_slug",
+        "enterprise_id"
+      ],
+      "required_for": [
+        "page_logic",
+        "future_generalization"
+      ],
+      "notes": "Useful for a common cross-scope model."
+    },
+    "daily_active_users": {
+      "category": "source",
+      "type": "integer",
+      "source": "enterprise_report.day_totals[*].daily_active_users",
+      "purpose": "Raw daily count of active Copilot users.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "row2_col1",
+        "row1_col2",
+        "denominators",
+        "reconciliation"
+      ],
+      "notes": "Natural enterprise-level denominator for daily per-active-dev normalization."
+    },
+    "daily_active_cli_users": {
+      "category": "source",
+      "type": "integer",
+      "source": "enterprise_report.day_totals[*].daily_active_cli_users",
+      "purpose": "Raw daily count of active CLI users.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "supporting_telemetry"
+      ],
+      "notes": "May be null or absent on some days."
+    },
+    "weekly_active_users": {
+      "category": "source",
+      "type": "integer",
+      "source": "enterprise_report.day_totals[*].weekly_active_users",
+      "purpose": "Weekly active user count as reported on each day.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "supporting_context"
+      ],
+      "notes": "Useful context but not the primary denominator for daily normalization."
+    },
+    "monthly_active_users": {
+      "category": "source",
+      "type": "integer",
+      "source": "enterprise_report.day_totals[*].monthly_active_users",
+      "purpose": "Monthly active user count as reported on each day.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "supporting_context",
+        "documentation"
+      ],
+      "notes": "Used more for adoption context than daily efficiency math."
+    },
+    "monthly_active_chat_users": {
+      "category": "source",
+      "type": "integer",
+      "source": "enterprise_report.day_totals[*].monthly_active_chat_users",
+      "purpose": "Monthly active chat users as reported on each day.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "supporting_context"
+      ],
+      "notes": "Useful later for structure and chat share context."
+    },
+    "monthly_active_agent_users": {
+      "category": "source",
+      "type": "integer",
+      "source": "enterprise_report.day_totals[*].monthly_active_agent_users",
+      "purpose": "Monthly active agent users as reported on each day.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "supporting_context"
+      ],
+      "notes": "Useful later for structure and agent share context."
+    },
+    "user_initiated_interaction_count": {
+      "category": "source",
+      "type": "integer",
+      "source": "enterprise_report.day_totals[*].user_initiated_interaction_count",
+      "purpose": "Raw daily user-initiated interaction count.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "row2_col1",
+        "row2_col2",
+        "row3_col1",
+        "reconciliation"
+      ],
+      "notes": "Included because it exists at both enterprise and user-day grain."
+    },
+    "code_generation_activity_count": {
+      "category": "source",
+      "type": "integer",
+      "source": "enterprise_report.day_totals[*].code_generation_activity_count",
+      "purpose": "Raw daily code generation activity count.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "row2_col1",
+        "row2_col2",
+        "row3_col1",
+        "reconciliation"
+      ],
+      "notes": "Included because it exists at both enterprise and user-day grain."
+    },
+    "code_acceptance_activity_count": {
+      "category": "source",
+      "type": "integer",
+      "source": "enterprise_report.day_totals[*].code_acceptance_activity_count",
+      "purpose": "Raw daily code acceptance activity count.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "row2_col1",
+        "row2_col2",
+        "row3_col1",
+        "reconciliation"
+      ],
+      "notes": "Included because it exists at both enterprise and user-day grain."
+    },
+    "loc_suggested_to_add_sum": {
+      "category": "source",
+      "type": "integer",
+      "source": "enterprise_report.day_totals[*].loc_suggested_to_add_sum",
+      "purpose": "Raw daily suggested added lines of code.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "row2_col1",
+        "row2_col2",
+        "reconciliation"
+      ],
+      "notes": "Included because it exists at both enterprise and user-day grain."
+    },
+    "loc_suggested_to_delete_sum": {
+      "category": "source",
+      "type": "integer",
+      "source": "enterprise_report.day_totals[*].loc_suggested_to_delete_sum",
+      "purpose": "Raw daily suggested deleted lines of code.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "row2_col1",
+        "row2_col2",
+        "reconciliation"
+      ],
+      "notes": "Often zero in the sample data but should still be preserved."
+    },
+    "loc_added_sum": {
+      "category": "source",
+      "type": "integer",
+      "source": "enterprise_report.day_totals[*].loc_added_sum",
+      "purpose": "Raw daily added lines of code under Copilot-related flows.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "row2_col1",
+        "row2_col2",
+        "row3_col1",
+        "reconciliation"
+      ],
+      "notes": "Also used for daily Copilot LoC share calculations."
+    },
+    "loc_deleted_sum": {
+      "category": "source",
+      "type": "integer",
+      "source": "enterprise_report.day_totals[*].loc_deleted_sum",
+      "purpose": "Raw daily deleted lines of code under Copilot-related flows.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "row2_col1",
+        "row2_col2",
+        "reconciliation"
+      ],
+      "notes": "Included because it exists at both enterprise and user-day grain."
+    },
+    "pr_total_reviewed": {
+      "category": "flattened_source",
+      "type": "integer",
+      "source": "enterprise_report.day_totals[*].pull_requests.total_reviewed",
+      "purpose": "Flattened PR reviewed count.",
+      "calculation": "Flatten from pull_requests.total_reviewed.",
+      "dependencies": [],
+      "required_for": [
+        "supporting_context"
+      ],
+      "notes": "Optional for first page, but useful for later correlation."
+    },
+    "pr_total_created": {
+      "category": "flattened_source",
+      "type": "integer",
+      "source": "enterprise_report.day_totals[*].pull_requests.total_created",
+      "purpose": "Flattened PR created count.",
+      "calculation": "Flatten from pull_requests.total_created.",
+      "dependencies": [],
+      "required_for": [
+        "supporting_context"
+      ],
+      "notes": "Optional for first page."
+    },
+    "pr_total_created_by_copilot": {
+      "category": "flattened_source",
+      "type": "integer",
+      "source": "enterprise_report.day_totals[*].pull_requests.total_created_by_copilot",
+      "purpose": "Flattened Copilot-authored PR count.",
+      "calculation": "Flatten from pull_requests.total_created_by_copilot.",
+      "dependencies": [],
+      "required_for": [
+        "supporting_context"
+      ],
+      "notes": "Optional for first page."
+    },
+    "pr_total_reviewed_by_copilot": {
+      "category": "flattened_source",
+      "type": "integer",
+      "source": "enterprise_report.day_totals[*].pull_requests.total_reviewed_by_copilot",
+      "purpose": "Flattened Copilot-reviewed PR count.",
+      "calculation": "Flatten from pull_requests.total_reviewed_by_copilot.",
+      "dependencies": [],
+      "required_for": [
+        "supporting_context"
+      ],
+      "notes": "Optional for first page."
+    },
+    "cli_session_count": {
+      "category": "flattened_source",
+      "type": "integer",
+      "source": "enterprise_report.day_totals[*].totals_by_cli.session_count",
+      "purpose": "Flattened CLI session count.",
+      "calculation": "Flatten from totals_by_cli.session_count.",
+      "dependencies": [],
+      "required_for": [
+        "supporting_telemetry"
+      ],
+      "notes": "Optional for the first row-2 trend set."
+    },
+    "cli_request_count": {
+      "category": "flattened_source",
+      "type": "integer",
+      "source": "enterprise_report.day_totals[*].totals_by_cli.request_count",
+      "purpose": "Flattened CLI request count.",
+      "calculation": "Flatten from totals_by_cli.request_count.",
+      "dependencies": [],
+      "required_for": [
+        "supporting_telemetry"
+      ],
+      "notes": "Optional for the first row-2 trend set."
+    },
+    "copilot_active_devs_day": {
+      "category": "derived",
+      "type": "integer",
+      "source": "daily_active_users",
+      "purpose": "Standardized daily denominator for normalization and aggregate impact math.",
+      "calculation": "copilot_active_devs_day = daily_active_users",
+      "dependencies": [
+        "daily_active_users"
+      ],
+      "required_for": [
+        "row1_col1",
+        "row1_col2",
+        "row2_col1",
+        "row3_col1",
+        "reconciliation"
+      ],
+      "notes": "Semantic alias of daily_active_users for dashboard formulas."
+    },
+    "copilot_active_denominator_rule": {
+      "category": "context",
+      "type": "string",
+      "source": "page/model context",
+      "purpose": "Documents how active denominator was chosen.",
+      "calculation": "Constant value for now: 'daily_active_users'.",
+      "dependencies": [],
+      "required_for": [
+        "documentation",
+        "auditing"
+      ],
+      "notes": "Useful when later scopes compute active devs from user-day rows."
+    },
+    "interactions_per_active_dev": {
+      "category": "derived",
+      "type": "number",
+      "source": "derived from enterprise telemetry",
+      "purpose": "Normalized daily interaction intensity per active Copilot developer.",
+      "calculation": "user_initiated_interaction_count / copilot_active_devs_day",
+      "dependencies": [
+        "user_initiated_interaction_count",
+        "copilot_active_devs_day"
+      ],
+      "required_for": [
+        "row2_col1"
+      ],
+      "notes": "Null when denominator is zero."
+    },
+    "generations_per_active_dev": {
+      "category": "derived",
+      "type": "number",
+      "source": "derived from enterprise telemetry",
+      "purpose": "Normalized daily code generation intensity per active Copilot developer.",
+      "calculation": "code_generation_activity_count / copilot_active_devs_day",
+      "dependencies": [
+        "code_generation_activity_count",
+        "copilot_active_devs_day"
+      ],
+      "required_for": [
+        "row2_col1"
+      ],
+      "notes": "Null when denominator is zero."
+    },
+    "acceptances_per_active_dev": {
+      "category": "derived",
+      "type": "number",
+      "source": "derived from enterprise telemetry",
+      "purpose": "Normalized daily code acceptance intensity per active Copilot developer.",
+      "calculation": "code_acceptance_activity_count / copilot_active_devs_day",
+      "dependencies": [
+        "code_acceptance_activity_count",
+        "copilot_active_devs_day"
+      ],
+      "required_for": [
+        "row2_col1"
+      ],
+      "notes": "Null when denominator is zero."
+    },
+    "loc_suggested_add_per_active_dev": {
+      "category": "derived",
+      "type": "number",
+      "source": "derived from enterprise telemetry",
+      "purpose": "Normalized daily suggested added LoC per active Copilot developer.",
+      "calculation": "loc_suggested_to_add_sum / copilot_active_devs_day",
+      "dependencies": [
+        "loc_suggested_to_add_sum",
+        "copilot_active_devs_day"
+      ],
+      "required_for": [
+        "row2_col1"
+      ],
+      "notes": "Null when denominator is zero."
+    },
+    "loc_suggested_delete_per_active_dev": {
+      "category": "derived",
+      "type": "number",
+      "source": "derived from enterprise telemetry",
+      "purpose": "Normalized daily suggested deleted LoC per active Copilot developer.",
+      "calculation": "loc_suggested_to_delete_sum / copilot_active_devs_day",
+      "dependencies": [
+        "loc_suggested_to_delete_sum",
+        "copilot_active_devs_day"
+      ],
+      "required_for": [
+        "row2_col1"
+      ],
+      "notes": "Null when denominator is zero."
+    },
+    "loc_added_per_active_dev": {
+      "category": "derived",
+      "type": "number",
+      "source": "derived from enterprise telemetry",
+      "purpose": "Normalized daily added LoC per active Copilot developer.",
+      "calculation": "loc_added_sum / copilot_active_devs_day",
+      "dependencies": [
+        "loc_added_sum",
+        "copilot_active_devs_day"
+      ],
+      "required_for": [
+        "row2_col1"
+      ],
+      "notes": "Null when denominator is zero."
+    },
+    "loc_deleted_per_active_dev": {
+      "category": "derived",
+      "type": "number",
+      "source": "derived from enterprise telemetry",
+      "purpose": "Normalized daily deleted LoC per active Copilot developer.",
+      "calculation": "loc_deleted_sum / copilot_active_devs_day",
+      "dependencies": [
+        "loc_deleted_sum",
+        "copilot_active_devs_day"
+      ],
+      "required_for": [
+        "row2_col1"
+      ],
+      "notes": "Null when denominator is zero."
+    },
+    "acceptance_rate": {
+      "category": "derived",
+      "type": "number",
+      "source": "derived from enterprise telemetry",
+      "purpose": "Daily acceptance ratio for Copilot generation activity.",
+      "calculation": "code_acceptance_activity_count / code_generation_activity_count",
+      "dependencies": [
+        "code_acceptance_activity_count",
+        "code_generation_activity_count"
+      ],
+      "required_for": [
+        "row2_col2",
+        "supporting_context"
+      ],
+      "notes": "Null when code_generation_activity_count is zero."
+    },
+    "cfg_total_dev_loc_added_day": {
+      "category": "configured",
+      "type": "integer",
+      "source": "external daily configuration",
+      "purpose": "Configured daily total developer added LoC for comparison/testing mode.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "row3_col1",
+        "row4",
+        "copilot_loc_share_of_total_dev_loc_day"
+      ],
+      "notes": "Placeholder until real daily total developer LoC is sourced."
+    },
+    "cfg_time_saved_pct_day": {
+      "category": "configured",
+      "type": "number",
+      "source": "external daily configuration",
+      "purpose": "Configured daily time-saved percentage used for test-mode visibility.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "row1_col1",
+        "row1_col2",
+        "row3_col1",
+        "row4"
+      ],
+      "notes": "Placeholder until real estimation methods are implemented day by day."
+    },
+    "cfg_baseline_hours_per_dev_per_week": {
+      "category": "configured",
+      "type": "number",
+      "source": "external configuration",
+      "purpose": "Baseline weekly hours used to convert time-saved percent into weekly hours per active developer.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "row1_col1",
+        "row1_col2",
+        "row3_col1",
+        "row4"
+      ],
+      "notes": "For testing, likely represents coding hours per developer per week."
+    },
+    "cfg_workdays_per_week": {
+      "category": "configured",
+      "type": "number",
+      "source": "external configuration",
+      "purpose": "Converts weekly per-dev hours into daily aggregate impact.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "row1_col2",
+        "row4"
+      ],
+      "notes": "Default likely 5."
+    },
+    "cfg_time_saved_input_mode": {
+      "category": "configured",
+      "type": "string",
+      "source": "external configuration",
+      "purpose": "Documents the current estimation mode driving the page.",
+      "calculation": "Example value: 'manual_daily_pct'.",
+      "dependencies": [],
+      "required_for": [
+        "row3_col2",
+        "row4"
+      ],
+      "notes": "Useful while transitioning from test mode to implemented methods."
+    },
+    "cfg_labor_cost_per_hour": {
+      "category": "configured",
+      "type": "number",
+      "source": "external configuration",
+      "purpose": "Fully loaded hourly labor cost used to convert time saved into a dollar equivalent.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "row1_right",
+        "labor_cost_equivalent_28d"
+      ],
+      "notes": "Applied once per period, not per day. Example: 75.00 for $75/hr fully loaded."
+    },
+    "time_saved_hours_per_active_dev_per_week": {
+      "category": "derived",
+      "type": "number",
+      "source": "derived from configured daily test inputs",
+      "purpose": "Primary normalized outcome metric shown in row 1 col 1.",
+      "calculation": "cfg_time_saved_pct_day * cfg_baseline_hours_per_dev_per_week",
+      "dependencies": [
+        "cfg_time_saved_pct_day",
+        "cfg_baseline_hours_per_dev_per_week"
+      ],
+      "required_for": [
+        "row1_col1",
+        "row1_col2"
+      ],
+      "notes": "Displayed daily, but unit is hours saved per active dev per week."
+    },
+    "time_saved_hours_per_active_dev_per_day": {
+      "category": "derived",
+      "type": "number",
+      "source": "derived from configured daily test inputs",
+      "purpose": "Daily per-active-dev time-saved value used in aggregate calculations.",
+      "calculation": "time_saved_hours_per_active_dev_per_week / cfg_workdays_per_week",
+      "dependencies": [
+        "time_saved_hours_per_active_dev_per_week",
+        "cfg_workdays_per_week"
+      ],
+      "required_for": [
+        "row1_col2"
+      ],
+      "notes": "Intermediate field for total daily impact."
+    },
+    "time_saved_hours_total_day": {
+      "category": "derived",
+      "type": "number",
+      "source": "derived from configured daily test inputs and active users",
+      "purpose": "Daily aggregate hours saved for the selected enterprise scope.",
+      "calculation": "time_saved_hours_per_active_dev_per_day * copilot_active_devs_day",
+      "dependencies": [
+        "time_saved_hours_per_active_dev_per_day",
+        "copilot_active_devs_day"
+      ],
+      "required_for": [
+        "row1_col2",
+        "row3_col1"
+      ],
+      "notes": "Summed across days to get the 28-day total aggregate impact."
+    },
+    "copilot_loc_share_of_total_dev_loc_day": {
+      "category": "derived",
+      "type": "number",
+      "source": "derived from enterprise telemetry and configured daily total LoC",
+      "purpose": "Daily share of total developer added LoC attributed to Copilot-related flows.",
+      "calculation": "loc_added_sum / cfg_total_dev_loc_added_day",
+      "dependencies": [
+        "loc_added_sum",
+        "cfg_total_dev_loc_added_day"
+      ],
+      "required_for": [
+        "row3_col1",
+        "row4"
+      ],
+      "notes": "Testing/visibility field until real daily total developer LoC is available."
+    },
+    "labor_cost_equivalent_28d": {
+      "category": "derived",
+      "type": "number",
+      "source": "derived from time_saved_hours_total_day aggregate and configured labor cost",
+      "purpose": "Dollar equivalent of total hours saved across the 28-day window at the configured labor cost rate.",
+      "calculation": "SUM(time_saved_hours_total_day over 28 days) * cfg_labor_cost_per_hour",
+      "dependencies": [
+        "time_saved_hours_total_day",
+        "cfg_labor_cost_per_hour"
+      ],
+      "required_for": [
+        "row1_right"
+      ],
+      "notes": "Window-level aggregate, not a daily field. Null when cfg_labor_cost_per_hour is not configured."
+    },
+    "selected_time_method": {
+      "category": "context",
+      "type": "string",
+      "source": "page state / UI control",
+      "purpose": "Documents which time-estimation method currently drives the primary row-1 chart.",
+      "calculation": "UI/page state value.",
+      "dependencies": [],
+      "required_for": [
+        "row1_col1",
+        "row3_col2",
+        "row4"
+      ],
+      "notes": "Initial values may include 'manual_daily_pct', 'self_estimate', 'activity', 'loc'."
+    },
+    "calculation_version": {
+      "category": "context",
+      "type": "string",
+      "source": "model/runtime context",
+      "purpose": "Version tag for derived field logic.",
+      "calculation": "Injected from calculation pipeline/versioning.",
+      "dependencies": [],
+      "required_for": [
+        "auditing",
+        "debugging"
+      ],
+      "notes": "Helpful when formulas evolve."
+    },
+    "notes": {
+      "category": "context",
+      "type": "string",
+      "source": "optional model/runtime annotation",
+      "purpose": "Freeform notes for special handling, caveats, or anomalies.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "documentation",
+        "debugging"
+      ],
+      "notes": "Optional."
+    }
+  }
+}

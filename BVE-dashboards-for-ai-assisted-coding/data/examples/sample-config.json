@@ -1,0 +1,8 @@
+{
+  "cfg_time_saved_pct_day": 0.20,
+  "cfg_baseline_hours_per_dev_per_week": 30,
+  "cfg_workdays_per_week": 5,
+  "cfg_labor_cost_per_hour": 75,
+  "est_interactions_per_hour": 20,
+  "est_hrs_per_kloc": 2
+}

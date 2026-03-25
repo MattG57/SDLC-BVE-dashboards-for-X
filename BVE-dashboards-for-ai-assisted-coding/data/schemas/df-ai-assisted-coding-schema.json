@@ -1,0 +1,132 @@
+{
+  "_meta": {
+    "area": "AI Assisted Coding",
+    "goal": "Time Efficiency Impact",
+    "window": "28d",
+    "scope": "enterprise"
+  },
+  "input_panel": {
+    "title": "Source Data Inputs",
+    "description": "Upload one or more JSON files that match known schema types, then process them into dataframes and the page model.",
+    "file_roles": [
+      {
+        "file_role": "ai_assisted_coding_source_json",
+        "label": "AI Assisted Coding Source JSON",
+        "accepted_types": [
+          ".json"
+        ],
+        "multiple": true,
+        "required": true,
+        "merge_strategy": "append_rows",
+        "merge_key": "day",
+        "description": "Raw AI Assisted Coding source JSON containing enterprise_report and/or user_report. Multiple files are appended then deduplicated by day key."
+      },
+      {
+        "file_role": "config_json",
+        "label": "Config JSON",
+        "accepted_types": [
+          ".json"
+        ],
+        "multiple": true,
+        "required": false,
+        "merge_strategy": "latest_wins",
+        "merge_key": "day",
+        "description": "Daily configured values such as time-saved % and daily total developer LoC. When multiple files cover the same day, the last uploaded file wins."
+      },
+      {
+        "file_role": "dashboard_mapping_json",
+        "label": "Dashboard Mapping JSON",
+        "accepted_types": [
+          ".json"
+        ],
+        "multiple": false,
+        "required": false,
+        "merge_strategy": "single_only",
+        "description": "Metric mapping and business logic reference. Only one file permitted."
+      },
+      {
+        "file_role": "df_ai_assisted_coding_schema_json",
+        "label": "Combined Dataframe Schema JSON",
+        "accepted_types": [
+          ".json"
+        ],
+        "multiple": false,
+        "required": false,
+        "merge_strategy": "single_only",
+        "description": "Top-level dataframe schema reference. Used for validation and documentation, not primary telemetry."
+      },
+      {
+        "file_role": "df_enterprise_day_ai_schema_json",
+        "label": "Enterprise Day Schema JSON",
+        "accepted_types": [
+          ".json"
+        ],
+        "multiple": false,
+        "required": false,
+        "merge_strategy": "single_only",
+        "description": "Schema for df_enterprise_day. Used for field validation and documentation."
+      },
+      {
+        "file_role": "df_user_day_ai_schema_json",
+        "label": "User Day Schema JSON",
+        "accepted_types": [
+          ".json"
+        ],
+        "multiple": false,
+        "required": false,
+        "merge_strategy": "single_only",
+        "description": "Schema for df_user_day. Used for field validation and documentation."
+      },
+      {
+        "file_role": "df_reconciliation_ai_schema_json",
+        "label": "Reconciliation Schema JSON",
+        "accepted_types": [
+          ".json"
+        ],
+        "multiple": false,
+        "required": false,
+        "merge_strategy": "single_only",
+        "description": "Schema for df_reconciliation. Used for field validation and documentation."
+      }
+    ],
+    "uploaded_files": [
+      {
+        "upload_id": null,
+        "file_name": null,
+        "file_role": null,
+        "uploaded": false,
+        "parsed": false,
+        "valid_schema_type": false,
+        "detected_type": null,
+        "row_count": null,
+        "error": null,
+        "warnings": []
+      }
+    ],
+    "process_button": {
+      "label": "Process",
+      "enabled": false
+    },
+    "processing_status": {
+      "state": "idle",
+      "message": null
+    }
+  },
+  "dataframes": {
+    "df_enterprise_day": {
+      "grain": "one row per enterprise day",
+      "file_role": "df_enterprise_day_ai_schema_json",
+      "fields": {}
+    },
+    "df_user_day": {
+      "grain": "one row per developer per day",
+      "file_role": "df_user_day_ai_schema_json",
+      "fields": {}
+    },
+    "df_reconciliation": {
+      "grain": "one row per day per metric, plus aggregate rows",
+      "file_role": "df_reconciliation_ai_schema_json",
+      "fields": {}
+    }
+  }
+}

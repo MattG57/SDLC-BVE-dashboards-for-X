@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+package-lock.json
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Testing
+coverage/
+.nyc_output/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Editor directories
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS files
+Thumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+.cache/
+
+# Logs
+logs/
+*.log
+
+# Data files (keep examples, exclude actual data)
+**/data/*.json
+!**/data/examples/*.json
+!**/data/schemas/*.json
+
+# Verification output
+verify_output.txt
+calculation_results.txt

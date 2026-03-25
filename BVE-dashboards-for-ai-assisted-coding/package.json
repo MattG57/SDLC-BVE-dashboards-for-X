@@ -1,0 +1,41 @@
+{
+  "name": "bve-dashboards-ai-assisted-coding",
+  "version": "1.0.0",
+  "description": "Business Value Engineering dashboards for GitHub Copilot - AI Assisted Coding",
+  "type": "module",
+  "scripts": {
+    "test": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "verify": "node data/verify_math.cjs",
+    "dev:efficiency": "open dashboard/efficiency/index.html",
+    "dev:structural": "open dashboard/structural/index.html",
+    "lint": "eslint dashboard/efficiency/src dashboard/structural/src",
+    "format": "prettier --write \"dashboard/**/*.{js,jsx,json,html}\"",
+    "build": "node scripts/build.js",
+    "build:efficiency": "node scripts/build-efficiency.js",
+    "build:structural": "node scripts/build-structural.js",
+    "validate:data": "ajv validate -s data/schemas/df-ai-assisted-coding-schema.json -d data/examples/ai-assisted-coding-example.json"
+  },
+  "keywords": [
+    "github",
+    "copilot",
+    "metrics",
+    "dashboard",
+    "bve",
+    "business-value"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@testing-library/react": "^14.0.0",
+    "@vitejs/plugin-react": "^4.2.0",
+    "ajv-cli": "^5.0.0",
+    "eslint": "^8.56.0",
+    "eslint-plugin-react": "^7.33.2",
+    "happy-dom": "^12.10.3",
+    "prettier": "^3.1.1",
+    "vite": "^5.0.0",
+    "vitest": "^1.1.0"
+  },
+  "dependencies": {}
+}

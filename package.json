@@ -1,0 +1,38 @@
+{
+  "name": "sdlc-bve-dashboards",
+  "version": "1.0.0",
+  "description": "Business Value Engineering dashboards for GitHub Copilot and SDLC metrics",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "BVE-dashboards-for-ai-assisted-coding",
+    "BVE-dashboards-for-agentic-ai-coding"
+  ],
+  "scripts": {
+    "build": "node scripts/build-all.js",
+    "build:ai-assisted": "node scripts/build-dashboard.js BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency",
+    "build:agentic": "node scripts/build-dashboard.js BVE-dashboards-for-agentic-ai-coding/dashboard/efficiency",
+    "test": "npm run test --workspaces --if-present",
+    "test:ai-assisted": "npm test --workspace=BVE-dashboards-for-ai-assisted-coding",
+    "lint": "eslint '**/*.{js,jsx}' --ignore-pattern 'node_modules' --ignore-pattern 'dist'",
+    "format": "prettier --write '**/*.{js,jsx,json,md}' --ignore-path .gitignore",
+    "validate": "node scripts/validate-structure.js",
+    "verify:all": "node scripts/verify-all-calculations.js"
+  },
+  "devDependencies": {
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-replace": "^5.0.5",
+    "@rollup/plugin-terser": "^0.4.4",
+    "esbuild": "^0.19.11",
+    "eslint": "^8.56.0",
+    "eslint-plugin-react": "^7.33.2",
+    "prettier": "^3.1.1",
+    "rollup": "^4.9.4",
+    "vitest": "^1.1.0",
+    "happy-dom": "^12.10.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}

@@ -1,0 +1,84 @@
+{
+  "enterprise_report": {
+    "day_totals": [
+      {
+        "day": "2024-03-23",
+        "daily_active_users": 45,
+        "user_initiated_interaction_count": 890,
+        "code_generation_activity_count": 450,
+        "code_acceptance_activity_count": 380,
+        "loc_added_sum": 1250,
+        "loc_deleted_sum": 340,
+        "pull_requests": {
+          "total_created": 12,
+          "total_reviewed": 18
+        }
+      },
+      {
+        "day": "2024-03-24",
+        "daily_active_users": 48,
+        "user_initiated_interaction_count": 960,
+        "code_generation_activity_count": 480,
+        "code_acceptance_activity_count": 405,
+        "loc_added_sum": 1400,
+        "loc_deleted_sum": 380,
+        "pull_requests": {
+          "total_created": 14,
+          "total_reviewed": 20
+        }
+      },
+      {
+        "day": "2024-03-25",
+        "daily_active_users": 50,
+        "user_initiated_interaction_count": 1000,
+        "code_generation_activity_count": 500,
+        "code_acceptance_activity_count": 425,
+        "loc_added_sum": 1500,
+        "loc_deleted_sum": 400,
+        "pull_requests": {
+          "total_created": 15,
+          "total_reviewed": 22
+        },
+        "totals_by_feature": [
+          {
+            "feature": "code_completion",
+            "user_initiated_interaction_count": 800
+          },
+          {
+            "feature": "chat_panel_agent_mode",
+            "user_initiated_interaction_count": 50
+          }
+        ]
+      }
+    ]
+  },
+  "user_report": [
+    {
+      "day": "2024-03-23",
+      "user_login": "developer1",
+      "daily_active_users": 1,
+      "user_initiated_interaction_count": 45,
+      "code_generation_activity_count": 25,
+      "code_acceptance_activity_count": 20,
+      "loc_added_sum": 80
+    },
+    {
+      "day": "2024-03-23",
+      "user_login": "developer2",
+      "daily_active_users": 1,
+      "user_initiated_interaction_count": 30,
+      "code_generation_activity_count": 18,
+      "code_acceptance_activity_count": 15,
+      "loc_added_sum": 60
+    },
+    {
+      "day": "2024-03-24",
+      "user_login": "developer1",
+      "daily_active_users": 1,
+      "user_initiated_interaction_count": 50,
+      "code_generation_activity_count": 28,
+      "code_acceptance_activity_count": 23,
+      "loc_added_sum": 95
+    }
+  ]
+}

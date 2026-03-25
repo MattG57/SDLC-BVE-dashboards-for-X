@@ -1,0 +1,160 @@
+{
+  "description": "Synthetic test data with known outputs for validating the complete pipeline",
+  "purpose": "This file defines input data with predictable, hand-calculated outputs to catch regressions",
+  "enterprise_report": {
+    "day_totals": [
+      {
+        "day": "2024-03-23",
+        "enterprise_id": "test-enterprise",
+        "daily_active_users": 10,
+        "user_initiated_interaction_count": 200,
+        "code_generation_activity_count": 100,
+        "code_acceptance_activity_count": 85,
+        "loc_added_sum": 1000,
+        "loc_deleted_sum": 200,
+        "pull_requests": {
+          "total_created": 5,
+          "total_reviewed": 8
+        }
+      },
+      {
+        "day": "2024-03-24",
+        "enterprise_id": "test-enterprise",
+        "daily_active_users": 10,
+        "user_initiated_interaction_count": 400,
+        "code_generation_activity_count": 200,
+        "code_acceptance_activity_count": 170,
+        "loc_added_sum": 2000,
+        "loc_deleted_sum": 400,
+        "pull_requests": {
+          "total_created": 10,
+          "total_reviewed": 15
+        }
+      },
+      {
+        "day": "2024-03-25",
+        "enterprise_id": "test-enterprise",
+        "daily_active_users": 10,
+        "user_initiated_interaction_count": 600,
+        "code_generation_activity_count": 300,
+        "code_acceptance_activity_count": 255,
+        "loc_added_sum": 3000,
+        "loc_deleted_sum": 600,
+        "pull_requests": {
+          "total_created": 15,
+          "total_reviewed": 22
+        },
+        "totals_by_feature": [
+          {
+            "feature": "code_completion",
+            "user_initiated_interaction_count": 500
+          },
+          {
+            "feature": "chat_panel_agent_mode",
+            "user_initiated_interaction_count": 100
+          }
+        ]
+      }
+    ]
+  },
+  "user_report": [
+    {
+      "day": "2024-03-23",
+      "user_login": "dev1",
+      "daily_active_users": 1,
+      "user_initiated_interaction_count": 40,
+      "loc_added_sum": 200
+    },
+    {
+      "day": "2024-03-23",
+      "user_login": "dev2",
+      "daily_active_users": 1,
+      "user_initiated_interaction_count": 60,
+      "loc_added_sum": 300
+    },
+    {
+      "day": "2024-03-23",
+      "user_login": "dev3",
+      "daily_active_users": 1,
+      "user_initiated_interaction_count": 100,
+      "loc_added_sum": 500
+    },
+    {
+      "day": "2024-03-24",
+      "user_login": "dev1",
+      "daily_active_users": 1,
+      "user_initiated_interaction_count": 80,
+      "loc_added_sum": 400
+    },
+    {
+      "day": "2024-03-24",
+      "user_login": "dev2",
+      "daily_active_users": 1,
+      "user_initiated_interaction_count": 120,
+      "loc_added_sum": 600
+    },
+    {
+      "day": "2024-03-24",
+      "user_login": "dev3",
+      "daily_active_users": 1,
+      "user_initiated_interaction_count": 200,
+      "loc_added_sum": 1000
+    },
+    {
+      "day": "2024-03-25",
+      "user_login": "dev1",
+      "daily_active_users": 1,
+      "user_initiated_interaction_count": 120,
+      "loc_added_sum": 600
+    },
+    {
+      "day": "2024-03-25",
+      "user_login": "dev2",
+      "daily_active_users": 1,
+      "user_initiated_interaction_count": 180,
+      "loc_added_sum": 900
+    },
+    {
+      "day": "2024-03-25",
+      "user_login": "dev3",
+      "daily_active_users": 1,
+      "user_initiated_interaction_count": 300,
+      "loc_added_sum": 1500
+    }
+  ],
+  "expected_outputs": {
+    "interactions_based": {
+      "method": "interactions / 20",
+      "day_1_hours": 10,
+      "day_2_hours": 20,
+      "day_3_hours": 30,
+      "total_hours": 60,
+      "avg_org_hours_per_day": 20,
+      "avg_hours_per_dev_per_day": 2
+    },
+    "loc_based": {
+      "method": "(loc / 1000) * 2",
+      "day_1_hours": 2,
+      "day_2_hours": 4,
+      "day_3_hours": 6,
+      "total_hours": 12,
+      "avg_org_hours_per_day": 4,
+      "avg_hours_per_dev_per_day": 0.4
+    },
+    "manual_daily_pct": {
+      "method": "(0.20 * 30 / 5) * active_users",
+      "hours_per_dev_per_day": 1.2,
+      "total_hours_per_day": 12,
+      "total_hours_3_days": 36,
+      "avg_org_hours_per_day": 12,
+      "avg_hours_per_dev_per_day": 1.2
+    },
+    "reconciliation": {
+      "enterprise_total_interactions": 1200,
+      "user_total_interactions": 1200,
+      "enterprise_total_loc": 6000,
+      "user_total_loc": 6000,
+      "match": true
+    }
+  }
+}
