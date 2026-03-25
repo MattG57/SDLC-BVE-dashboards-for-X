@@ -1,0 +1,88 @@
+{
+  "_meta": {
+    "area": "Agentic AI Coding",
+    "goal": "Time Efficiency Impact",
+    "window": "configurable via DAYS env var (default 28)",
+    "scope": "repository (ORG/REPO) or all active repos in org (ORG only)",
+    "script": "agentic-ai-coding.sh",
+    "output_format": "Combined JSON to stdout with three top-level arrays: pr_sessions, requests, developer_day_summary"
+  },
+  "output_records": {
+    "pr_sessions": {
+      "grain": "one row per Copilot-authored pull request",
+      "description": "Lifecycle data for each PR session initiated by Copilot Coding Agent. Links back to the originating request (issue assignment or @copilot mention).",
+      "fields": {
+        "repo":                      { "type": "string",  "example": "MattG57/flight-tracker", "description": "ORG/REPO identifier" },
+        "pr_number":                 { "type": "integer", "example": 42, "description": "PR number" },
+        "pr_id":                     { "type": "integer", "nullable": true, "description": "GitHub numeric PR ID" },
+        "pr_node_id":                { "type": "string",  "nullable": true, "description": "GitHub GraphQL node ID" },
+        "pr_url":                    { "type": "string",  "example": "https://github.com/ORG/REPO/pull/42", "description": "HTML URL of the PR" },
+        "pr_title":                  { "type": "string",  "description": "PR title" },
+        "pr_created_at":             { "type": "datetime", "description": "ISO 8601 PR creation timestamp" },
+        "pr_closed_at":              { "type": "datetime", "nullable": true, "description": "ISO 8601 PR close timestamp" },
+        "pr_merged_at":              { "type": "datetime", "nullable": true, "description": "ISO 8601 PR merge timestamp" },
+        "pr_state":                  { "type": "string",  "enum": ["open", "closed"], "description": "GitHub PR state" },
+        "pr_draft":                  { "type": "boolean", "description": "Whether the PR is a draft" },
+        "pr_author_login":           { "type": "string",  "description": "GitHub login of the PR author (typically copilot bot)" },
+        "merged_by":                 { "type": "string",  "nullable": true, "description": "GitHub login of the user who merged the PR" },
+        "base_ref":                  { "type": "string",  "nullable": true, "description": "Base branch name" },
+        "head_ref":                  { "type": "string",  "nullable": true, "description": "Head branch name (typically copilot/fix-...)" },
+        "additions":                 { "type": "integer", "description": "Lines of code added" },
+        "deletions":                 { "type": "integer", "description": "Lines of code deleted" },
+        "changed_files":             { "type": "integer", "description": "Number of files changed" },
+        "latest_status":             { "type": "string",  "enum": ["Merged", "Closed", "Open"], "description": "Derived lifecycle status" },
+        "changes_requested_count":   { "type": "integer", "description": "Number of changes_requested review events on the PR" },
+        "reopened_count":            { "type": "integer", "description": "Number of times the PR was reopened" },
+        "additional_guidance_count": { "type": "integer", "description": "Number of follow-up @copilot comments on the PR after creation" },
+        "session_issue_number":      { "type": "integer", "nullable": true, "description": "Issue number of the copilot-session summary issue, if found" },
+        "origin_request_type":       { "type": "string",  "nullable": true, "enum": ["issue_assignment", "comment_mention"], "description": "How Copilot was invoked for this PR" },
+        "origin_issue_number":       { "type": "integer", "nullable": true, "description": "Issue number of the originating request" },
+        "origin_requested_by":       { "type": "string",  "nullable": true, "description": "GitHub login of the user who triggered Copilot" },
+        "origin_requested_at":       { "type": "datetime", "nullable": true, "description": "ISO 8601 timestamp of the originating request" },
+        "duration_minutes":          { "type": "number",  "nullable": true, "description": "Minutes from originating request to PR merge/close (null if still open or no origin timestamp)" }
+      }
+    },
+    "requests": {
+      "grain": "one row per Copilot invocation event (issue assignment or @copilot mention)",
+      "description": "Every event where a human invoked Copilot Coding Agent, either by assigning Copilot to an issue or by @mentioning Copilot in an issue/PR comment.",
+      "fields": {
+        "repo":                   { "type": "string",  "example": "MattG57/flight-tracker", "description": "ORG/REPO identifier" },
+        "request_event_id":       { "type": "string",  "description": "Synthetic unique ID: 'issue-assignment:repo:timestamp:assignee:actor' or 'comment-mention:repo:comment_id'" },
+        "request_type":           { "type": "string",  "enum": ["issue_assignment", "comment_mention"], "description": "How Copilot was invoked" },
+        "requested_at":           { "type": "datetime", "description": "ISO 8601 timestamp of the invocation" },
+        "requested_by_login":     { "type": "string",  "nullable": true, "description": "GitHub login of the invoking user" },
+        "issue_number":           { "type": "integer", "description": "Issue or PR number where the invocation occurred" },
+        "issue_id":               { "type": "integer", "nullable": true, "description": "GitHub numeric issue ID (null for PR-side mentions)" },
+        "issue_node_id":          { "type": "string",  "nullable": true, "description": "GitHub GraphQL node ID of the issue" },
+        "issue_title":            { "type": "string",  "description": "Title of the issue or PR" },
+        "issue_state":            { "type": "string",  "enum": ["open", "closed"], "description": "State of the issue or PR at query time" },
+        "issue_url":              { "type": "string",  "description": "HTML URL of the issue or PR" },
+        "is_pull_request":        { "type": "boolean", "description": "true if the invocation was on a pull request, false if on an issue" },
+        "pr_number":              { "type": "integer", "nullable": true, "description": "PR number if is_pull_request, null otherwise" },
+        "comment_id":             { "type": "integer", "nullable": true, "description": "Comment ID for comment_mention requests, null for issue_assignment" },
+        "comment_body_excerpt":   { "type": "string",  "nullable": true, "description": "First 180 chars of the comment body (null for issue_assignment)" },
+        "copilot_target_mode":    { "type": "string",  "enum": ["assignee", "@mention"], "description": "Whether Copilot was assigned or @mentioned" },
+        "linked_pr_number":       { "type": "integer", "nullable": true, "description": "PR number linked to this request (set during Step 4 linking)" }
+      }
+    },
+    "developer_day_summary": {
+      "grain": "one row per developer per day",
+      "description": "Aggregated daily metrics per developer, merging request event counts with PR session lifecycle data. Full outer join on date+developer.",
+      "fields": {
+        "date":                      { "type": "date",    "example": "2026-03-15", "description": "Calendar date (YYYY-MM-DD)" },
+        "developer":                 { "type": "string",  "example": "octocat", "description": "GitHub login of the developer who invoked Copilot" },
+        "issue_assignment_requests": { "type": "integer", "description": "Count of issue_assignment requests by this developer on this day" },
+        "pr_followup_requests":      { "type": "integer", "description": "Count of @copilot comment_mention requests on pull requests by this developer on this day" },
+        "total_agent_requests":      { "type": "integer", "description": "Total request events (issue_assignment + all comment_mention) by this developer on this day" },
+        "sessions_started":          { "type": "integer", "description": "Count of distinct copilot-session issues linked to PRs originated by this developer on this day" },
+        "agent_prs_created":         { "type": "integer", "description": "Count of Copilot-authored PRs originated by this developer on this day" },
+        "agent_prs_merged":          { "type": "integer", "description": "Count of those PRs that were merged" },
+        "agent_loc_added":           { "type": "integer", "description": "Total lines of code added across all agent PRs originated by this developer on this day" },
+        "agent_loc_deleted":         { "type": "integer", "description": "Total lines of code deleted across all agent PRs originated by this developer on this day" },
+        "agent_session_minutes":     { "type": "number",  "description": "Sum of duration_minutes across all agent PRs with known duration for this developer on this day" },
+        "changes_requested_total":   { "type": "integer", "description": "Total changes_requested review events across all agent PRs for this developer on this day" },
+        "median_merge_minutes":      { "type": "number",  "nullable": true, "description": "Median duration_minutes of merged agent PRs for this developer on this day (null if no merged PRs with duration)" }
+      }
+    }
+  }
+}

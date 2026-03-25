@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark" data-dark-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agentic AI Coding — Efficiency Dashboard</title>
+
+<!-- Primer CSS -->
+<link rel="stylesheet" href="https://unpkg.com/@primer/css@21.3.1/dist/primer.css">
+
+<!-- Highcharts -->
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/highcharts.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/modules/accessibility.js"></script>
+
+<!-- React -->
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<style>
+  body { background: var(--bgColor-default); }
+  .efficiency-page { max-width: 1280px; margin: 0 auto; padding: 24px 16px; }
+
+  /* KPI cards with GitHub feel */
+  .kpi-card { text-align: center; }
+  .kpi-value { font-size: 2rem; font-weight: 600; line-height: 1.2; }
+  .kpi-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; }
+  .kpi-sub { font-size: 0.75rem; }
+  .kpi-unit { font-size: 1.1rem; font-weight: 400; opacity: 0.65; margin-left: 2px; }
+
+  /* Hero KPI — stands out from supporting cards */
+  .kpi-hero .kpi-value { font-size: 3rem; }
+  .kpi-hero .kpi-label { font-size: 0.85rem; }
+  .kpi-hero .kpi-sub { font-size: 0.85rem; }
+  .kpi-hero { border-top: 3px solid var(--borderColor-accent-emphasis); }
+
+  /* Section dividers */
+  .section-row { margin-bottom: 32px; padding-top: 8px; }
+
+  /* Chart containers */
+  .chart-container { min-height: 320px; }
+  .chart-container-sm { min-height: 240px; }
+
+  /* Method comparison — selected row accent */
+  .method-row-selected { border-left: 3px solid #58a6ff; background: rgba(88,166,255,0.06); }
+
+  /* Toggle checkboxes row */
+  .driver-toggles { display: flex; flex-wrap: wrap; gap: 8px; }
+  .driver-toggles label { font-size: 0.8rem; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+
+  /* Confidence grid */
+  .confidence-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 768px) { .confidence-grid { grid-template-columns: 1fr; } }
+
+  /* Recon status dots */
+  .status-match { color: var(--fgColor-success); }
+  .status-minor { color: var(--fgColor-attention); }
+  .status-material { color: var(--fgColor-danger); }
+  .status-missing { color: var(--fgColor-muted); }
+
+  /* Upload area */
+  .upload-area { border: 2px dashed var(--borderColor-default); border-radius: 6px;
+    padding: 24px; text-align: center; transition: border-color 0.15s; }
+  .upload-area:hover { border-color: var(--fgColor-accent); }
+  .upload-area input[type="file"] { margin-top: 8px; }
+
+  /* Section spacing */
+  .section-row { margin-bottom: 32px; }
+
+  /* Highcharts dark theme overrides */
+  .highcharts-background { fill: transparent !important; }
+
+  /* PR table */
+  .pr-table { font-size: 0.8rem; }
+  .pr-table td, .pr-table th { padding: 4px 8px; }
+  .pr-table a { color: var(--fgColor-accent); text-decoration: none; }
+  .pr-table a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-type="module">
+
+/* ═══════════════════════════════════════════════════════
+   HIGHCHARTS DARK THEME (GitHub-aligned)
+   ═══════════════════════════════════════════════════════ */
+Highcharts.setOptions({
+  chart: { backgroundColor: 'transparent', style: { fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif' } },
+  colors: ['#58a6ff', '#3fb950', '#d29922', '#f85149', '#bc8cff', '#f778ba', '#79c0ff', '#56d364'],
+  title: { style: { color: '#e6edf3', fontSize: '14px', fontWeight: '600' } },
+  subtitle: { style: { color: '#8b949e', fontSize: '12px' } },
+  xAxis: { labels: { style: { color: '#8b949e' } }, gridLineColor: '#30363d', lineColor: '#30363d', tickColor: '#30363d' },
+  yAxis: { labels: { style: { color: '#8b949e' } }, gridLineColor: '#30363d', title: { style: { color: '#8b949e' } } },
+  legend: { itemStyle: { color: '#e6edf3' }, itemHoverStyle: { color: '#58a6ff' } },
+  tooltip: { backgroundColor: '#161b22', borderColor: '#30363d', style: { color: '#e6edf3' } },
+  plotOptions: { series: { animation: { duration: 400 } } },
+  credits: { enabled: false },
+});
+
+/* ═══════════════════════════════════════════════════════
+   DATA PROCESSING LAYER
+   ═══════════════════════════════════════════════════════ */
+
+function safeDiv(a, b) { return b && b !== 0 ? a / b : null; }
+
+/* ── Aggregate developer_day_summary to day-level ── */
+function aggregateToDayLevel(devDays, prSessions = [], requests = []) {
+  const byDate = {};
+  for (const r of devDays) {
+    if (!byDate[r.date]) byDate[r.date] = [];
+    byDate[r.date].push(r);
+  }
+
+  // Build merged-only metrics from prSessions (keyed by pr_created_at date)
+  const mergedByDate = {};
+  for (const pr of prSessions) {
+    if (!pr.pr_merged_at) continue;
+    const date = (pr.pr_created_at || '').substring(0, 10);
+    if (!date) continue;
+    if (!mergedByDate[date]) mergedByDate[date] = { loc_added: 0, loc_deleted: 0, session_minutes: 0 };
+    mergedByDate[date].loc_added += (pr.additions || 0);
+    mergedByDate[date].loc_deleted += (pr.deletions || 0);
+    if (pr.duration_type === 'agent') mergedByDate[date].session_minutes += (pr.duration_minutes || 0);
+  }
+
+  // Count unique issues created per day (by issue_created_at, deduplicated by issue_number)
+  const issuesByDate = {};
+  const seenIssues = new Set();
+  for (const req of requests) {
+    if (!req.issue_number || req.is_pull_request) continue;
+    if (seenIssues.has(req.issue_number)) continue;
+    seenIssues.add(req.issue_number);
+    const date = (req.issue_created_at || '').substring(0, 10);
+    if (!date) continue;
+    issuesByDate[date] = (issuesByDate[date] || 0) + 1;
+  }
+
+  // Turbulence per day: friction signals from prSessions and requests
+  const turbByDate = {};
+  // 1. Repeat assignments: group requests by (date, issue_or_pr_number), count extras
+  const reqGroups = {};
+  for (const req of requests) {
+    const date = (req.requested_at || '').substring(0, 10);
+    if (!date) continue;
+    const key = date + '|' + (req.issue_number || req.pr_number || '');
+    reqGroups[key] = (reqGroups[key] || 0) + 1;
+  }
+  for (const [key, count] of Object.entries(reqGroups)) {
+    if (count <= 1) continue;
+    const date = key.split('|')[0];
+    turbByDate[date] = (turbByDate[date] || 0) + (count - 1);
+  }
+  // 2-5. PR-level signals keyed by pr_created_at date
+  for (const pr of prSessions) {
+    const date = (pr.pr_created_at || '').substring(0, 10);
+    if (!date) continue;
+    let t = 0;
+    // 2. Closed without merge
+    if (pr.pr_state === 'closed' && !pr.pr_merged_at) t++;
+    // 3. Sessions with zero duration
+    if (pr.duration_minutes == null || pr.duration_minutes === 0) t++;
+    // 4. PRs with zero additions and zero deletions
+    if ((pr.additions || 0) === 0 && (pr.deletions || 0) === 0) t++;
+    // 5. Review friction
+    t += (pr.changes_requested_count || 0) + (pr.reopened_count || 0) + (pr.additional_guidance_count || 0);
+    // 6. Extra copilot invocations (follow-ups beyond the initial request)
+    t += Math.max(0, (pr.copilot_invocation_count || 1) - 1);
+    if (t > 0) turbByDate[date] = (turbByDate[date] || 0) + t;
+  }
+
+  return Object.entries(byDate).map(([date, rows]) => ({
+    date,
+    agent_active_devs: rows.length,
+    human_devs_active: rows.filter(r => (r.agent_session_minutes || 0) > 0).length || rows.length,
+    total_agent_requests: rows.reduce((s, r) => s + (r.total_agent_requests || 0), 0),
+    issue_assignment_requests: rows.reduce((s, r) => s + (r.issue_assignment_requests || 0), 0),
+    issues_created: issuesByDate[date] || 0,
+    pr_followup_requests: rows.reduce((s, r) => s + (r.pr_followup_requests || 0), 0),
+    sessions_started: rows.reduce((s, r) => s + (r.sessions_started || 0), 0),
+    agent_prs_created: rows.reduce((s, r) => s + (r.agent_prs_created || 0), 0),
+    agent_prs_merged: rows.reduce((s, r) => s + (r.agent_prs_merged || 0), 0),
+    agent_loc_added: rows.reduce((s, r) => s + (r.agent_loc_added || 0), 0),
+    agent_loc_deleted: rows.reduce((s, r) => s + (r.agent_loc_deleted || 0), 0),
+    agent_session_minutes: rows.reduce((s, r) => s + (r.agent_session_minutes || 0), 0),
+    changes_requested_total: rows.reduce((s, r) => s + (r.changes_requested_total || 0), 0),
+    // Merged-only fields (from prSessions)
+    merged_loc_added: (mergedByDate[date] || {}).loc_added || 0,
+    merged_loc_deleted: (mergedByDate[date] || {}).loc_deleted || 0,
+    merged_session_minutes: (mergedByDate[date] || {}).session_minutes || 0,
+    turbulence: turbByDate[date] || 0,
+  })).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/* ── Fill missing days with zeros across the full window ── */
+function fillDayGaps(dayRows, windowDays = 28) {
+  if (!dayRows.length) return dayRows;
+  const existing = {};
+  for (const r of dayRows) existing[r.date] = r;
+
+  // Window: from (today - windowDays + 1) through today
+  const end = new Date();
+  end.setHours(0, 0, 0, 0);
+  const start = new Date(end);
+  start.setDate(start.getDate() - windowDays + 1);
+
+  const zeroRow = (date) => ({
+    date,
+    agent_active_devs: 0, human_devs_active: 0,
+    total_agent_requests: 0, issue_assignment_requests: 0, issues_created: 0,
+    pr_followup_requests: 0, sessions_started: 0,
+    agent_prs_created: 0, agent_prs_merged: 0,
+    agent_loc_added: 0, agent_loc_deleted: 0,
+    agent_session_minutes: 0, changes_requested_total: 0,
+    merged_loc_added: 0, merged_loc_deleted: 0, merged_session_minutes: 0,
+    turbulence: 0,
+  });
+
+  const result = [];
+  const cur = new Date(start);
+  while (cur <= end) {
+    const ds = cur.toISOString().substring(0, 10);
+    result.push(existing[ds] || zeroRow(ds));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return result;
+}
+
+/* ── Estimation method definitions (merged PRs only) ── */
+const ESTIMATION_METHODS = [
+  { key: 'duration', label: 'Duration-Based (Merged)',
+    descFn: (cfg) => `${cfg.est_human_to_agent_ratio || 10}× human-to-agent ratio applied to merged PR session minutes`,
+    formulaFn: (cfg) => `hrs_saved = (merged_session_minutes / 60) × ${cfg.est_human_to_agent_ratio || 10}`,
+    calc: (d, cfg) => ((d.merged_session_minutes || 0) / 60) * (cfg.est_human_to_agent_ratio || 10) },
+  { key: 'loc', label: 'LoC-Based (Merged)',
+    descFn: (cfg) => `${cfg.est_hrs_per_kloc || 4} hours saved per 1,000 merged LoC added`,
+    formulaFn: (cfg) => `hrs_saved = (merged_loc_added / 1000) × ${cfg.est_hrs_per_kloc || 4}`,
+    calc: (d, cfg) => ((d.merged_loc_added || 0) / 1000) * (cfg.est_hrs_per_kloc || 4) },
+];
+
+function computeDerived(dayRows, config, selectedMethod) {
+  const method = ESTIMATION_METHODS.find(m => m.key === selectedMethod) || ESTIMATION_METHODS[0];
+  return dayRows.map(d => {
+    const devs = d.human_devs_active || d.agent_active_devs;
+    const sessionHrs = d.agent_session_minutes / 60;
+
+    // All methods compute their estimate (from merged PRs only, for comparison in Confidence)
+    const estimates = {};
+    for (const m of ESTIMATION_METHODS) {
+      const raw = m.calc(d, config);
+      estimates['est_' + m.key + '_hrs_day'] = raw;
+      estimates['est_' + m.key + '_hrs_per_dev_day'] = safeDiv(raw, devs);
+    }
+
+    // Selected method drives Impact (merged PRs only)
+    const selectedHrsDay = method.calc(d, config);
+    const selectedHrsPerDevDay = safeDiv(selectedHrsDay, devs);
+
+    // Driver per-dev values (denominator = human devs with agent minutes > 0)
+    return {
+      ...d,
+      ...estimates,
+      agent_session_hours: sessionHrs,
+      issues_per_dev: safeDiv(d.issues_created, devs),
+      sessions_per_dev: safeDiv(d.sessions_started, devs),
+      session_min_per_dev: safeDiv(d.agent_session_minutes, devs),
+      prs_per_dev: safeDiv(d.agent_prs_created, devs),
+      prs_merged_per_dev: safeDiv(d.agent_prs_merged, devs),
+      merged_kloc_per_dev: safeDiv((d.merged_loc_added || 0) / 1000, devs),
+      turbulence_per_dev: safeDiv(d.turbulence, devs),
+      pr_merge_rate: safeDiv(d.agent_prs_merged, d.agent_prs_created),
+      time_saved_hours_total_day: selectedHrsDay,
+      time_saved_hours_per_dev_per_day: selectedHrsPerDevDay,
+    };
+  });
+}
+
+/* ═══════════════════════════════════════════════════════
+   REACT COMPONENTS
+   ═══════════════════════════════════════════════════════ */
+const { useState, useEffect, useRef, useCallback } = React;
+
+/* ── Formatting helpers ── */
+const fmt = n => n == null ? '—' : Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+const fmtDec = (n, d=1) => n == null ? '—' : Number(n).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
+const fmtCurrency = n => n == null ? '—' : '$' + Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+const fmtPct = n => n == null ? '—' : (n * 100).toFixed(1) + '%';
+const fmtCompact = n => {
+  if (n == null) return '—';
+  if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (Math.abs(n) >= 1e3) return (n / 1e3).toFixed(0) + 'K';
+  return fmt(n);
+};
+const fmtMin = n => n == null ? '—' : n < 60 ? fmt(n) + 'm' : fmtDec(n / 60, 1) + 'h';
+
+/* ── Highcharts wrapper ── */
+function Chart({ options, className = 'chart-container' }) {
+  const ref = useRef(null);
+  const chartRef = useRef(null);
+  useEffect(() => {
+    if (ref.current) {
+      chartRef.current = Highcharts.chart(ref.current, options);
+    }
+    return () => { if (chartRef.current) chartRef.current.destroy(); };
+  }, [JSON.stringify(options)]);
+  return <div ref={ref} className={className} />;
+}
+
+/* ── KPI Card ── */
+function KpiCard({ label, value, unit, sub, color, hero }) {
+  return (
+    <div className={`Box p-3 kpi-card${hero ? ' kpi-hero' : ''}`}>
+      <div className="kpi-label color-fg-muted">{label}</div>
+      <div className="kpi-value" style={color ? { color } : {}}>{value}{unit && <span className="kpi-unit">{unit}</span>}</div>
+      {sub && <div className="kpi-sub color-fg-muted">{sub}</div>}
+    </div>
+  );
+}
+
+/* ── Section Header ── */
+function SectionHeader({ title, desc }) {
+  return (
+    <div className="mb-3 pb-2" style={{ borderBottom: '1px solid var(--borderColor-default)', borderTop: '2px solid var(--borderColor-muted)', paddingTop: '12px' }}>
+      <h2 className="f2 color-fg-accent">{title}</h2>
+      <p className="f6 color-fg-muted">{desc}</p>
+    </div>
+  );
+}
+
+/* ── File Upload Panel ── */
+function UploadPanel({ onData }) {
+  const [processing, setProcessing] = useState(false);
+  const filesRef = useRef(null);
+
+  const handleProcess = useCallback(async () => {
+    const files = filesRef.current?.files;
+    if (!files || !files.length) { alert('Select at least one JSON file.'); return; }
+    setProcessing(true);
+    try {
+      const readFile = f => new Promise((res, rej) => { const r = new FileReader(); r.onload = e => res(e.target.result); r.onerror = rej; r.readAsText(f); });
+
+      let prSessions = [];
+      let requests = [];
+      let devDays = [];
+      const names = [];
+      let config = { cfg_workdays_per_week: 5, cfg_labor_cost_per_hour: null, est_human_to_agent_ratio: 10, est_hrs_per_kloc: 4 };
+
+      for (const f of files) {
+        const raw = await readFile(f);
+        let d;
+        try {
+          d = JSON.parse(raw);
+        } catch (parseErr) {
+          const preview = raw.substring(0, 120).replace(/\n/g, ' ');
+          throw new Error(
+            `${f.name} is not valid JSON.\n\n` +
+            `File starts with: "${preview}…"\n\n` +
+            (preview.includes('===') || preview.includes('Discovering') || preview.includes('Fetching')
+              ? 'It looks like the script\'s stderr progress messages were captured. ' +
+                'Re-run the script with stdout only:\n  ./agentic-ai-coding.sh > output.json\n' +
+                '(do NOT use 2>&1 or &> which mixes stderr into the file)'
+              : parseErr.message)
+          );
+        }
+        names.push(f.name);
+
+        // Auto-detect: config files have cfg_/est_ keys, source files have pr_sessions/requests/developer_day_summary
+        const isConfig = Object.keys(d).some(k => k.startsWith('cfg_') || k.startsWith('est_'));
+        const isSource = d.pr_sessions || d.requests || d.developer_day_summary;
+
+        if (isConfig && !isSource) {
+          if (d.cfg_workdays_per_week != null) config.cfg_workdays_per_week = d.cfg_workdays_per_week;
+          if (d.cfg_labor_cost_per_hour != null) config.cfg_labor_cost_per_hour = d.cfg_labor_cost_per_hour;
+          if (d.est_human_to_agent_ratio != null) config.est_human_to_agent_ratio = d.est_human_to_agent_ratio;
+          if (d.est_hrs_per_kloc != null) config.est_hrs_per_kloc = d.est_hrs_per_kloc;
+        } else {
+          if (Array.isArray(d.pr_sessions)) prSessions.push(...d.pr_sessions);
+          if (Array.isArray(d.requests)) requests.push(...d.requests);
+          if (Array.isArray(d.developer_day_summary)) devDays.push(...d.developer_day_summary);
+        }
+      }
+
+      if (!devDays.length && !prSessions.length) { alert('No agentic data found. Select a file containing pr_sessions or developer_day_summary.'); setProcessing(false); return; }
+
+      // Dedup devDays by date+developer (last wins)
+      const ddMap = {};
+      for (const r of devDays) ddMap[r.date + '|' + r.developer] = r;
+      devDays = Object.values(ddMap);
+
+      onData({ prSessions, requests, devDays, config, fileNames: names });
+    } catch (e) { console.error(e); alert('Error: ' + e.message); }
+    setProcessing(false);
+  }, [onData]);
+
+  return (
+    <div className="Box color-shadow-medium p-4 mb-4">
+      <h3 className="f4 mb-2">Source Data</h3>
+      <p className="f6 color-fg-muted mb-3">Upload the JSON output from <code>agentic-ai-coding.sh</code> and optional config files.</p>
+      <div className="d-flex flex-wrap" style={{ gap: '16px', alignItems: 'flex-end' }}>
+        <div style={{ flex: '1 1 300px' }}>
+          <input type="file" ref={filesRef} accept=".json" multiple className="form-control" />
+        </div>
+        <button className="btn btn-primary" onClick={handleProcess} disabled={processing}>
+          {processing ? 'Processing…' : 'Process & Build'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── Config Panel (collapsible, bottom of page) ── */
+function ConfigPanel({ config, onApply, isOpen, onToggle }) {
+  const [ratio, setRatio] = useState(config.est_human_to_agent_ratio ?? 10);
+  const [hrsPerKloc, setHrsPerKloc] = useState(config.est_hrs_per_kloc ?? 4);
+  const [wdays, setWdays] = useState(config.cfg_workdays_per_week ?? 5);
+  const [cost, setCost] = useState(config.cfg_labor_cost_per_hour ?? '');
+
+  useEffect(() => {
+    setRatio(config.est_human_to_agent_ratio ?? 10);
+    setHrsPerKloc(config.est_hrs_per_kloc ?? 4);
+    setWdays(config.cfg_workdays_per_week ?? 5);
+    setCost(config.cfg_labor_cost_per_hour ?? '');
+  }, [config]);
+
+  const apply = () => {
+    onApply({
+      cfg_workdays_per_week: parseFloat(wdays) || 5,
+      cfg_labor_cost_per_hour: parseFloat(cost) || null,
+      est_human_to_agent_ratio: parseFloat(ratio) || 10,
+      est_hrs_per_kloc: parseFloat(hrsPerKloc) || 4,
+    });
+  };
+
+  const downloadConfig = () => {
+    const obj = {
+      cfg_workdays_per_week: parseFloat(wdays) || 5,
+      cfg_labor_cost_per_hour: parseFloat(cost) || null,
+      est_human_to_agent_ratio: parseFloat(ratio) || 10,
+      est_hrs_per_kloc: parseFloat(hrsPerKloc) || 4,
+    };
+    const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'config.json'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const summary = `${config.est_human_to_agent_ratio || 10}× ratio · ${config.est_hrs_per_kloc || 4} hrs/KLoC`
+    + (config.cfg_labor_cost_per_hour != null ? ` · $${config.cfg_labor_cost_per_hour}/hr` : '');
+
+  return (
+    <div className="Box mt-4" style={{ borderColor: isOpen ? 'var(--borderColor-accent-emphasis)' : undefined }}>
+      <div className="Box-header d-flex flex-items-center flex-justify-between" style={{ cursor: 'pointer' }} onClick={onToggle}>
+        <div className="d-flex flex-items-center" style={{ gap: '8px' }}>
+          <span style={{ transition: 'transform 0.15s', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', display: 'inline-block' }}>▶</span>
+          <h4 className="f5 mb-0">Configuration</h4>
+          <span className="Label Label--secondary f6">estimation params</span>
+        </div>
+        <span className="f6 color-fg-muted">{summary}</span>
+      </div>
+
+      {isOpen && (
+        <div className="Box-body">
+          <p className="f6 color-fg-muted mb-3">Edit the estimation parameters below. Changes take effect when you click Apply.</p>
+
+          <h5 className="f6 color-fg-muted text-bold mb-2">Estimation Constants</h5>
+          <div className="d-flex flex-wrap mb-3" style={{ gap: '12px', alignItems: 'flex-end' }}>
+            <div className="form-group mb-0" style={{ flex: '1 1 200px' }}>
+              <label className="f6 color-fg-muted">Human-to-Agent Ratio (×)</label>
+              <input type="number" className="form-control input-sm" step="1" min="1" value={ratio} onChange={e => setRatio(e.target.value)} />
+            </div>
+            <div className="form-group mb-0" style={{ flex: '1 1 200px' }}>
+              <label className="f6 color-fg-muted">Hrs Saved per 1K LoC Added</label>
+              <input type="number" className="form-control input-sm" step="0.5" min="0" value={hrsPerKloc} onChange={e => setHrsPerKloc(e.target.value)} />
+            </div>
+          </div>
+
+          <h5 className="f6 color-fg-muted text-bold mb-2">Shared</h5>
+          <div className="d-flex flex-wrap" style={{ gap: '12px', alignItems: 'flex-end' }}>
+            <div className="form-group mb-0" style={{ flex: '1 1 120px' }}>
+              <label className="f6 color-fg-muted">Workdays / Week</label>
+              <input type="number" className="form-control input-sm" step="1" min="1" max="7" value={wdays} onChange={e => setWdays(e.target.value)} />
+            </div>
+            <div className="form-group mb-0" style={{ flex: '1 1 140px' }}>
+              <label className="f6 color-fg-muted">Labor Cost $/hr</label>
+              <input type="number" className="form-control input-sm" step="1" min="0" value={cost} onChange={e => setCost(e.target.value)} placeholder="75" />
+            </div>
+          </div>
+          <div className="d-flex flex-items-center mt-3" style={{ gap: '8px' }}>
+            <button className="btn btn-sm btn-primary" onClick={apply}>Apply &amp; Recalculate</button>
+            <button className="btn btn-sm btn-outline" onClick={downloadConfig}>Download config.json</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Source summary bar ── */
+function SourceSummary({ data }) {
+  const { dayRows, devDays, prSessions, requests, fileNames } = data;
+  const n = dayRows.length;
+  const range = n > 0 ? `${dayRows[0].date} → ${dayRows[n-1].date}` : 'none';
+  const devCount = new Set(devDays.map(r => r.developer)).size;
+  return (
+    <div className="flash flash-success f6 mb-3">
+      <strong>{fileNames.join(', ')}</strong> loaded
+      · {n} days ({range})
+      · {devCount} developer{devCount !== 1 ? 's' : ''}
+      · {devDays.length} dev-day records
+      · {prSessions.length} PR sessions
+      · {requests.length} request events
+    </div>
+  );
+}
+
+/* ── Developer Search ── */
+function DevSearch({ devDays, selectedUser, onSelect }) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const logins = React.useMemo(() => [...new Set(devDays.map(r => r.developer))].sort(), [devDays]);
+  const filtered = query ? logins.filter(l => l.toLowerCase().includes(query.toLowerCase())).slice(0, 10) : logins.slice(0, 10);
+
+  const select = (login) => { onSelect(login); setQuery(''); setOpen(false); };
+  const clear = () => { onSelect(null); setQuery(''); };
+
+  if (!logins.length) return null;
+
+  return (
+    <div className="d-flex flex-items-center mb-3" style={{ gap: '8px', position: 'relative' }}>
+      <span className="f6 color-fg-muted text-bold">Developer:</span>
+      {selectedUser ? (
+        <div className="d-flex flex-items-center" style={{ gap: '6px' }}>
+          <span className="Label Label--accent">{selectedUser}</span>
+          <button className="btn-octicon" onClick={clear} title="Clear" style={{ color: 'var(--fgColor-muted)', cursor: 'pointer', background: 'none', border: 'none', fontSize: '14px' }}>✕</button>
+        </div>
+      ) : (
+        <div style={{ position: 'relative', width: '220px' }}>
+          <input
+            type="text" className="form-control input-sm" placeholder="Search by login…"
+            value={query} onChange={e => { setQuery(e.target.value); setOpen(true); }}
+            onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
+          />
+          {open && filtered.length > 0 && (
+            <div className="Box color-shadow-large" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, maxHeight: '200px', overflow: 'auto' }}>
+              {filtered.map(l => (
+                <div key={l} className="Box-row px-3 py-1 f6" style={{ cursor: 'pointer' }} onMouseDown={() => select(l)}>
+                  {l}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {selectedUser && <span className="f6 color-fg-muted">(dashed lines on charts)</span>}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION A — IMPACT
+   ═══════════════════════════════════════════════════════ */
+function ImpactSection({ days, config, method, onMethodChange, devDays, selectedUser }) {
+  const n = days.length;
+  const methodDef = ESTIMATION_METHODS.find(m => m.key === method) || ESTIMATION_METHODS[0];
+
+  const totalHoursSaved = days.reduce((s, d) => s + (d.time_saved_hours_total_day || 0), 0);
+  const avgHrsPerDevDay = (() => { const v = days.map(d => d.time_saved_hours_per_dev_per_day).filter(v => v != null); return v.length ? v.reduce((a,b)=>a+b,0)/v.length : null; })();
+  const avgActiveDevs = Math.round(days.reduce((s, d) => s + (d.human_devs_active || d.agent_active_devs), 0) / n);
+  const laborCost = config.cfg_labor_cost_per_hour != null ? totalHoursSaved * config.cfg_labor_cost_per_hour : null;
+  const orgHrsSavedPerDay = totalHoursSaved / n;
+
+  // Build user overlay
+  const userDayMap = {};
+  if (selectedUser && devDays) {
+    devDays.filter(u => u.developer === selectedUser).forEach(u => { userDayMap[u.date] = u; });
+  }
+  const hasUserData = Object.keys(userDayMap).length > 0;
+  const userHrsSeries = hasUserData ? days.map(d => {
+    const u = userDayMap[d.date];
+    if (!u) return null;
+    return methodDef.calc({ merged_session_minutes: u.agent_session_minutes || 0, merged_loc_added: u.agent_loc_added || 0 }, config);
+  }) : null;
+
+  const chartOpts = {
+    chart: { type: 'areaspline', height: 300 },
+    title: { text: null },
+    subtitle: { text: methodDef.label + ': ' + methodDef.descFn(config) },
+    xAxis: { categories: days.map(d => d.date), labels: { rotation: -45, style: { fontSize: '10px' } } },
+    yAxis: [
+      { title: { text: 'Hrs Saved / Human Dev / Day' }, min: 0 },
+      { title: { text: 'Total Hours Saved' }, opposite: true, min: 0 },
+    ],
+    tooltip: { shared: true, valueDecimals: 1 },
+    legend: { symbolWidth: 16 },
+    series: [
+      { name: 'Avg Hrs / Human Dev / Day', data: days.map(d => d.time_saved_hours_per_dev_per_day), yAxis: 0, color: '#58a6ff', fillOpacity: 0.08, marker: { radius: 3 } },
+      { name: 'Org Total Hrs', data: days.map(d => d.time_saved_hours_total_day != null ? Math.round(d.time_saved_hours_total_day * 10) / 10 : null), type: 'column', yAxis: 1, color: '#3fb950', opacity: 0.7, pointPadding: 0.1 },
+      ...(userHrsSeries ? [{ name: selectedUser + ' Hrs', data: userHrsSeries, type: 'spline', yAxis: 0, color: '#f78166', dashStyle: 'ShortDash', marker: { radius: 4, symbol: 'diamond', lineWidth: 1, lineColor: '#f78166', fillColor: '#0d1117' }, lineWidth: 2.5 }] : []),
+    ],
+  };
+
+  return (
+    <div className="section-row">
+      <div className="mb-3 pb-2 d-flex flex-items-end flex-justify-between" style={{ borderBottom: '1px solid var(--borderColor-default)', borderTop: '2px solid var(--borderColor-muted)', paddingTop: '12px' }}>
+        <div>
+          <h2 className="f2 color-fg-accent">Impact</h2>
+          <p className="f6 color-fg-muted">Estimated Individual and Total Agent Efficiency Impact for your organization</p>
+        </div>
+        <div className="d-flex flex-items-center" style={{ gap: '8px' }}>
+          <span className="f6 color-fg-muted">Method:</span>
+          <select className="form-select form-select-sm" value={method} onChange={e => onMethodChange(e.target.value)} style={{ width: 'auto', background: 'var(--bgColor-muted)', color: 'var(--fgColor-default)', border: '1px solid var(--borderColor-default)' }}>
+            {ESTIMATION_METHODS.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div className="d-flex flex-wrap mb-3" style={{ gap: '12px', alignItems: 'stretch' }}>
+        <div style={{ flex: '0 0 200px' }}><KpiCard hero label="Human Hrs Saved" value={fmtDec(totalHoursSaved, 0)} unit="hrs" sub={`across ${n} days`} color="#58a6ff" /></div>
+        <div style={{ flex: '1 1 0', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px' }}>
+          <KpiCard label="Org Hrs / Day" value={fmtDec(orgHrsSavedPerDay, 1)} unit="hrs" sub={`${avgActiveDevs} human devs avg`} />
+          <KpiCard label="Hrs / Human Dev / Day" value={fmtDec(avgHrsPerDevDay, 2)} unit="hrs" sub="per human dev with agent activity" />
+          <KpiCard label="Economic Value" value={fmtCurrency(laborCost)} sub={laborCost != null ? `at $${config.cfg_labor_cost_per_hour}/hr` : 'set labor cost in config'} color="#3fb950" />
+        </div>
+      </div>
+
+      <div className="Box p-3">
+        <Chart options={chartOpts} />
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION B — DRIVERS
+   ═══════════════════════════════════════════════════════ */
+
+const DRIVER_SERIES = [
+  { key: 'issues_created', perDev: 'issues_per_dev', label: 'Issues Created', color: '#f778ba' },
+  { key: 'sessions_started', perDev: 'sessions_per_dev', label: 'Sessions Started', color: '#58a6ff' },
+  { key: 'agent_session_minutes', perDev: 'session_min_per_dev', label: 'Session Minutes', color: '#79c0ff' },
+  { key: 'agent_prs_created', perDev: 'prs_per_dev', label: 'PRs Opened', color: '#3fb950' },
+  { key: 'agent_prs_merged', perDev: 'prs_merged_per_dev', label: 'PRs Merged', color: '#d29922' },
+  { key: 'merged_loc_added', perDev: 'merged_kloc_per_dev', label: 'KLoC Merged', color: '#bc8cff', userScale: 1000 },
+  { key: 'turbulence', perDev: 'turbulence_per_dev', label: 'Turbulence', color: '#f85149' },
+];
+
+function DriversSection({ days, devDays, selectedUser }) {
+  const [toggles, setToggles] = useState(() => {
+    const t = {};
+    DRIVER_SERIES.forEach(s => t[s.key] = true);
+    return t;
+  });
+
+  const n = days.length;
+  const labels = days.map(d => d.date);
+  const sum = (k) => days.reduce((s, d) => s + (d[k] || 0), 0);
+  const avgDevs = days.reduce((s, d) => s + (d.human_devs_active || d.agent_active_devs), 0) / n;
+
+  const totalPRsCreated = sum('agent_prs_created');
+  const totalPRsMerged = sum('agent_prs_merged');
+  const mergeRate = safeDiv(totalPRsMerged, totalPRsCreated);
+
+  // Build user day map
+  const userDayMap = {};
+  if (selectedUser && devDays) {
+    devDays.filter(u => u.developer === selectedUser).forEach(u => { userDayMap[u.date] = u; });
+  }
+  const hasUserData = Object.keys(userDayMap).length > 0;
+
+  // Per-dev trend chart
+  const perDevSeries = DRIVER_SERIES.filter(s => toggles[s.key]).map(s => ({
+    name: s.label + ' / Dev',
+    data: days.map(d => d[s.perDev] != null ? Math.round(d[s.perDev] * 100) / 100 : null),
+    color: s.color,
+  }));
+
+  // User overlay dashed series
+  if (hasUserData) {
+    const USER_FIELDS = [
+      { key: 'sessions_started', driverKey: 'sessions_started', label: 'Sessions', color: '#58a6ff', scale: 1 },
+      { key: 'agent_session_minutes', driverKey: 'agent_session_minutes', label: 'Session Min', color: '#79c0ff', scale: 1 },
+      { key: 'agent_prs_created', driverKey: 'agent_prs_created', label: 'PRs', color: '#3fb950', scale: 1 },
+      { key: 'agent_prs_merged', driverKey: 'agent_prs_merged', label: 'PRs Merged', color: '#d29922', scale: 1 },
+      { key: 'agent_loc_added', driverKey: 'merged_loc_added', label: 'KLoC', color: '#bc8cff', scale: 1000 },
+    ];
+    for (const f of USER_FIELDS) {
+      const ds = DRIVER_SERIES.find(s => s.key === f.driverKey);
+      if (!ds || !toggles[f.driverKey]) continue;
+      perDevSeries.push({
+        name: selectedUser + ' ' + f.label,
+        data: days.map(d => {
+          const u = userDayMap[d.date];
+          if (!u) return null;
+          return Math.round((u[f.key] / (f.scale || 1)) * 100) / 100;
+        }),
+        color: f.color,
+        dashStyle: 'Dash',
+        marker: { radius: 3, symbol: 'diamond' },
+        lineWidth: 2,
+      });
+    }
+  }
+
+  const trendOpts = {
+    chart: { type: 'spline', height: 320 },
+    title: { text: null },
+    xAxis: { categories: labels, labels: { rotation: -45, style: { fontSize: '10px' } } },
+    yAxis: { title: { text: 'per Human Dev' }, min: 0 },
+    tooltip: { shared: true, valueDecimals: 2 },
+    series: perDevSeries,
+  };
+
+  // Activity profile bar
+  const activeDrivers = DRIVER_SERIES.filter(s => toggles[s.key]);
+  const avgPerDevData = activeDrivers.map(s => {
+    const vals = days.map(d => d[s.perDev]).filter(v => v != null);
+    return vals.length ? Math.round((vals.reduce((a,b) => a+b, 0) / vals.length) * 100) / 100 : 0;
+  });
+
+  const userAvgData = hasUserData ? activeDrivers.map(s => {
+    const userDays = days.map(d => userDayMap[d.date]).filter(Boolean);
+    if (!userDays.length) return 0;
+    // Map day-level keys to per-developer keys (dev_day_summary uses agent_loc_added, not merged_loc_added)
+    const userKey = s.key === 'merged_loc_added' ? 'agent_loc_added' : s.key;
+    const scale = s.userScale || 1;
+    const vals = userDays.map(u => (u[userKey] || 0) / scale);
+    return Math.round((vals.reduce((a,b) => a+b, 0) / vals.length) * 100) / 100;
+  }) : null;
+
+  const profileSeries = [
+    { name: 'Org Avg / Dev / Day', data: avgPerDevData.map((y, i) => ({ y, color: activeDrivers[i].color })) },
+  ];
+  if (userAvgData) {
+    profileSeries.push({
+      name: selectedUser + ' Avg / Day',
+      data: userAvgData.map((y, i) => ({ y, color: 'transparent', borderColor: activeDrivers[i].color })),
+      borderWidth: 2,
+      dashStyle: 'Dash',
+    });
+  }
+
+  const barHeight = Math.max(200, activeDrivers.length * (hasUserData ? 60 : 44) + 80);
+  const totalsOpts = {
+    chart: { type: 'bar', height: barHeight },
+    title: { text: null },
+    xAxis: { categories: activeDrivers.map(s => s.label), labels: { style: { fontSize: '12px' } } },
+    yAxis: { title: { text: 'Daily Avg' } },
+    tooltip: { shared: true, valueSuffix: ' / day', valueDecimals: 1 },
+    plotOptions: { bar: { borderRadius: 3, groupPadding: 0.15, dataLabels: { enabled: true, format: '{y:,.1f}', style: { color: '#e6edf3', textOutline: 'none', fontSize: '11px' } } } },
+    series: profileSeries,
+  };
+
+  const toggle = (key) => setToggles(prev => ({ ...prev, [key]: !prev[key] }));
+
+  return (
+    <div className="section-row">
+      <SectionHeader title="Drivers" desc="Activity Levels for Upstream Drivers" />
+
+      <div className="d-flex flex-wrap mb-3" style={{ gap: '12px' }}>
+        <div style={{ flex: '1 1 150px' }}><KpiCard label="Human Devs / Day" value={fmt(Math.round(avgDevs))} unit="avg" sub={`across ${n} days`} /></div>
+        <div style={{ flex: '1 1 150px' }}><KpiCard label="PRs Opened" value={fmtCompact(totalPRsCreated)} sub={fmtDec(safeDiv(totalPRsCreated, n), 1) + ' / day'} /></div>
+        <div style={{ flex: '1 1 150px' }}><KpiCard label="PRs Merged" value={fmtCompact(totalPRsMerged)} sub={mergeRate != null ? fmtPct(mergeRate) + ' merge rate' : ''} color="#3fb950" /></div>
+      </div>
+
+      <div className="d-flex flex-items-center flex-wrap mb-3 px-2" style={{ gap: '12px' }}>
+        <span className="f6 color-fg-muted text-bold">Show:</span>
+        <div className="driver-toggles">
+          {DRIVER_SERIES.map(s => (
+            <label key={s.key} className="color-fg-default">
+              <input type="checkbox" checked={toggles[s.key]} onChange={() => toggle(s.key)} />
+              <span className="ml-1" style={{ color: s.color }}>●</span> {s.label}
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div className="d-flex flex-wrap" style={{ gap: '16px' }}>
+        <div className="Box p-3" style={{ flex: '2 1 480px' }}>
+          <h4 className="f6 color-fg-muted mb-1">Daily Trend — per Human Dev</h4>
+          <Chart options={trendOpts} />
+        </div>
+        <div className="Box p-3" style={{ flex: '1 1 300px' }}>
+          <h4 className="f6 color-fg-muted mb-1">Daily Avg / Dev{selectedUser ? ` vs ${selectedUser}` : ''}</h4>
+          <Chart options={totalsOpts} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION C — CONFIDENCE
+   ═══════════════════════════════════════════════════════ */
+function ConfidenceSection({ days, prSessions, devDays, config, method }) {
+  const n = days.length;
+  const devCount = new Set(devDays.map(r => r.developer)).size;
+  const totalDevDays = devDays.length;
+
+  const methodDef = ESTIMATION_METHODS.find(m => m.key === method) || ESTIMATION_METHODS[0];
+
+  // Method comparison
+  const methodComparison = ESTIMATION_METHODS.map(m => {
+    const field = 'est_' + m.key + '_hrs_per_dev_day';
+    const vals = days.map(d => d[field]).filter(v => v != null);
+    const avg = vals.length ? vals.reduce((a,b) => a+b, 0) / vals.length : null;
+    const totalField = 'est_' + m.key + '_hrs_day';
+    const totalHrs = days.reduce((s, d) => s + (d[totalField] || 0), 0);
+    return { ...m, avgPerDevDay: avg, totalHrs, isSelected: m.key === method };
+  });
+
+  // PR quality metrics
+  const totalCreated = prSessions.length;
+  const totalMerged = prSessions.filter(p => p.pr_merged_at).length;
+  const totalClosed = prSessions.filter(p => p.latest_status === 'Closed without merge' || (p.pr_state === 'closed' && !p.pr_merged_at)).length;
+  const totalOpen = prSessions.filter(p => p.pr_state === 'open').length;
+  const mergedWithDuration = prSessions.filter(p => p.pr_merged_at && p.duration_minutes != null);
+  const medianMergeMins = (() => {
+    if (!mergedWithDuration.length) return null;
+    const sorted = mergedWithDuration.map(p => p.duration_minutes).sort((a,b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  })();
+  const avgChangesReq = totalCreated > 0
+    ? prSessions.reduce((s, p) => s + (p.changes_requested_count || 0), 0) / totalCreated
+    : null;
+
+  // Duration data availability
+  const sessionsWithDuration = prSessions.filter(p => p.duration_minutes != null).length;
+  const sessionsAgentDuration = prSessions.filter(p => p.duration_type === 'agent').length;
+  const sessionsLifecycleDuration = prSessions.filter(p => p.duration_type === 'lifecycle').length;
+
+  const [showPRTable, setShowPRTable] = useState(false);
+
+  return (
+    <div className="section-row">
+      <SectionHeader title="Confidence" desc="How the estimate is made, what it assumes, and how reliable the underlying data is." />
+      <div className="confidence-grid">
+
+        {/* Left — Method & Assumptions */}
+        <div className="Box p-3">
+          <h4 className="f5 mb-2">Estimation Method</h4>
+          <div className="d-flex flex-items-center mb-2" style={{ gap: '8px' }}>
+            <span className="Label Label--accent">{methodDef.key}</span>
+            <span className="f6 color-fg-muted">{methodDef.descFn(config)}</span>
+          </div>
+          <p className="f6 color-fg-muted mb-3" style={{ fontFamily: 'monospace', background: 'var(--bgColor-muted)', padding: '8px', borderRadius: '6px' }}>
+            {methodDef.formulaFn(config)}
+          </p>
+
+          <h5 className="f6 color-fg-muted text-bold mt-3 mb-1">Shared Configuration</h5>
+          <table className="width-full f6">
+            <tbody>
+              <tr><td className="color-fg-muted py-1">Workdays / Week</td><td className="py-1 text-bold">{config.cfg_workdays_per_week ?? 5}</td></tr>
+              <tr><td className="color-fg-muted py-1">Labor Cost / Hour</td><td className="py-1 text-bold">{config.cfg_labor_cost_per_hour != null ? fmtCurrency(config.cfg_labor_cost_per_hour) : '—'}</td></tr>
+            </tbody>
+          </table>
+
+          <h5 className="f6 color-fg-muted text-bold mt-3 mb-1">Definitions</h5>
+          <p className="f6 color-fg-muted"><strong>Duration-Based (Merged):</strong> Multiplies merged PR session hours by a human-to-agent ratio (default {config.est_human_to_agent_ratio || 10}×). Only counts sessions that resulted in a merged PR.</p>
+          <p className="f6 color-fg-muted"><strong>LoC-Based (Merged):</strong> {config.est_hrs_per_kloc || 4} hours of time saved per 1,000 lines of merged code added by agent PRs.</p>
+          <p className="f6 color-fg-muted"><strong>Human Dev:</strong> Developer with agent session minutes &gt; 0 for that day.</p>
+        </div>
+
+        {/* Right — Data Quality */}
+        <div className="Box p-3">
+          <h4 className="f5 mb-2">Data Quality</h4>
+
+          <h5 className="f6 color-fg-muted text-bold mb-2">Method Comparison</h5>
+          <table className="width-full f6 mb-3">
+            <thead>
+              <tr>
+                <th className="color-fg-muted py-1 f6" style={{ fontWeight: 500 }}>Method</th>
+                <th className="color-fg-muted py-1 f6 text-right" style={{ fontWeight: 500 }}>Avg Hrs/Dev/Day</th>
+                <th className="color-fg-muted py-1 f6 text-right" style={{ fontWeight: 500 }}>Total Hrs ({n}d)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {methodComparison.map(m => (
+                <tr key={m.key} className={m.isSelected ? 'method-row-selected' : ''}>
+                  <td className="py-1" style={{ paddingLeft: m.isSelected ? '9px' : '12px' }}>
+                    {m.isSelected && <span style={{ color: '#58a6ff', marginRight: '4px' }}>●</span>}
+                    {m.label}
+                  </td>
+                  <td className="py-1 text-right text-bold">{fmtDec(m.avgPerDevDay, 2)}</td>
+                  <td className="py-1 text-right">{fmtDec(m.totalHrs, 0)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <h5 className="f6 color-fg-muted text-bold mb-1">Coverage</h5>
+          <div className="d-flex flex-justify-between f6 py-1"><span className="color-fg-muted">Days Loaded</span><span>{n}</span></div>
+          <div className="d-flex flex-justify-between f6 py-1"><span className="color-fg-muted">Developers</span><span>{devCount}</span></div>
+          <div className="d-flex flex-justify-between f6 py-1"><span className="color-fg-muted">Developer-Day Records</span><span>{totalDevDays}</span></div>
+          <div className="d-flex flex-justify-between f6 py-1"><span className="color-fg-muted">PR Sessions</span><span>{totalCreated}</span></div>
+          <div className="d-flex flex-justify-between f6 py-1"><span className="color-fg-muted">Sessions with Duration</span><span>{sessionsWithDuration} / {totalCreated}</span></div>
+          <div className="d-flex flex-justify-between f6 py-1"><span className="color-fg-muted pl-3">└ Agent work time</span><span className={sessionsAgentDuration > 0 ? 'status-match' : 'color-fg-muted'}>{sessionsAgentDuration}</span></div>
+          <div className="d-flex flex-justify-between f6 py-1 mb-3"><span className="color-fg-muted pl-3">└ PR lifecycle (fallback)</span><span className={sessionsLifecycleDuration > 0 ? 'status-minor' : 'color-fg-muted'}>{sessionsLifecycleDuration}</span></div>
+
+          <h5 className="f6 color-fg-muted text-bold mb-2">PR Quality</h5>
+          <div className="d-flex flex-wrap" style={{ gap: '8px' }}>
+            <div className="Box text-center px-3 py-2" style={{ minWidth: '80px' }}>
+              <div className="f3 text-bold status-match">{totalMerged}</div>
+              <div className="f6 color-fg-muted">Merged</div>
+            </div>
+            <div className="Box text-center px-3 py-2" style={{ minWidth: '80px' }}>
+              <div className="f3 text-bold status-minor">{totalOpen}</div>
+              <div className="f6 color-fg-muted">Open</div>
+            </div>
+            <div className="Box text-center px-3 py-2" style={{ minWidth: '80px' }}>
+              <div className="f3 text-bold status-material">{totalClosed}</div>
+              <div className="f6 color-fg-muted">Closed</div>
+            </div>
+          </div>
+          <div className="d-flex flex-justify-between f6 py-1 mt-2"><span className="color-fg-muted">Merge Rate</span><span className="text-bold">{fmtPct(safeDiv(totalMerged, totalCreated))}</span></div>
+          <div className="d-flex flex-justify-between f6 py-1"><span className="color-fg-muted">Median Merge Time</span><span className="text-bold">{fmtMin(medianMergeMins)}</span></div>
+          <div className="d-flex flex-justify-between f6 py-1"><span className="color-fg-muted">Avg Changes Requested / PR</span><span className="text-bold">{fmtDec(avgChangesReq, 1)}</span></div>
+
+          <button className="btn btn-sm btn-outline mt-3" onClick={() => setShowPRTable(!showPRTable)}>
+            {showPRTable ? 'Hide' : 'Show'} PR Session Detail
+          </button>
+        </div>
+      </div>
+
+      {/* PR Sessions detail table */}
+      {showPRTable && (
+        <div className="Box mt-3" style={{ overflow: 'auto', maxHeight: '400px' }}>
+          <table className="width-full pr-table">
+            <thead>
+              <tr>
+                <th className="color-fg-muted p-2">PR</th>
+                <th className="color-fg-muted p-2">Title</th>
+                <th className="color-fg-muted p-2">Status</th>
+                <th className="color-fg-muted p-2 text-right">+/-</th>
+                <th className="color-fg-muted p-2 text-right">Files</th>
+                <th className="color-fg-muted p-2 text-right">Duration</th>
+                <th className="color-fg-muted p-2 text-right">Changes Req</th>
+                <th className="color-fg-muted p-2">Requested By</th>
+              </tr>
+            </thead>
+            <tbody>
+              {prSessions.map((p, i) => (
+                <tr key={i}>
+                  <td className="p-2"><a href={p.pr_url} target="_blank" rel="noopener noreferrer">#{p.pr_number}</a></td>
+                  <td className="p-2" style={{ maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.pr_title}</td>
+                  <td className="p-2">
+                    <span className={`Label ${p.latest_status === 'Merged' ? 'Label--success' : p.latest_status === 'Closed without merge' ? 'Label--danger' : 'Label--accent'}`}>
+                      {p.latest_status}
+                    </span>
+                  </td>
+                  <td className="p-2 text-right"><span style={{color:'#3fb950'}}>+{fmt(p.additions)}</span> / <span style={{color:'#f85149'}}>-{fmt(p.deletions)}</span></td>
+                  <td className="p-2 text-right">{fmt(p.changed_files)}</td>
+                  <td className="p-2 text-right">{fmtMin(p.duration_minutes)}</td>
+                  <td className="p-2 text-right">{fmt(p.changes_requested_count)}</td>
+                  <td className="p-2">{p.origin_requested_by || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   APP
+   ═══════════════════════════════════════════════════════ */
+function App() {
+  const [data, setData] = useState(null);
+  const [config, setConfig] = useState({ cfg_workdays_per_week: 5, cfg_labor_cost_per_hour: null, est_human_to_agent_ratio: 10, est_hrs_per_kloc: 4 });
+  const [configOpen, setConfigOpen] = useState(false);
+  const [method, setMethod] = useState('duration');
+  const [selectedUser, setSelectedUser] = useState(null);
+
+  const recompute = useCallback((baseDayRows, cfg, m) => {
+    return computeDerived(baseDayRows, cfg, m);
+  }, []);
+
+  const handleData = useCallback((d) => {
+    const baseDayRows = fillDayGaps(aggregateToDayLevel(d.devDays, d.prSessions, d.requests));
+    const enriched = computeDerived(baseDayRows, d.config, method);
+    setData({ ...d, dayRows: enriched, baseDayRows });
+    setConfig(d.config);
+  }, [method]);
+
+  const handleMethodChange = useCallback((newMethod) => {
+    setMethod(newMethod);
+    if (data) {
+      const enriched = recompute(data.baseDayRows, config, newMethod);
+      setData(prev => ({ ...prev, dayRows: enriched }));
+    }
+  }, [data, config, recompute]);
+
+  const handleConfigApply = useCallback((newCfg) => {
+    setConfig(newCfg);
+    if (data) {
+      const enriched = recompute(data.baseDayRows, newCfg, method);
+      setData(prev => ({ ...prev, dayRows: enriched }));
+    }
+  }, [data, method, recompute]);
+
+  return (
+    <div className="efficiency-page">
+      <div className="mb-4">
+        <h1 className="f1">Agentic AI Coding</h1>
+        <p className="f4 color-fg-muted">Understand how Agent Efficiency is improving</p>
+      </div>
+
+      <UploadPanel onData={handleData} />
+
+      {data && (
+        <>
+          <SourceSummary data={data} />
+          <DevSearch devDays={data.devDays} selectedUser={selectedUser} onSelect={setSelectedUser} />
+          <ImpactSection days={data.dayRows} config={config} method={method} onMethodChange={handleMethodChange} devDays={data.devDays} selectedUser={selectedUser} />
+          <DriversSection days={data.dayRows} devDays={data.devDays} selectedUser={selectedUser} />
+          <ConfidenceSection days={data.dayRows} prSessions={data.prSessions} devDays={data.devDays} config={config} method={method} />
+          <ConfigPanel config={config} onApply={handleConfigApply} isOpen={configOpen} onToggle={() => setConfigOpen(o => !o)} />
+        </>
+      )}
+
+      {!data && (
+        <div className="Box p-5 text-center color-fg-muted">
+          <p className="f3 mb-2">No data loaded</p>
+          <p className="f5">Upload an Agentic AI Coding source JSON above to build the efficiency view.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

@@ -1,0 +1,678 @@
+{
+  "_meta": {
+    "area": "Agentic AI Coding",
+    "goal": "Time Efficiency Impact",
+    "window": "28d",
+    "scope": "enterprise",
+    "dataframe": "df_user_day",
+    "grain": "one row per developer per day",
+    "file_role": "df_user_day_agentic_schema_json",
+    "merge_strategy": "single_only",
+    "description": "User daily telemetry extended with inherited daily configuration, derived user-day values, and reserved slice fields for later cohort/scope analysis."
+  },
+  "field_categories": {
+    "source": "Directly present in user telemetry.",
+    "flattened_source": "Flattened from nested user telemetry objects.",
+    "context": "Injected from query/page/model context, not present in telemetry.",
+    "configured": "Joined from external config or testing inputs.",
+    "derived": "Calculated from source and/or configured fields."
+  },
+  "fields": {
+    "day": {
+      "category": "source",
+      "type": "date",
+      "source": "user_report[*].day",
+      "purpose": "Primary daily key for user-day facts.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "all_rows",
+        "joins",
+        "aggregation",
+        "reconciliation"
+      ],
+      "notes": "One row per developer per day."
+    },
+    "report_start_day": {
+      "category": "source",
+      "type": "date",
+      "source": "user_report[*].report_start_day",
+      "purpose": "Start of the report window carried in the user telemetry payload.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "documentation",
+        "auditing"
+      ],
+      "notes": "Already present in the user report."
+    },
+    "report_end_day": {
+      "category": "source",
+      "type": "date",
+      "source": "user_report[*].report_end_day",
+      "purpose": "End of the report window carried in the user telemetry payload.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "documentation",
+        "auditing"
+      ],
+      "notes": "Already present in the user report."
+    },
+    "enterprise_id": {
+      "category": "source",
+      "type": "string",
+      "source": "user_report[*].enterprise_id",
+      "purpose": "Enterprise identifier from user telemetry.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "joins",
+        "debugging",
+        "reconciliation"
+      ],
+      "notes": "Kept as source identifier."
+    },
+    "user_id": {
+      "category": "source",
+      "type": "integer",
+      "source": "user_report[*].user_id",
+      "purpose": "Stable developer identifier at user-day grain.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "joins",
+        "aggregation",
+        "future_slices"
+      ],
+      "notes": "Primary user key for later cohorting and drilldown."
+    },
+    "user_login": {
+      "category": "source",
+      "type": "string",
+      "source": "user_report[*].user_login",
+      "purpose": "Human-readable developer key.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "debugging",
+        "future_detail_views"
+      ],
+      "notes": "Useful for QA and later drilldown views."
+    },
+    "user_initiated_interaction_count": {
+      "category": "source",
+      "type": "integer",
+      "source": "user_report[*].user_initiated_interaction_count",
+      "purpose": "Raw daily user-initiated interaction count for the developer.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "aggregation",
+        "reconciliation",
+        "future_user_scoring"
+      ],
+      "notes": "Included because it aligns to enterprise telemetry at aggregate grain."
+    },
+    "code_generation_activity_count": {
+      "category": "source",
+      "type": "integer",
+      "source": "user_report[*].code_generation_activity_count",
+      "purpose": "Raw daily code generation activity count for the developer.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "aggregation",
+        "reconciliation",
+        "future_user_scoring"
+      ],
+      "notes": "Included because it aligns to enterprise telemetry at aggregate grain."
+    },
+    "code_acceptance_activity_count": {
+      "category": "source",
+      "type": "integer",
+      "source": "user_report[*].code_acceptance_activity_count",
+      "purpose": "Raw daily code acceptance activity count for the developer.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "aggregation",
+        "reconciliation",
+        "future_user_scoring"
+      ],
+      "notes": "Included because it aligns to enterprise telemetry at aggregate grain."
+    },
+    "loc_suggested_to_add_sum": {
+      "category": "source",
+      "type": "integer",
+      "source": "user_report[*].loc_suggested_to_add_sum",
+      "purpose": "Raw daily suggested added LoC for the developer.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "aggregation",
+        "reconciliation",
+        "future_user_loc_analysis"
+      ],
+      "notes": "Included because it aligns to enterprise telemetry at aggregate grain."
+    },
+    "loc_suggested_to_delete_sum": {
+      "category": "source",
+      "type": "integer",
+      "source": "user_report[*].loc_suggested_to_delete_sum",
+      "purpose": "Raw daily suggested deleted LoC for the developer.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "aggregation",
+        "reconciliation",
+        "future_user_loc_analysis"
+      ],
+      "notes": "Often zero in the sample, but should be preserved."
+    },
+    "loc_added_sum": {
+      "category": "source",
+      "type": "integer",
+      "source": "user_report[*].loc_added_sum",
+      "purpose": "Raw daily added LoC for the developer under Copilot-related flows.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "aggregation",
+        "reconciliation",
+        "future_user_loc_analysis"
+      ],
+      "notes": "Used later for user-level and slice-level LoC contribution calculations."
+    },
+    "loc_deleted_sum": {
+      "category": "source",
+      "type": "integer",
+      "source": "user_report[*].loc_deleted_sum",
+      "purpose": "Raw daily deleted LoC for the developer under Copilot-related flows.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "aggregation",
+        "reconciliation",
+        "future_user_loc_analysis"
+      ],
+      "notes": "Included because it aligns to enterprise telemetry at aggregate grain."
+    },
+    "used_agent": {
+      "category": "source",
+      "type": "boolean",
+      "source": "user_report[*].used_agent",
+      "purpose": "Flags whether the developer used agent-related functionality on that day/report row.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "future_slices",
+        "future_user_scoring"
+      ],
+      "notes": "Useful later for cohort comparisons."
+    },
+    "used_chat": {
+      "category": "source",
+      "type": "boolean",
+      "source": "user_report[*].used_chat",
+      "purpose": "Flags whether the developer used chat-related functionality on that day/report row.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "future_slices",
+        "future_user_scoring"
+      ],
+      "notes": "Useful later for cohort comparisons."
+    },
+    "is_active_copilot_dev_day": {
+      "category": "derived",
+      "type": "boolean",
+      "source": "derived from user-day telemetry",
+      "purpose": "Normalized active-user flag at user-day grain.",
+      "calculation": "true if any of user_initiated_interaction_count, code_generation_activity_count, code_acceptance_activity_count, loc_suggested_to_add_sum, loc_suggested_to_delete_sum, loc_added_sum, loc_deleted_sum is > 0, else false",
+      "dependencies": [
+        "user_initiated_interaction_count",
+        "code_generation_activity_count",
+        "code_acceptance_activity_count",
+        "loc_suggested_to_add_sum",
+        "loc_suggested_to_delete_sum",
+        "loc_added_sum",
+        "loc_deleted_sum"
+      ],
+      "required_for": [
+        "aggregation",
+        "reconciliation",
+        "future_slices"
+      ],
+      "notes": "Lets later scopes compute active users from user-day facts."
+    },
+    "is_active_chat_dev_day": {
+      "category": "derived",
+      "type": "boolean",
+      "source": "derived from used_chat and/or chat-related activity",
+      "purpose": "Normalized chat-active flag at user-day grain.",
+      "calculation": "used_chat",
+      "dependencies": [
+        "used_chat"
+      ],
+      "required_for": [
+        "future_slices"
+      ],
+      "notes": "Initial version can map directly from used_chat."
+    },
+    "is_active_agent_dev_day": {
+      "category": "derived",
+      "type": "boolean",
+      "source": "derived from used_agent and/or agent-related activity",
+      "purpose": "Normalized agent-active flag at user-day grain.",
+      "calculation": "used_agent",
+      "dependencies": [
+        "used_agent"
+      ],
+      "required_for": [
+        "future_slices"
+      ],
+      "notes": "Initial version can map directly from used_agent."
+    },
+    "is_active_completion_dev_day": {
+      "category": "derived",
+      "type": "boolean",
+      "source": "derived from completion-related activity",
+      "purpose": "Flags whether the developer had completion activity on that day.",
+      "calculation": "code_generation_activity_count > 0 OR code_acceptance_activity_count > 0",
+      "dependencies": [
+        "code_generation_activity_count",
+        "code_acceptance_activity_count"
+      ],
+      "required_for": [
+        "future_slices"
+      ],
+      "notes": "Helper field for later cohorting."
+    },
+    "interactions_day": {
+      "category": "derived",
+      "type": "integer",
+      "source": "alias of source metric",
+      "purpose": "Normalized dashboard-friendly alias for daily user interactions.",
+      "calculation": "user_initiated_interaction_count",
+      "dependencies": [
+        "user_initiated_interaction_count"
+      ],
+      "required_for": [
+        "future_user_views",
+        "aggregation"
+      ],
+      "notes": "Alias field for dashboard formulas."
+    },
+    "generations_day": {
+      "category": "derived",
+      "type": "integer",
+      "source": "alias of source metric",
+      "purpose": "Normalized dashboard-friendly alias for daily user generations.",
+      "calculation": "code_generation_activity_count",
+      "dependencies": [
+        "code_generation_activity_count"
+      ],
+      "required_for": [
+        "future_user_views",
+        "aggregation"
+      ],
+      "notes": "Alias field for dashboard formulas."
+    },
+    "acceptances_day": {
+      "category": "derived",
+      "type": "integer",
+      "source": "alias of source metric",
+      "purpose": "Normalized dashboard-friendly alias for daily user acceptances.",
+      "calculation": "code_acceptance_activity_count",
+      "dependencies": [
+        "code_acceptance_activity_count"
+      ],
+      "required_for": [
+        "future_user_views",
+        "aggregation"
+      ],
+      "notes": "Alias field for dashboard formulas."
+    },
+    "loc_suggested_add_day": {
+      "category": "derived",
+      "type": "integer",
+      "source": "alias of source metric",
+      "purpose": "Normalized dashboard-friendly alias for daily user suggested added LoC.",
+      "calculation": "loc_suggested_to_add_sum",
+      "dependencies": [
+        "loc_suggested_to_add_sum"
+      ],
+      "required_for": [
+        "future_user_views",
+        "aggregation"
+      ],
+      "notes": "Alias field for dashboard formulas."
+    },
+    "loc_suggested_delete_day": {
+      "category": "derived",
+      "type": "integer",
+      "source": "alias of source metric",
+      "purpose": "Normalized dashboard-friendly alias for daily user suggested deleted LoC.",
+      "calculation": "loc_suggested_to_delete_sum",
+      "dependencies": [
+        "loc_suggested_to_delete_sum"
+      ],
+      "required_for": [
+        "future_user_views",
+        "aggregation"
+      ],
+      "notes": "Alias field for dashboard formulas."
+    },
+    "loc_added_day": {
+      "category": "derived",
+      "type": "integer",
+      "source": "alias of source metric",
+      "purpose": "Normalized dashboard-friendly alias for daily user added LoC.",
+      "calculation": "loc_added_sum",
+      "dependencies": [
+        "loc_added_sum"
+      ],
+      "required_for": [
+        "future_user_views",
+        "aggregation"
+      ],
+      "notes": "Alias field for dashboard formulas."
+    },
+    "loc_deleted_day": {
+      "category": "derived",
+      "type": "integer",
+      "source": "alias of source metric",
+      "purpose": "Normalized dashboard-friendly alias for daily user deleted LoC.",
+      "calculation": "loc_deleted_sum",
+      "dependencies": [
+        "loc_deleted_sum"
+      ],
+      "required_for": [
+        "future_user_views",
+        "aggregation"
+      ],
+      "notes": "Alias field for dashboard formulas."
+    },
+    "acceptance_rate_day": {
+      "category": "derived",
+      "type": "number",
+      "source": "derived from user-day telemetry",
+      "purpose": "Daily user-level acceptance ratio.",
+      "calculation": "code_acceptance_activity_count / code_generation_activity_count",
+      "dependencies": [
+        "code_acceptance_activity_count",
+        "code_generation_activity_count"
+      ],
+      "required_for": [
+        "future_user_views",
+        "future_scoring"
+      ],
+      "notes": "Null when code_generation_activity_count is zero."
+    },
+    "cfg_total_dev_loc_added_day": {
+      "category": "configured",
+      "type": "integer",
+      "source": "joined from external daily configuration by day",
+      "purpose": "Configured daily total developer added LoC inherited by each user-day row for testing mode.",
+      "calculation": "Join from daily config table on day.",
+      "dependencies": [
+        "day"
+      ],
+      "required_for": [
+        "future_user_loc_share",
+        "aggregation"
+      ],
+      "notes": "Same daily configured value repeats for all user rows on the day."
+    },
+    "cfg_time_saved_pct_day": {
+      "category": "configured",
+      "type": "number",
+      "source": "joined from external daily configuration by day",
+      "purpose": "Configured daily time-saved percentage inherited by each user-day row for testing mode.",
+      "calculation": "Join from daily config table on day.",
+      "dependencies": [
+        "day"
+      ],
+      "required_for": [
+        "future_user_time_saved",
+        "aggregation"
+      ],
+      "notes": "Same daily configured value repeats for all user rows on the day."
+    },
+    "cfg_baseline_hours_per_dev_per_week": {
+      "category": "configured",
+      "type": "number",
+      "source": "joined from external configuration",
+      "purpose": "Baseline weekly hours used to convert configured time-saved percent into weekly per-user hours saved.",
+      "calculation": "Join from config.",
+      "dependencies": [],
+      "required_for": [
+        "future_user_time_saved",
+        "aggregation"
+      ],
+      "notes": "Typically coding hours per developer per week in testing mode."
+    },
+    "cfg_workdays_per_week": {
+      "category": "configured",
+      "type": "number",
+      "source": "joined from external configuration",
+      "purpose": "Converts weekly per-user hours saved into daily per-user hours saved.",
+      "calculation": "Join from config.",
+      "dependencies": [],
+      "required_for": [
+        "future_user_time_saved",
+        "aggregation"
+      ],
+      "notes": "Default likely 5."
+    },
+    "cfg_time_saved_input_mode": {
+      "category": "configured",
+      "type": "string",
+      "source": "joined from external configuration",
+      "purpose": "Documents the current estimation mode inherited by user-day rows.",
+      "calculation": "Join from config.",
+      "dependencies": [],
+      "required_for": [
+        "documentation",
+        "auditing"
+      ],
+      "notes": "Example value: 'manual_daily_pct'."
+    },
+    "time_saved_hours_per_week_equivalent_manual": {
+      "category": "derived",
+      "type": "number",
+      "source": "derived from configured testing inputs",
+      "purpose": "User-level normalized weekly equivalent time-saved value under manual daily-percent mode.",
+      "calculation": "cfg_time_saved_pct_day * cfg_baseline_hours_per_dev_per_week",
+      "dependencies": [
+        "cfg_time_saved_pct_day",
+        "cfg_baseline_hours_per_dev_per_week"
+      ],
+      "required_for": [
+        "future_user_views",
+        "aggregation"
+      ],
+      "notes": "In testing mode, this is the same for all active user-day rows on a given day unless later weighted."
+    },
+    "time_saved_hours_day_manual": {
+      "category": "derived",
+      "type": "number",
+      "source": "derived from configured testing inputs",
+      "purpose": "User-level daily time-saved value under manual daily-percent mode.",
+      "calculation": "time_saved_hours_per_week_equivalent_manual / cfg_workdays_per_week",
+      "dependencies": [
+        "time_saved_hours_per_week_equivalent_manual",
+        "cfg_workdays_per_week"
+      ],
+      "required_for": [
+        "aggregation",
+        "future_user_views"
+      ],
+      "notes": "Summing across active users and days yields aggregate manual time-saved totals."
+    },
+    "copilot_loc_share_of_total_dev_loc_day_user_basis": {
+      "category": "derived",
+      "type": "number",
+      "source": "derived from user LoC and configured total daily dev LoC",
+      "purpose": "User-day share of configured total developer added LoC.",
+      "calculation": "loc_added_sum / cfg_total_dev_loc_added_day",
+      "dependencies": [
+        "loc_added_sum",
+        "cfg_total_dev_loc_added_day"
+      ],
+      "required_for": [
+        "future_user_views",
+        "aggregation"
+      ],
+      "notes": "Useful for testing concept visibility before real daily dev LoC is integrated."
+    },
+    "org": {
+      "category": "context",
+      "type": "string",
+      "source": "future enrichment/join",
+      "purpose": "Reserved field for organization slice membership.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "future_slices"
+      ],
+      "notes": "Likely joined from roster, repo ownership, or org mapping later."
+    },
+    "repo": {
+      "category": "context",
+      "type": "string",
+      "source": "future enrichment/join",
+      "purpose": "Reserved field for repository slice membership.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "future_slices"
+      ],
+      "notes": "May require a different telemetry or attribution join later."
+    },
+    "team": {
+      "category": "context",
+      "type": "string",
+      "source": "future enrichment/join",
+      "purpose": "Reserved field for team slice membership.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "future_slices"
+      ],
+      "notes": "Likely joined from HRIS or team roster later."
+    },
+    "manager": {
+      "category": "context",
+      "type": "string",
+      "source": "future enrichment/join",
+      "purpose": "Reserved field for manager hierarchy slice membership.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "future_slices"
+      ],
+      "notes": "Optional, useful for org drilldown later."
+    },
+    "cohort": {
+      "category": "context",
+      "type": "string",
+      "source": "future enrichment/join or derived segmentation",
+      "purpose": "Reserved field for cohort labels such as power users, light users, chat users, or agent users.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "future_slices"
+      ],
+      "notes": "Can be derived later from activity patterns."
+    },
+    "language_primary": {
+      "category": "context",
+      "type": "string",
+      "source": "future derivation from nested user-day arrays",
+      "purpose": "Reserved field for dominant language on the user-day.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "future_slices"
+      ],
+      "notes": "Would be derived from totals_by_language_feature or totals_by_language_model."
+    },
+    "ide_primary": {
+      "category": "context",
+      "type": "string",
+      "source": "future derivation from nested user-day arrays",
+      "purpose": "Reserved field for dominant IDE on the user-day.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "future_slices"
+      ],
+      "notes": "Would be derived from totals_by_ide."
+    },
+    "feature_primary": {
+      "category": "context",
+      "type": "string",
+      "source": "future derivation from nested user-day arrays",
+      "purpose": "Reserved field for dominant feature on the user-day.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "future_slices"
+      ],
+      "notes": "Would be derived from totals_by_feature."
+    },
+    "model_primary": {
+      "category": "context",
+      "type": "string",
+      "source": "future derivation from nested user-day arrays",
+      "purpose": "Reserved field for dominant model on the user-day.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "future_slices"
+      ],
+      "notes": "Would be derived from totals_by_language_model or totals_by_model_feature."
+    },
+    "source_user_row_present": {
+      "category": "derived",
+      "type": "boolean",
+      "source": "derived from existence of user row",
+      "purpose": "Explicit flag that the user-day source row exists.",
+      "calculation": "true",
+      "dependencies": [],
+      "required_for": [
+        "auditing",
+        "debugging"
+      ],
+      "notes": "Useful when comparing observed vs expected user-day coverage."
+    },
+    "calculation_version": {
+      "category": "context",
+      "type": "string",
+      "source": "model/runtime context",
+      "purpose": "Version tag for user-day derived logic.",
+      "calculation": "Injected from calculation pipeline/versioning.",
+      "dependencies": [],
+      "required_for": [
+        "auditing",
+        "debugging"
+      ],
+      "notes": "Helpful when formulas evolve."
+    },
+    "notes": {
+      "category": "context",
+      "type": "string",
+      "source": "optional model/runtime annotation",
+      "purpose": "Freeform notes for caveats, anomalies, or later overrides.",
+      "calculation": null,
+      "dependencies": [],
+      "required_for": [
+        "documentation",
+        "debugging"
+      ],
+      "notes": "Optional."
+    }
+  }
+}
