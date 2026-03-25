@@ -3,6 +3,19 @@ set -euo pipefail
 
 # AI Assisted Coding Metrics Query
 # Collects Copilot usage metrics including active users, feature usage, code generation & acceptance
+#
+# IMPORTANT: This script outputs JSON to stdout and progress messages to stderr.
+# 
+# Correct usage:
+#   ENTERPRISE="my-enterprise" DAYS=28 ./ai-assisted-coding.sh > data.json
+#   ORG="my-org" DAYS=28 ./ai-assisted-coding.sh > data.json
+#
+# Incorrect (mixes stderr into JSON):
+#   ./ai-assisted-coding.sh > data.json 2>&1
+#
+# To save both JSON and logs:
+#   ./ai-assisted-coding.sh 2>progress.log >data.json
+#
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   echo "Usage: $0"
@@ -21,6 +34,14 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   echo "  ENTERPRISE     - GitHub Enterprise name (required if ORG is not set)" >&2
   echo "  ORG            - GitHub Organization name (required if ENTERPRISE is not set)" >&2
   echo "  DAYS           - Number of days to look back (default: 7)" >&2
+  echo "" >&2
+  echo "Examples:" >&2
+  echo "  # Correct usage (JSON to stdout, progress to stderr):" >&2
+  echo "  ENTERPRISE=\"octodemo\" DAYS=28 ./ai-assisted-coding.sh > octodemo-data.json" >&2
+  echo "  ORG=\"my-org\" DAYS=28 ./ai-assisted-coding.sh > org-data.json" >&2
+  echo "" >&2
+  echo "  # Save both JSON and progress log:" >&2
+  echo "  ENTERPRISE=\"octodemo\" ./ai-assisted-coding.sh 2>progress.log >data.json" >&2
   exit 0
 fi
 

@@ -8,6 +8,19 @@ set -euo pipefail
 #
 # Unlike the enterprise Copilot metrics API, this script queries per-repo data
 # to build an agentic activity dataset from issues, PRs, timelines, and comments.
+#
+# IMPORTANT: This script outputs JSON to stdout and progress messages to stderr.
+# 
+# Correct usage:
+#   ORG="my-org" DAYS=28 ./agentic-ai-coding.sh > data.json
+#   ORG="my-org" REPO="my-repo" DAYS=28 ./agentic-ai-coding.sh > data.json
+#
+# Incorrect (mixes stderr into JSON):
+#   ./agentic-ai-coding.sh > data.json 2>&1
+#
+# To save both JSON and logs:
+#   ./agentic-ai-coding.sh 2>progress.log >data.json
+#
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   echo "Usage: $0"
@@ -41,6 +54,16 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   echo "  REPO           - GitHub Repository name (optional; omit for all active repos)" >&2
   echo "  DAYS           - Number of days to look back (default: 28)" >&2
   echo "  MAX_REPOS      - Maximum repos to process in multi-repo mode (default: unlimited)" >&2
+  echo "" >&2
+  echo "Examples:" >&2
+  echo "  # Correct usage (JSON to stdout, progress to stderr):" >&2
+  echo "  ORG=\"octodemo\" DAYS=28 ./agentic-ai-coding.sh > octodemo-data.json" >&2
+  echo "" >&2
+  echo "  # Save both JSON and progress log:" >&2
+  echo "  ORG=\"octodemo\" DAYS=28 ./agentic-ai-coding.sh 2>progress.log >data.json" >&2
+  echo "" >&2
+  echo "  # Single repository:" >&2
+  echo "  ORG=\"octodemo\" REPO=\"my-repo\" ./agentic-ai-coding.sh > data.json" >&2
   exit 0
 fi
 
