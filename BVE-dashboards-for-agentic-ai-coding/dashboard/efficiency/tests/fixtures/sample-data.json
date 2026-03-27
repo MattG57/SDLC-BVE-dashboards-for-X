@@ -1,0 +1,121 @@
+{
+  "developer_day_summary": [
+    {
+      "date": "2026-03-24",
+      "developer_login": "developer1",
+      "total_agent_requests": 5,
+      "issue_assignment_requests": 2,
+      "pr_followup_requests": 3,
+      "sessions_started": 4,
+      "agent_prs_created": 2,
+      "agent_prs_merged": 1,
+      "agent_loc_added": 450,
+      "agent_loc_deleted": 80,
+      "agent_session_minutes": 120,
+      "changes_requested_total": 1
+    },
+    {
+      "date": "2026-03-23",
+      "developer_login": "developer1",
+      "total_agent_requests": 3,
+      "issue_assignment_requests": 1,
+      "pr_followup_requests": 2,
+      "sessions_started": 2,
+      "agent_prs_created": 1,
+      "agent_prs_merged": 1,
+      "agent_loc_added": 320,
+      "agent_loc_deleted": 45,
+      "agent_session_minutes": 90,
+      "changes_requested_total": 0
+    },
+    {
+      "date": "2026-03-24",
+      "developer_login": "developer2",
+      "total_agent_requests": 8,
+      "issue_assignment_requests": 3,
+      "pr_followup_requests": 5,
+      "sessions_started": 6,
+      "agent_prs_created": 3,
+      "agent_prs_merged": 2,
+      "agent_loc_added": 680,
+      "agent_loc_deleted": 120,
+      "agent_session_minutes": 180,
+      "changes_requested_total": 2
+    }
+  ],
+  "pr_sessions": [
+    {
+      "repo": "octodemo/test-repo",
+      "pr_number": 123,
+      "pr_created_at": "2026-03-24T10:00:00Z",
+      "pr_merged_at": "2026-03-24T14:00:00Z",
+      "pr_state": "merged",
+      "pr_author_login": "copilot[bot]",
+      "additions": 450,
+      "deletions": 80,
+      "duration_type": "agent",
+      "duration_minutes": 60,
+      "changes_requested_count": 1,
+      "reopened_count": 0,
+      "additional_guidance_count": 0,
+      "copilot_invocation_count": 1,
+      "origin_request_type": "copilot_work_started",
+      "origin_requested_by": "developer1"
+    },
+    {
+      "repo": "octodemo/test-repo",
+      "pr_number": 124,
+      "pr_created_at": "2026-03-24T11:00:00Z",
+      "pr_merged_at": "2026-03-24T15:00:00Z",
+      "pr_state": "merged",
+      "pr_author_login": "copilot[bot]",
+      "additions": 320,
+      "deletions": 45,
+      "duration_type": "agent",
+      "duration_minutes": 45,
+      "changes_requested_count": 0,
+      "reopened_count": 0,
+      "additional_guidance_count": 0,
+      "copilot_invocation_count": 1,
+      "origin_request_type": "copilot_work_started",
+      "origin_requested_by": "developer2"
+    },
+    {
+      "repo": "octodemo/another-repo",
+      "pr_number": 456,
+      "pr_created_at": "2026-03-23T09:00:00Z",
+      "pr_merged_at": null,
+      "pr_state": "closed",
+      "pr_author_login": "copilot[bot]",
+      "additions": 180,
+      "deletions": 25,
+      "duration_type": "agent",
+      "duration_minutes": 30,
+      "changes_requested_count": 2,
+      "reopened_count": 1,
+      "additional_guidance_count": 1,
+      "copilot_invocation_count": 3,
+      "origin_request_type": "copilot_work_started",
+      "origin_requested_by": "developer1"
+    }
+  ],
+  "requests": [
+    {
+      "repo": "octodemo/test-repo",
+      "request_type": "issue_assignment",
+      "requested_at": "2026-03-24T09:00:00Z",
+      "requested_by_login": "developer1",
+      "issue_number": 789,
+      "issue_title": "Add new feature",
+      "is_pull_request": false
+    },
+    {
+      "repo": "octodemo/test-repo",
+      "request_type": "copilot_work_started",
+      "requested_at": "2026-03-24T10:00:00Z",
+      "requested_by_login": "developer2",
+      "pr_number": 123,
+      "is_pull_request": true
+    }
+  ]
+}

@@ -1,0 +1,103 @@
+{
+  "organization": "octodemo",
+  "date_range": {
+    "start": "2024-01-01T00:00:00Z",
+    "end": "2024-01-28T23:59:59Z"
+  },
+  "pull_requests": [
+    {
+      "number": 42,
+      "title": "Add user authentication feature",
+      "html_url": "https://github.com/octodemo/repo/pull/42",
+      "state": "closed",
+      "created_at": "2024-01-15T10:30:00Z",
+      "updated_at": "2024-01-16T14:20:00Z",
+      "merged_at": "2024-01-16T14:20:00Z",
+      "user": {
+        "login": "developer1",
+        "id": 12345,
+        "type": "User"
+      },
+      "additions": 250,
+      "deletions": 45,
+      "changed_files": 8,
+      "copilot_generated": true,
+      "review_comments": [
+        {
+          "id": 1001,
+          "body": "This looks good, but consider edge case handling",
+          "created_at": "2024-01-15T15:00:00Z",
+          "user": {
+            "login": "reviewer1",
+            "id": 67890,
+            "type": "User"
+          }
+        },
+        {
+          "id": 1002,
+          "body": "LGTM",
+          "created_at": "2024-01-16T10:00:00Z",
+          "user": {
+            "login": "reviewer2",
+            "id": 11111,
+            "type": "User"
+          }
+        }
+      ]
+    },
+    {
+      "number": 43,
+      "title": "Fix bug in payment processing",
+      "html_url": "https://github.com/octodemo/repo/pull/43",
+      "state": "closed",
+      "created_at": "2024-01-20T09:00:00Z",
+      "updated_at": "2024-01-22T16:45:00Z",
+      "merged_at": "2024-01-22T16:45:00Z",
+      "user": {
+        "login": "developer2",
+        "id": 22222,
+        "type": "User"
+      },
+      "additions": 80,
+      "deletions": 120,
+      "changed_files": 3,
+      "copilot_generated": false,
+      "review_comments": [
+        {
+          "id": 2001,
+          "body": "Great catch on this bug!",
+          "created_at": "2024-01-21T11:30:00Z",
+          "user": {
+            "login": "reviewer1",
+            "id": 67890,
+            "type": "User"
+          }
+        }
+      ]
+    },
+    {
+      "number": 44,
+      "title": "Update dependencies",
+      "html_url": "https://github.com/octodemo/repo/pull/44",
+      "state": "open",
+      "created_at": "2024-01-25T14:00:00Z",
+      "updated_at": "2024-01-25T14:00:00Z",
+      "merged_at": null,
+      "user": {
+        "login": "developer1",
+        "id": 12345,
+        "type": "User"
+      },
+      "additions": 15,
+      "deletions": 10,
+      "changed_files": 2,
+      "copilot_generated": true,
+      "review_comments": []
+    }
+  ],
+  "metadata": {
+    "total_prs": 3,
+    "copilot_generated_count": 2,
+    "total_review_comments": 3
+  }
+}
