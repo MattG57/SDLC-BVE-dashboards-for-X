@@ -196,14 +196,14 @@ describe('Structural Calculators', () => {
         { user: 'user1', day: '2026-03-05', loc_changed: 100 },
       ];
 
-      // user1 had activity 3 days ago
+      // user1 had activity 2 days ago (within 3-day window: day 0, -1, -2)
       const copilotUsersByDay = {
-        '2026-03-02': new Set(['user1']),
+        '2026-03-03': new Set(['user1']),
       };
 
       const result = groupPrsByDay(prs, copilotUsersByDay);
 
-      // Should still be considered assisted (within 3-day window)
+      // Should be considered assisted (within 3-day window)
       expect(result.period.assisted_prs).toBe(1);
     });
 

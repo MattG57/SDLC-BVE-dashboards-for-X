@@ -148,7 +148,7 @@ export function computeStructuralMetrics(entDays, userDays, config, prRecords) {
     : { byDay: {}, period: { total_prs: 0, assisted_prs: 0, total_loc: 0, assisted_loc: 0 } };
   const prsByDay = prGrouped.byDay;
   const prPeriod = prGrouped.period;
-  const hasPrData = prRecords && prRecords.length > 0;
+  const hasPrData = !!(prRecords && prRecords.length > 0);
 
   // Period-wide ratios
   const periodPrsAssistedPct = calculatePRAssistanceRate(prPeriod.assisted_prs, prPeriod.total_prs);
