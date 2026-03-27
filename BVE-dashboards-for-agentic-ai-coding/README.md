@@ -35,7 +35,7 @@ ENTERPRISE="my-enterprise" DAYS=28 ./agentic-ai-coding.sh > my-data.json
 
 ```bash
 cd dashboard/efficiency
-npm install
+npm install --include=dev
 npm test
 ```
 

@@ -13,7 +13,7 @@ open index.html
 ### Run Tests
 
 ```bash
-npm install
+npm install --include=dev
 npm test
 ```
 

@@ -80,8 +80,8 @@ ENTERPRISE="my-enterprise" DAYS=28 ./ai-assisted-coding.sh > my-data.json
 ### Run Tests
 
 ```bash
-# Install dependencies
-npm install
+# Install dependencies (including devDependencies for testing)
+npm install --include=dev
 
 # Run all tests
 npm test
@@ -231,7 +231,7 @@ See **[Build System Documentation](docs/BUILD-SYSTEM.md)** for details.
 
 | Command | Description |
 |---------|-------------|
-| `npm install` | Install all dependencies |
+| `npm install --include=dev` | Install all dependencies (including test frameworks) |
 | `npm test` | Run all tests |
 | `npm run build` | Build all dashboards |
 | `npm run build:ai-assisted` | Build AI Assisted dashboards |

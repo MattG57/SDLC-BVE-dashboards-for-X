@@ -122,7 +122,7 @@ root/
 ```
 
 **Benefits:**
-- ✅ `npm install` at root installs all
+- ✅ `npm install --include=dev` at root installs all (including test frameworks)
 - ✅ `npm test` runs all dashboard tests
 - ✅ Shared devDependencies (less duplication)
 - ✅ Consistent versions across workspaces

@@ -46,7 +46,7 @@ SDLC-BVE-dashboards-for-X/
 
 | Task | Command | Description |
 |------|---------|-------------|
-| **Install** | `npm install` | Install all dependencies |
+| **Install** | `npm install --include=dev` | Install all dependencies (including test frameworks) |
 | **Test** | `npm test` | Run all tests |
 | **Build** | `npm run build` | Build all dashboards |
 | **Validate** | `npm run validate` | Validate structure |
@@ -157,7 +157,7 @@ open BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency/index.html
 # 1. Clone & install
 git clone <repo>
 cd SDLC-BVE-dashboards-for-X
-npm install
+npm install --include=dev
 
 # 2. Run tests
 npm test

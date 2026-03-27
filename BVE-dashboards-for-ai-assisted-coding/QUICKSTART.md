@@ -12,9 +12,9 @@ Upload your data JSON file via the browser interface.
 ## Run Tests
 
 ```bash
-# Install dependencies
+# Install dependencies (including test frameworks)
 cd dashboard/efficiency
-npm install
+npm install --include=dev
 
 # Run all tests
 npm test

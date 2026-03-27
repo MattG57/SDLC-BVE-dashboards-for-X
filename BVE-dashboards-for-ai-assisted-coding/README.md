@@ -166,7 +166,7 @@ This runs the example data through all three estimation methods and outputs:
 ### Testing (Coming Soon)
 
 ```bash
-npm install
+npm install --include=dev
 npm test
 ```
 
