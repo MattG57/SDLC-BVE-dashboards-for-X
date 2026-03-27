@@ -198,6 +198,18 @@
       ],
       "notes": "Included because it aligns to enterprise telemetry at aggregate grain."
     },
+    "cli_prompt_count": {
+      "category": "flattened_source",
+      "type": "integer",
+      "source": "user_report[*].totals_by_cli.prompt_count",
+      "purpose": "Flattened CLI prompt count from user-level API data.",
+      "calculation": "Flatten from totals_by_cli.prompt_count.",
+      "dependencies": [],
+      "required_for": [
+        "supporting_telemetry"
+      ],
+      "notes": "Enables CLI prompt activity to be shown in the drivers section at the individual developer level."
+    },
     "used_agent": {
       "category": "source",
       "type": "boolean",

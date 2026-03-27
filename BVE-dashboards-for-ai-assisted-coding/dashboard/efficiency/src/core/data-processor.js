@@ -56,6 +56,7 @@ export function flattenDayTotal(dayTotal) {
     prTotalCreated: pullRequests.total_created || 0,
     prCreatedByCopilot: pullRequests.total_created_by_copilot || 0,
     prReviewedByCopilot: pullRequests.total_reviewed_by_copilot || 0,
+    cliPromptCount: cli.prompt_count || 0,
     cliSessionCount: cli.session_count || 0,
     cliRequestCount: cli.request_count || 0,
     agentModeInteractions,
@@ -87,6 +88,8 @@ export function flattenUserRecord(userRecord) {
     locAdded = safeSum(userRecord.totals_by_ide.map(i => i.loc_added_sum));
   }
 
+  const userCli = userRecord.totals_by_cli || {};
+
   return {
     day: userRecord.day,
     userLogin: userRecord.user_login,
@@ -95,6 +98,7 @@ export function flattenUserRecord(userRecord) {
     codeGenerations: userRecord.code_generation_activity_count || 0,
     codeAcceptances: userRecord.code_acceptance_activity_count || 0,
     locAdded,
+    cliPromptCount: userCli.prompt_count || 0,
   };
 }
 
