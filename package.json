@@ -25,6 +25,7 @@
     "@rollup/plugin-node-resolve": "^15.2.3",
     "@rollup/plugin-replace": "^5.0.5",
     "@rollup/plugin-terser": "^0.4.4",
+    "@vitest/coverage-v8": "^1.6.1",
     "esbuild": "^0.19.11",
     "eslint": "^8.56.0",
     "eslint-plugin-react": "^7.33.2",
