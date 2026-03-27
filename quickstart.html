@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark" data-dark-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quick Start — SDLC BVE Dashboards</title>
+
+<!-- Primer CSS -->
+<link rel="stylesheet" href="https://unpkg.com/@primer/css@21.3.1/dist/primer.css">
+
+<style>
+  body { background: var(--bgColor-default); }
+  .quickstart-page { max-width: 960px; margin: 0 auto; padding: 48px 16px; }
+
+  /* Header */
+  .qs-header { margin-bottom: 40px; }
+  .qs-header h1 { font-size: 2rem; font-weight: 700; color: var(--fgColor-default); margin: 0 0 8px; }
+  .qs-header p  { font-size: 1rem; color: var(--fgColor-muted); margin: 0; }
+  .qs-header .back-link { font-size: 0.85rem; margin-bottom: 16px; display: inline-block; }
+  .qs-header .back-link a { color: var(--fgColor-accent); text-decoration: none; }
+  .qs-header .back-link a:hover { text-decoration: underline; }
+
+  /* Sections */
+  .qs-section { margin-bottom: 40px; }
+  .qs-section h2 {
+    font-size: 1.25rem; font-weight: 600; color: var(--fgColor-default);
+    padding-bottom: 8px; border-bottom: 1px solid var(--borderColor-default); margin: 0 0 16px;
+  }
+  .qs-section h3 { font-size: 1rem; font-weight: 600; color: var(--fgColor-default); margin: 24px 0 8px; }
+  .qs-section p, .qs-section li { font-size: 0.9rem; color: var(--fgColor-muted); line-height: 1.6; }
+  .qs-section ul { padding-left: 20px; margin: 8px 0 16px; }
+
+  /* Code blocks */
+  .code-block {
+    background: var(--bgColor-muted);
+    border: 1px solid var(--borderColor-default);
+    border-radius: 6px;
+    padding: 16px;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.8rem;
+    color: var(--fgColor-default);
+    overflow-x: auto;
+    margin: 8px 0 16px;
+    white-space: pre;
+    line-height: 1.5;
+  }
+  .code-block .comment { color: var(--fgColor-muted); }
+
+  /* Inline code */
+  code {
+    background: var(--bgColor-muted);
+    border: 1px solid var(--borderColor-default);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.8rem;
+    color: var(--fgColor-default);
+  }
+
+  /* Steps */
+  .step { display: flex; gap: 16px; margin-bottom: 24px; }
+  .step-number {
+    flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%;
+    background: var(--bgColor-accent-muted); color: var(--fgColor-accent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.85rem; font-weight: 600;
+  }
+  .step-content { flex: 1; min-width: 0; }
+  .step-content h3 { margin-top: 4px; }
+
+  /* Config table */
+  .config-table { width: 100%; font-size: 0.8rem; border-collapse: collapse; margin: 8px 0 16px; }
+  .config-table th, .config-table td {
+    text-align: left; padding: 8px 12px;
+    border-bottom: 1px solid var(--borderColor-default);
+    color: var(--fgColor-muted);
+  }
+  .config-table th { color: var(--fgColor-default); font-weight: 600; }
+  .config-table code { border: none; padding: 0; background: none; }
+
+  /* Callout boxes */
+  .callout {
+    border: 1px solid var(--borderColor-default);
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin: 12px 0 16px;
+    font-size: 0.85rem;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .callout-tip { border-left: 3px solid var(--borderColor-success-emphasis); }
+  .callout-warn { border-left: 3px solid var(--borderColor-attention-emphasis); }
+  .callout-icon { flex-shrink: 0; font-size: 1rem; }
+  .callout p { margin: 0; color: var(--fgColor-muted); }
+
+  /* Dashboard tabs */
+  .dashboard-tab {
+    background: var(--bgColor-muted);
+    border: 1px solid var(--borderColor-default);
+    border-radius: 6px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .dashboard-tab h3 { margin-top: 0; }
+
+  /* Footer */
+  .qs-footer {
+    text-align: center;
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid var(--borderColor-default);
+    color: var(--fgColor-muted);
+    font-size: 0.8rem;
+  }
+  .qs-footer a { color: var(--fgColor-accent); text-decoration: none; }
+  .qs-footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<div class="quickstart-page">
+
+  <!-- Header -->
+  <div class="qs-header">
+    <div class="back-link"><a href="index.html">← Back to Dashboards</a></div>
+    <h1>Quick Start Guide</h1>
+    <p>How to collect data and load it into each dashboard.</p>
+  </div>
+
+  <!-- Prerequisites -->
+  <div class="qs-section">
+    <h2>Prerequisites</h2>
+    <ul>
+      <li><code>gh</code> CLI installed and authenticated (<code>gh auth login</code>)</li>
+      <li>A GitHub personal access token with the required scopes:
+        <ul>
+          <li><code>copilot</code> — Copilot metrics access</li>
+          <li><code>read:org</code> or <code>read:enterprise</code> — organization/enterprise data</li>
+        </ul>
+      </li>
+    </ul>
+    <div class="code-block"><span class="comment"># Export your token</span>
+export GITHUB_TOKEN="your_token_here"</div>
+  </div>
+
+  <!-- AI Assisted Coding -->
+  <div class="qs-section">
+    <h2>AI Assisted Coding Dashboards</h2>
+    <p>The <strong>Efficiency</strong> and <strong>Structural</strong> dashboards share the same data source — a JSON export from the AI-assisted coding query script.</p>
+
+    <div class="step">
+      <div class="step-number">1</div>
+      <div class="step-content">
+        <h3>Collect data</h3>
+        <p>Run the query script from the repository root. Use <code>ENTERPRISE</code> or <code>ORG</code> to target your scope.</p>
+        <div class="code-block"><span class="comment"># Enterprise-wide metrics (last 28 days)</span>
+ENTERPRISE="my-enterprise" DAYS=28 \
+  ./BVE-dashboards-for-ai-assisted-coding/data/queries/ai-assisted-coding.sh > my-data.json
+
+<span class="comment"># Organization-level metrics</span>
+ORG="my-org" DAYS=28 \
+  ./BVE-dashboards-for-ai-assisted-coding/data/queries/ai-assisted-coding.sh > my-data.json</div>
+        <div class="callout callout-warn">
+          <span class="callout-icon">⚠️</span>
+          <p>Do <strong>not</strong> redirect stderr into your JSON file. The script writes progress to stderr and data to stdout.<br>
+          ✅ <code>./script.sh > data.json</code><br>
+          ❌ <code>./script.sh > data.json 2>&1</code></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-number">2</div>
+      <div class="step-content">
+        <h3>Open a dashboard</h3>
+        <p>Open the desired dashboard HTML file directly in your browser.</p>
+        <div class="code-block"><span class="comment"># Efficiency Dashboard</span>
+open BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency/index.html
+
+<span class="comment"># Structural Dashboard</span>
+open BVE-dashboards-for-ai-assisted-coding/dashboard/structural/index.html</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-number">3</div>
+      <div class="step-content">
+        <h3>Upload your data</h3>
+        <p>Use the upload area in the dashboard to load your <code>my-data.json</code> file. The dashboard processes everything client-side — no data leaves your browser.</p>
+      </div>
+    </div>
+
+    <h3>Configuration</h3>
+    <p>You can customize estimation constants via the dashboard UI or by uploading a separate config JSON:</p>
+    <table class="config-table">
+      <thead>
+        <tr><th>Parameter</th><th>Default</th><th>Description</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>est_interactions_per_hour</code></td><td>20</td><td>Interactions per developer-hour (interactions method)</td></tr>
+        <tr><td><code>est_hrs_per_kloc</code></td><td>2</td><td>Hours per 1,000 lines of code (LoC method)</td></tr>
+        <tr><td><code>cfg_labor_cost_per_hour</code></td><td>$150</td><td>Fully-loaded labor cost</td></tr>
+        <tr><td><code>cfg_baseline_hrs_per_dev_per_week</code></td><td>30</td><td>Baseline coding hours per developer per week</td></tr>
+        <tr><td><code>cfg_workdays_per_week</code></td><td>5</td><td>Working days per week</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Estimation Methods</h3>
+    <div class="dashboard-tab">
+      <h3>Efficiency Dashboard</h3>
+      <p>Translates Copilot telemetry into <strong>hours saved</strong> and <strong>labor cost avoided</strong> using three approaches:</p>
+      <ul>
+        <li><strong>Interactions-Based</strong> — <code>interactions / est_interactions_per_hour</code></li>
+        <li><strong>LoC-Based</strong> — <code>(loc_added / 1000) × est_hrs_per_kloc</code></li>
+        <li><strong>Manual Daily %</strong> — Configured percentage of baseline developer hours</li>
+      </ul>
+    </div>
+    <div class="dashboard-tab">
+      <h3>Structural Dashboard</h3>
+      <p>Assesses whether the <strong>structural conditions</strong> for productive AI-assisted coding exist:</p>
+      <ul>
+        <li><strong>Adoption Completeness</strong> — Is Copilot spreading across teams?</li>
+        <li><strong>Usage Consistency</strong> — Is usage steady or volatile?</li>
+        <li><strong>Output Correlation</strong> — Does higher adoption correlate with more output?</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Agentic AI Coding -->
+  <div class="qs-section">
+    <h2>Agentic AI Coding Dashboard</h2>
+    <p>Measures the impact of <strong>GitHub Copilot Coding Agent</strong> — the autonomous agent that creates pull requests.</p>
+
+    <div class="step">
+      <div class="step-number">1</div>
+      <div class="step-content">
+        <h3>Collect data</h3>
+        <p>Run the agentic query script. You can target an entire org or a single repository.</p>
+        <div class="code-block"><span class="comment"># All repositories in an org (may take 10-15 minutes for large orgs)</span>
+ORG="my-org" DAYS=28 \
+  ./BVE-dashboards-for-agentic-ai-coding/data/queries/agentic-ai-coding.sh > agentic-data.json
+
+<span class="comment"># Single repository (faster)</span>
+ORG="my-org" REPO="my-repo" DAYS=28 \
+  ./BVE-dashboards-for-agentic-ai-coding/data/queries/agentic-ai-coding.sh > agentic-data.json</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-number">2</div>
+      <div class="step-content">
+        <h3>Open the dashboard</h3>
+        <div class="code-block">open BVE-dashboards-for-agentic-ai-coding/dashboard/efficiency/index.html</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-number">3</div>
+      <div class="step-content">
+        <h3>Upload your data</h3>
+        <p>Load <code>agentic-data.json</code> via the browser upload area. All processing is client-side.</p>
+      </div>
+    </div>
+
+    <h3>Configuration</h3>
+    <table class="config-table">
+      <thead>
+        <tr><th>Parameter</th><th>Default</th><th>Description</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>est_human_to_agent_ratio</code></td><td>10</td><td>Human-to-agent time multiplier (duration method)</td></tr>
+        <tr><td><code>est_hrs_per_kloc</code></td><td>4</td><td>Hours per 1,000 lines of code (higher than IDE — agent generates more complex code)</td></tr>
+        <tr><td><code>cfg_labor_cost_per_hour</code></td><td>$150</td><td>Fully-loaded labor cost</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Estimation Methods</h3>
+    <div class="dashboard-tab">
+      <h3>Duration-Based (Default)</h3>
+      <p><code>(merged_session_minutes / 60) × human_to_agent_ratio</code></p>
+      <p>Only counts <strong>merged PRs</strong>. The agent completes in minutes what would take a human hours — this method applies a 10× multiplier to agent time.</p>
+    </div>
+    <div class="dashboard-tab">
+      <h3>LoC-Based</h3>
+      <p><code>(merged_loc_added / 1000) × hours_per_kloc</code></p>
+      <p>Uses a rate of 4 hrs/kloc (vs 2 for IDE-assisted) because the agent generates more complete, standalone code.</p>
+    </div>
+
+    <div class="callout callout-tip">
+      <span class="callout-icon">💡</span>
+      <p><strong>Key difference from AI Assisted Coding:</strong> The agentic dashboard only counts <em>merged</em> PRs. Unsuccessful agent PRs are not counted as time saved but are tracked as turbulence signals.</p>
+    </div>
+  </div>
+
+  <!-- Verification -->
+  <div class="qs-section">
+    <h2>Verify Calculations</h2>
+    <p>You can verify that dashboard math is correct using the included verification scripts:</p>
+    <div class="code-block"><span class="comment"># AI Assisted Coding verification</span>
+cd BVE-dashboards-for-ai-assisted-coding/data
+node verify_math.cjs</div>
+    <p>This runs example data through all estimation methods and outputs raw values, calculated hours, and per-developer averages.</p>
+  </div>
+
+  <!-- Footer -->
+  <div class="qs-footer">
+    <p><a href="index.html">← Back to Dashboards</a></p>
+    <p><a href="https://github.com/github/SDLC-BVE-dashboards-for-X">View source on GitHub</a></p>
+  </div>
+
+</div>
+
+</body>
+</html>
