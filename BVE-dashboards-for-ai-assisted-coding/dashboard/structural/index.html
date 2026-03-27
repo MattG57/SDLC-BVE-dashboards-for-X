@@ -1,0 +1,1490 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark" data-dark-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Assisted Coding — Structural Dashboard</title>
+
+<!-- Primer CSS -->
+<link rel="stylesheet" href="https://unpkg.com/@primer/css@21.3.1/dist/primer.css">
+
+<!-- Highcharts -->
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/highcharts.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/modules/accessibility.js"></script>
+
+<!-- React -->
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<style>
+  body { background: var(--bgColor-default); }
+  .structural-page { max-width: 1280px; margin: 0 auto; padding: 24px 16px; }
+
+  /* KPI cards with GitHub feel */
+  .kpi-card { text-align: center; }
+  .kpi-value { font-size: 2rem; font-weight: 600; line-height: 1.2; }
+  .kpi-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; }
+  .kpi-sub { font-size: 0.75rem; }
+  .kpi-unit { font-size: 1.1rem; font-weight: 400; opacity: 0.65; margin-left: 2px; }
+
+  /* Hero KPI — stands out from supporting cards */
+  .kpi-hero .kpi-value { font-size: 3rem; }
+  .kpi-hero .kpi-label { font-size: 0.85rem; }
+  .kpi-hero .kpi-sub { font-size: 0.85rem; }
+  .kpi-hero { border-top: 3px solid var(--borderColor-accent-emphasis); }
+
+  /* Section dividers */
+  .section-row { margin-bottom: 32px; padding-top: 8px; }
+
+  /* Chart containers */
+  .chart-container { min-height: 320px; }
+  .chart-container-sm { min-height: 240px; }
+
+  /* Donut chart containers */
+  .donut-container { min-height: 220px; }
+
+  /* Control chart bands */
+  .control-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  @media (max-width: 960px) { .control-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 640px) { .control-grid { grid-template-columns: 1fr; } }
+
+  /* Scatter grid */
+  .scatter-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  @media (max-width: 960px) { .scatter-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 640px) { .scatter-grid { grid-template-columns: 1fr; } }
+
+  /* Pareto grid */
+  .pareto-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 768px) { .pareto-grid { grid-template-columns: 1fr; } }
+
+  /* Upload area */
+  .upload-area { border: 2px dashed var(--borderColor-default); border-radius: 6px;
+    padding: 24px; text-align: center; transition: border-color 0.15s; }
+  .upload-area:hover { border-color: var(--fgColor-accent); }
+  .upload-area input[type="file"] { margin-top: 8px; }
+
+  /* Highcharts dark theme overrides */
+  .highcharts-background { fill: transparent !important; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-type="module">
+
+/* ═══════════════════════════════════════════════════════
+   HIGHCHARTS DARK THEME (GitHub-aligned)
+   ═══════════════════════════════════════════════════════ */
+Highcharts.setOptions({
+  chart: { backgroundColor: 'transparent', style: { fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif' } },
+  colors: ['#58a6ff', '#3fb950', '#d29922', '#f85149', '#bc8cff', '#f778ba', '#79c0ff', '#56d364'],
+  title: { style: { color: '#e6edf3', fontSize: '14px', fontWeight: '600' } },
+  subtitle: { style: { color: '#8b949e', fontSize: '12px' } },
+  xAxis: { labels: { style: { color: '#8b949e' } }, gridLineColor: '#30363d', lineColor: '#30363d', tickColor: '#30363d' },
+  yAxis: { labels: { style: { color: '#8b949e' } }, gridLineColor: '#30363d', title: { style: { color: '#8b949e' } } },
+  legend: { itemStyle: { color: '#e6edf3' }, itemHoverStyle: { color: '#58a6ff' } },
+  tooltip: { backgroundColor: '#161b22', borderColor: '#30363d', style: { color: '#e6edf3' } },
+  plotOptions: { series: { animation: { duration: 400 } } },
+  credits: { enabled: false },
+});
+
+/* ═══════════════════════════════════════════════════════
+   DATA PROCESSING LAYER
+   ═══════════════════════════════════════════════════════ */
+
+function safeDiv(a, b) { return b && b !== 0 ? a / b : null; }
+
+function flattenDayTotal(dt) {
+  let loc_suggested_to_add = dt.loc_suggested_to_add_sum || 0;
+  let loc_suggested_to_delete = dt.loc_suggested_to_delete_sum || 0;
+  let loc_added = dt.loc_added_sum || 0;
+  let loc_deleted = dt.loc_deleted_sum || 0;
+
+  if (loc_added === 0 && Array.isArray(dt.totals_by_ide)) {
+    loc_suggested_to_add = dt.totals_by_ide.reduce((s, i) => s + (i.loc_suggested_to_add_sum || 0), 0);
+    loc_suggested_to_delete = dt.totals_by_ide.reduce((s, i) => s + (i.loc_suggested_to_delete_sum || 0), 0);
+    loc_added = dt.totals_by_ide.reduce((s, i) => s + (i.loc_added_sum || 0), 0);
+    loc_deleted = dt.totals_by_ide.reduce((s, i) => s + (i.loc_deleted_sum || 0), 0);
+  }
+
+  const pr = dt.pull_requests || {};
+  const cli = dt.totals_by_cli || {};
+
+  return {
+    day: dt.day,
+    enterprise_id: dt.enterprise_id,
+    daily_active_users: dt.daily_active_users || 0,
+    daily_active_cli_users: dt.daily_active_cli_users || 0,
+    weekly_active_users: dt.weekly_active_users || 0,
+    monthly_active_users: dt.monthly_active_users || 0,
+    monthly_active_chat_users: dt.monthly_active_chat_users || 0,
+    monthly_active_agent_users: dt.monthly_active_agent_users || 0,
+    user_initiated_interaction_count: dt.user_initiated_interaction_count || 0,
+    code_generation_activity_count: dt.code_generation_activity_count || 0,
+    code_acceptance_activity_count: dt.code_acceptance_activity_count || 0,
+    loc_suggested_to_add_sum: loc_suggested_to_add,
+    loc_suggested_to_delete_sum: loc_suggested_to_delete,
+    loc_added_sum: loc_added,
+    loc_deleted_sum: loc_deleted,
+    pr_total_reviewed: pr.total_reviewed || 0,
+    pr_total_created: pr.total_created || 0,
+    pr_total_created_by_copilot: pr.total_created_by_copilot || 0,
+    pr_total_reviewed_by_copilot: pr.total_reviewed_by_copilot || 0,
+    cli_session_count: cli.session_count || 0,
+    cli_request_count: cli.request_count || 0,
+    agent_mode_interaction_count: Array.isArray(dt.totals_by_feature)
+      ? (dt.totals_by_feature.find(f => f.feature === 'chat_panel_agent_mode') || {}).user_initiated_interaction_count || 0
+      : 0,
+    // Preserve feature breakdown for View By
+    totals_by_feature: dt.totals_by_feature || [],
+    totals_by_ide: dt.totals_by_ide || [],
+    totals_by_language: dt.totals_by_language || [],
+    totals_by_model: dt.totals_by_model || [],
+  };
+}
+
+function flattenUserReport(records) {
+  return records.map(u => {
+    let loc_add = u.loc_added_sum || 0;
+    if (loc_add === 0 && Array.isArray(u.totals_by_ide)) {
+      loc_add = u.totals_by_ide.reduce((s, i) => s + (i.loc_added_sum || 0), 0);
+    }
+    return {
+      day: u.day, enterprise_id: u.enterprise_id,
+      user_id: u.user_id, user_login: u.user_login,
+      user_initiated_interaction_count: u.user_initiated_interaction_count || 0,
+      code_generation_activity_count: u.code_generation_activity_count || 0,
+      code_acceptance_activity_count: u.code_acceptance_activity_count || 0,
+      loc_suggested_to_add_sum: u.loc_suggested_to_add_sum || 0,
+      loc_added_sum: loc_add,
+      loc_deleted_sum: u.loc_deleted_sum || 0,
+      used_agent: !!u.used_agent, used_chat: !!u.used_chat,
+      agent_mode_interaction_count: Array.isArray(u.totals_by_feature)
+        ? (u.totals_by_feature.find(f => f.feature === 'chat_panel_agent_mode') || {}).user_initiated_interaction_count || 0
+        : 0,
+    };
+  });
+}
+
+/* ── PR Review data processing ── */
+// Bot/agent/automation authors to exclude — this dashboard covers human AI-assisted coding only
+const BOT_PATTERNS = [/\[bot\]$/i, /-bot$/i, /-agent$/i, /^dependabot$/i, /^github-actions$/i, /^renovate$/i, /^od-octodemo-/i];
+function isBot(login) { return BOT_PATTERNS.some(p => p.test(login)); }
+
+function flattenPrReview(prData) {
+  // Accept either { pull_requests: { prs: [...] } } or { prs: [...] } or [...]
+  let prs = [];
+  if (Array.isArray(prData)) {
+    prs = prData;
+  } else if (prData?.pull_requests?.prs) {
+    prs = prData.pull_requests.prs;
+  } else if (prData?.prs) {
+    prs = prData.prs;
+  }
+  const all = prs.map(pr => ({
+    day: pr.created_at ? pr.created_at.slice(0, 10) : null,
+    user: pr.user,
+    repository: pr.repository,
+    number: pr.number,
+    state: pr.state,
+    merged_at: pr.merged_at,
+    additions: pr.additions || 0,
+    deletions: pr.deletions || 0,
+    changed_files: pr.changed_files || 0,
+    loc_changed: (pr.additions || 0) + (pr.deletions || 0),
+  })).filter(pr => pr.day != null);
+  const filtered = all.filter(pr => !isBot(pr.user));
+  return { all, filtered };
+}
+
+function dayOffset(dateStr, offset) {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + offset);
+  return d.toISOString().slice(0, 10);
+}
+
+function groupPrsByDay(prs, copilotUsersByDay) {
+  // A PR is "assisted" if its author used Copilot on the PR's creation day
+  // or either of the 2 prior days (3-day lookback window).
+  function isAssisted(user, day) {
+    for (let i = 0; i <= 2; i++) {
+      const checkDay = dayOffset(day, -i);
+      const dayUsers = copilotUsersByDay[checkDay];
+      if (dayUsers && dayUsers.has(user)) return true;
+    }
+    return false;
+  }
+
+  const byDay = {};
+  const period = { total_prs: 0, assisted_prs: 0, total_loc: 0, assisted_loc: 0 };
+
+  for (const pr of prs) {
+    const assisted = isAssisted(pr.user, pr.day);
+    period.total_prs++;
+    period.total_loc += pr.loc_changed;
+    if (assisted) {
+      period.assisted_prs++;
+      period.assisted_loc += pr.loc_changed;
+    }
+    if (!byDay[pr.day]) byDay[pr.day] = { total_prs: 0, assisted_prs: 0, total_loc: 0, assisted_loc: 0 };
+    const bucket = byDay[pr.day];
+    bucket.total_prs++;
+    bucket.total_loc += pr.loc_changed;
+    if (assisted) {
+      bucket.assisted_prs++;
+      bucket.assisted_loc += pr.loc_changed;
+    }
+  }
+  return { byDay, period };
+}
+
+/* ── Structural metric computation ── */
+function computeStructuralMetrics(entDays, userDays, config, prRecords) {
+  const totalDevs = config.cfg_total_developers;
+
+  // Group user records by day
+  const usersByDay = {};
+  const copilotUsersByDay = {};  // Set of active Copilot user logins per day
+  for (const u of userDays) {
+    (usersByDay[u.day] = usersByDay[u.day] || []).push(u);
+    if (u.code_generation_activity_count > 0 || u.user_initiated_interaction_count > 0) {
+      (copilotUsersByDay[u.day] = copilotUsersByDay[u.day] || new Set()).add(u.user_login);
+    }
+  }
+
+  // Group PR data by day (with assisted flagging) + period-wide totals
+  const prGrouped = prRecords ? groupPrsByDay(prRecords, copilotUsersByDay) : { byDay: {}, period: { total_prs: 0, assisted_prs: 0, total_loc: 0, assisted_loc: 0 } };
+  const prsByDay = prGrouped.byDay;
+  const prPeriod = prGrouped.period;
+  const hasPrData = prRecords && prRecords.length > 0;
+
+  // Period-wide ratios (used for donut headlines — consistent with sub-labels)
+  const periodPrsAssistedPct = hasPrData ? safeDiv(prPeriod.assisted_prs, prPeriod.total_prs) : null;
+  const periodLocAssistedPct = hasPrData && prPeriod.total_loc > 0 ? safeDiv(prPeriod.assisted_loc, prPeriod.total_loc) : null;
+
+  const days = entDays.map(d => {
+    const dayUsers = usersByDay[d.day] || [];
+    const uniqueActiveUsers = dayUsers.length > 0
+      ? new Set(dayUsers.filter(u => u.code_generation_activity_count > 0 || u.user_initiated_interaction_count > 0).map(u => u.user_login)).size
+      : d.daily_active_users;
+
+    // PR data for this day (for trend chart)
+    const prDay = prsByDay[d.day] || { total_prs: 0, assisted_prs: 0, total_loc: 0, assisted_loc: 0 };
+
+    // ── Completeness metric 1: Adopted Individuals %
+    const adopted_individuals_pct = safeDiv(d.daily_active_users, totalDevs);
+
+    // ── Completeness metric 2: PRs Assisted % (daily — for trend chart)
+    const prs_assisted_pct = hasPrData
+      ? (prDay.total_prs > 0 ? safeDiv(prDay.assisted_prs, prDay.total_prs) : null)
+      : safeDiv(uniqueActiveUsers, totalDevs);
+
+    // ── Completeness metric 3: AI-Assisted LOC % (daily — for trend chart)
+    const ai_assisted_loc_pct = hasPrData
+      ? (prDay.total_loc > 0 ? safeDiv(prDay.assisted_loc, prDay.total_loc) : null)
+      : safeDiv(d.loc_added_sum, config.cfg_total_dev_loc_added_day);
+
+    // ── Downstream metrics for Impact section
+    const total_prs = hasPrData ? prDay.total_prs : (d.pr_total_created || 0);
+    const assisted_prs = hasPrData ? prDay.assisted_prs : 0;
+    const total_loc = hasPrData ? prDay.total_loc : (d.loc_added_sum + d.loc_deleted_sum);
+    const assisted_loc = hasPrData ? prDay.assisted_loc : d.loc_added_sum;
+    const prs_per_day = total_prs;
+    const loc_per_day = total_loc;
+
+    return {
+      ...d,
+      adopted_individuals_pct,
+      prs_assisted_pct,
+      ai_assisted_loc_pct,
+      prs_per_day,
+      loc_per_day,
+      total_prs,
+      assisted_prs,
+      total_loc,
+      assisted_loc,
+      unique_active_users: uniqueActiveUsers,
+      has_pr_data: hasPrData,
+    };
+  });
+
+  // Attach period-wide PR totals (for donut headlines and sub-labels)
+  days._prPeriod = prPeriod;
+  days._periodPrsAssistedPct = periodPrsAssistedPct;
+  days._periodLocAssistedPct = periodLocAssistedPct;
+  return days;
+}
+
+/* ── Linear regression helper ── */
+function linearRegression(points) {
+  const filtered = points.filter(p => p[0] != null && p[1] != null);
+  if (filtered.length < 2) return null;
+  const n = filtered.length;
+  const sumX = filtered.reduce((s, p) => s + p[0], 0);
+  const sumY = filtered.reduce((s, p) => s + p[1], 0);
+  const sumXY = filtered.reduce((s, p) => s + p[0] * p[1], 0);
+  const sumX2 = filtered.reduce((s, p) => s + p[0] * p[0], 0);
+  const denom = n * sumX2 - sumX * sumX;
+  if (Math.abs(denom) < 1e-10) return null;
+  const slope = (n * sumXY - sumX * sumY) / denom;
+  const intercept = (sumY - slope * sumX) / n;
+  const xMin = Math.min(...filtered.map(p => p[0]));
+  const xMax = Math.max(...filtered.map(p => p[0]));
+  return { slope, intercept, line: [[xMin, slope * xMin + intercept], [xMax, slope * xMax + intercept]] };
+}
+
+/* ── Statistical helpers ── */
+function mean(arr) {
+  const valid = arr.filter(v => v != null);
+  return valid.length ? valid.reduce((a, b) => a + b, 0) / valid.length : null;
+}
+
+function stddev(arr) {
+  const valid = arr.filter(v => v != null);
+  if (valid.length < 2) return 0;
+  const m = mean(valid);
+  return Math.sqrt(valid.reduce((s, v) => s + (v - m) ** 2, 0) / (valid.length - 1));
+}
+
+/* ═══════════════════════════════════════════════════════
+   REACT COMPONENTS
+   ═══════════════════════════════════════════════════════ */
+const { useState, useEffect, useRef, useCallback, useMemo } = React;
+
+/* ── Formatting helpers ── */
+const fmt = n => n == null ? '—' : Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+const fmtDec = (n, d=1) => n == null ? '—' : Number(n).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
+const fmtPct = n => n == null ? '—' : (n * 100).toFixed(1) + '%';
+const fmtPct0 = n => n == null ? '—' : (n * 100).toFixed(0) + '%';
+const fmtCompact = n => {
+  if (n == null) return '—';
+  if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (Math.abs(n) >= 1e3) return (n / 1e3).toFixed(0) + 'K';
+  return fmt(n);
+};
+const fmtCurrency = n => n == null ? '—' : '$' + Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+
+/* ── Highcharts wrapper ── */
+function Chart({ options, className = 'chart-container' }) {
+  const ref = useRef(null);
+  const chartRef = useRef(null);
+  useEffect(() => {
+    if (ref.current) {
+      chartRef.current = Highcharts.chart(ref.current, options);
+    }
+    return () => { if (chartRef.current) chartRef.current.destroy(); };
+  }, [JSON.stringify(options)]);
+  return <div ref={ref} className={className} />;
+}
+
+/* ── KPI Card ── */
+function KpiCard({ label, value, unit, sub, color, hero }) {
+  return (
+    <div className={`Box p-3 kpi-card${hero ? ' kpi-hero' : ''}`}>
+      <div className="kpi-label color-fg-muted">{label}</div>
+      <div className="kpi-value" style={color ? { color } : {}}>{value}{unit && <span className="kpi-unit">{unit}</span>}</div>
+      {sub && <div className="kpi-sub color-fg-muted">{sub}</div>}
+    </div>
+  );
+}
+
+/* ── Section Header ── */
+function SectionHeader({ title, desc, children }) {
+  return (
+    <div className="mb-3 pb-2 d-flex flex-items-end flex-justify-between" style={{ borderBottom: '1px solid var(--borderColor-default)', borderTop: '2px solid var(--borderColor-muted)', paddingTop: '12px' }}>
+      <div>
+        <h2 className="f2 color-fg-accent">{title}</h2>
+        <p className="f6 color-fg-muted">{desc}</p>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/* ── File Upload Panel ── */
+function UploadPanel({ onData }) {
+  const [processing, setProcessing] = useState(false);
+  const filesRef = useRef(null);
+  const prFilesRef = useRef(null);
+
+  const handleProcess = useCallback(async () => {
+    const files = filesRef.current?.files;
+    if (!files || !files.length) { alert('Select at least one Copilot metrics JSON file.'); return; }
+    setProcessing(true);
+    try {
+      const readFile = f => new Promise((res, rej) => { const r = new FileReader(); r.onload = e => res(e.target.result); r.onerror = rej; r.readAsText(f); });
+
+      const entDays = [];
+      const userRecs = [];
+      const names = [];
+      let prRecords = [];
+      let config = {
+        cfg_total_developers: null,
+        cfg_total_dev_loc_added_day: null,
+        cfg_workdays_per_week: 5,
+        cfg_labor_cost_per_hour: null,
+      };
+
+      for (const f of files) {
+        const raw = await readFile(f);
+        const d = JSON.parse(raw);
+        names.push(f.name);
+
+        const isConfig = Object.keys(d).some(k => k.startsWith('cfg_') || k.startsWith('est_'));
+        const isSource = d.enterprise_report || d.user_report;
+
+        if (isConfig && !isSource) {
+          if (d.cfg_total_developers != null) config.cfg_total_developers = d.cfg_total_developers;
+          if (d.cfg_total_dev_loc_added_day != null) config.cfg_total_dev_loc_added_day = d.cfg_total_dev_loc_added_day;
+          if (d.cfg_workdays_per_week != null) config.cfg_workdays_per_week = d.cfg_workdays_per_week;
+          if (d.cfg_labor_cost_per_hour != null) config.cfg_labor_cost_per_hour = d.cfg_labor_cost_per_hour;
+        } else {
+          if (d.enterprise_report?.day_totals) entDays.push(...d.enterprise_report.day_totals.map(flattenDayTotal));
+          if (Array.isArray(d.user_report)) userRecs.push(...flattenUserReport(d.user_report));
+        }
+      }
+
+      // Process PR Review files (optional)
+      let rawPrRecords = [];
+      const prFiles = prFilesRef.current?.files;
+      if (prFiles && prFiles.length) {
+        for (const f of prFiles) {
+          const raw = await readFile(f);
+          const d = JSON.parse(raw);
+          names.push('PR:' + f.name);
+          const { all, filtered } = flattenPrReview(d);
+          rawPrRecords.push(...all);
+          prRecords.push(...filtered);
+        }
+      }
+
+      if (!entDays.length) { alert('No source data found. Select at least one file containing enterprise_report.'); setProcessing(false); return; }
+
+      // Dedup enterprise by day (last wins)
+      const dayMap = {};
+      for (const r of entDays) dayMap[r.day] = r;
+      const enterprise = Object.values(dayMap).sort((a, b) => a.day.localeCompare(b.day));
+
+      // Dedup users by day+login (last wins)
+      const userMap = {};
+      for (const r of userRecs) userMap[r.day + '|' + r.user_login] = r;
+      const users = Object.values(userMap);
+
+      // Auto-estimate config defaults from data if not provided
+      if (config.cfg_total_developers == null) {
+        const maxMau = Math.max(...enterprise.map(d => d.monthly_active_users || 0));
+        config.cfg_total_developers = maxMau > 0 ? Math.round(maxMau * 1.25) : Math.round(Math.max(...enterprise.map(d => d.daily_active_users)) * 2);
+      }
+      if (config.cfg_total_dev_loc_added_day == null) {
+        const avgLoc = enterprise.reduce((s, d) => s + d.loc_added_sum, 0) / enterprise.length;
+        config.cfg_total_dev_loc_added_day = avgLoc > 0 ? Math.round(avgLoc * 2.5) : 100000;
+      }
+
+      onData({ enterprise, users, config, fileNames: names, prRecords: prRecords.length > 0 ? prRecords : null, rawPrRecords: rawPrRecords.length > 0 ? rawPrRecords : null });
+    } catch (e) { console.error(e); alert('Error: ' + e.message); }
+    setProcessing(false);
+  }, [onData]);
+
+  return (
+    <div className="Box color-shadow-medium p-4 mb-4">
+      <h3 className="f4 mb-2">Source Data</h3>
+      <p className="f6 color-fg-muted mb-3">Upload Copilot metrics JSON files, and optionally PR Review data for LOC and PR-level analysis.</p>
+      <div className="d-flex flex-wrap" style={{ gap: '16px', alignItems: 'flex-end' }}>
+        <div style={{ flex: '1 1 300px' }}>
+          <label className="f6 color-fg-muted d-block mb-1">Copilot Metrics (required)</label>
+          <input type="file" ref={filesRef} accept=".json" multiple className="form-control" />
+        </div>
+        <div style={{ flex: '1 1 300px' }}>
+          <label className="f6 color-fg-muted d-block mb-1">PR Review Data (optional — enables LOC &amp; PR assist metrics)</label>
+          <input type="file" ref={prFilesRef} accept=".json" multiple className="form-control" />
+        </div>
+        <button className="btn btn-primary" onClick={handleProcess} disabled={processing}>
+          {processing ? 'Processing…' : 'Process & Build'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── Source summary bar ── */
+function SourceSummary({ data }) {
+  const { enterprise, users, fileNames, config, prRecords } = data;
+  const n = enterprise.length;
+  const range = n > 0 ? `${enterprise[0].day} → ${enterprise[n-1].day}` : 'none';
+  const prCount = prRecords ? prRecords.length : 0;
+  return (
+    <div className="flash flash-success f6 mb-3">
+      <strong>{fileNames.join(', ')}</strong> loaded · {n} enterprise days ({range}) · {users.length} user-day records · Target population: {fmt(config.cfg_total_developers)} devs
+      {prCount > 0 && <span> · <strong>{fmt(prCount)} PRs</strong> with LOC data loaded</span>}
+      {prCount === 0 && <span> · <em>No PR review data — using estimated denominators</em></span>}
+    </div>
+  );
+}
+
+/* ── Developer Search ── */
+function DevSearch({ users, selectedUser, onSelect }) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const logins = useMemo(() => [...new Set(users.map(u => u.user_login))].sort(), [users]);
+  const filtered = query ? logins.filter(l => l.toLowerCase().includes(query.toLowerCase())).slice(0, 10) : logins.slice(0, 10);
+
+  const select = (login) => { onSelect(login); setQuery(''); setOpen(false); };
+  const clear = () => { onSelect(null); setQuery(''); };
+
+  if (!users.length) return null;
+
+  return (
+    <div className="d-flex flex-items-center mb-3" style={{ gap: '8px', position: 'relative' }}>
+      <span className="f6 color-fg-muted text-bold">Developer:</span>
+      {selectedUser ? (
+        <div className="d-flex flex-items-center" style={{ gap: '6px' }}>
+          <span className="Label Label--accent">{selectedUser}</span>
+          <button className="btn-octicon" onClick={clear} title="Clear" style={{ color: 'var(--fgColor-muted)', cursor: 'pointer', background: 'none', border: 'none', fontSize: '14px' }}>✕</button>
+        </div>
+      ) : (
+        <div style={{ position: 'relative', width: '220px' }}>
+          <input
+            type="text" className="form-control input-sm" placeholder="Search by login…"
+            value={query} onChange={e => { setQuery(e.target.value); setOpen(true); }}
+            onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
+          />
+          {open && filtered.length > 0 && (
+            <div className="Box color-shadow-large" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, maxHeight: '200px', overflow: 'auto' }}>
+              {filtered.map(l => (
+                <div key={l} className="Box-row px-3 py-1 f6" style={{ cursor: 'pointer' }} onMouseDown={() => select(l)}>
+                  {l}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {selectedUser && <span className="f6 color-fg-muted">(dashed lines on charts)</span>}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION 1 — COMPLETENESS
+   ═══════════════════════════════════════════════════════ */
+const VIEW_BY_OPTIONS = [
+  { key: 'default', label: 'Default (All)' },
+  { key: 'completion', label: 'Completion' },
+  { key: 'chat', label: 'Chat' },
+  { key: 'agent_mode', label: 'Agent Mode' },
+  { key: 'cli', label: 'CLI' },
+];
+
+function CompletenessSection({ days, config, users, selectedUser }) {
+  const [viewBy, setViewBy] = useState('default');
+  const n = days.length;
+  const hasPrData = days.some(d => d.has_pr_data);
+
+  // Period-wide PR totals (attached by computeStructuralMetrics)
+  const prPeriod = days._prPeriod || { total_prs: 0, assisted_prs: 0, total_loc: 0, assisted_loc: 0 };
+
+  // Compute averages across window
+  const avgAdopted = mean(days.map(d => d.adopted_individuals_pct));
+  // For PRs Assisted and AI-Assisted LOC, use period-wide ratios when PR data exists
+  // (avoids the problem of averaging daily ratios where most days have 0 PRs)
+  const avgPrsAssisted = hasPrData ? (days._periodPrsAssistedPct ?? 0) : mean(days.map(d => d.prs_assisted_pct));
+  const avgLocPct = hasPrData ? (days._periodLocAssistedPct ?? mean(days.map(d => d.ai_assisted_loc_pct))) : mean(days.map(d => d.ai_assisted_loc_pct));
+
+  // Donut chart builder
+  function donutOpts(title, pct, color, subLabel) {
+    const val = pct != null ? Math.min(pct * 100, 100) : 0;
+    const remainder = Math.max(100 - val, 0);
+    return {
+      chart: { type: 'pie', height: 200, margin: [0, 0, 40, 0] },
+      title: { text: fmtPct0(pct), verticalAlign: 'middle', y: -10, style: { fontSize: '28px', fontWeight: '700', color: '#e6edf3' } },
+      subtitle: { text: title, align: 'center', verticalAlign: 'bottom', y: -5, style: { fontSize: '11px', color: '#8b949e' } },
+      tooltip: { pointFormat: '<b>{point.percentage:.1f}%</b>' },
+      plotOptions: {
+        pie: {
+          innerSize: '70%',
+          borderWidth: 0,
+          dataLabels: { enabled: false },
+          states: { hover: { brightness: 0.1 } },
+        },
+      },
+      series: [{
+        data: [
+          { name: title, y: val, color: color },
+          { name: 'Gap', y: remainder, color: '#30363d' },
+        ],
+      }],
+    };
+  }
+
+  // Trend chart
+  const trendOpts = {
+    chart: { type: 'spline', height: 300 },
+    title: { text: null },
+    subtitle: { text: 'Daily completeness metrics over the data window' },
+    xAxis: { categories: days.map(d => d.day), labels: { rotation: -45, style: { fontSize: '10px' } } },
+    yAxis: { title: { text: '% of Target' }, min: 0, max: Math.max(100, ...(days.map(d => (d.ai_assisted_loc_pct || 0) * 100).concat(days.map(d => (d.adopted_individuals_pct || 0) * 100)))), labels: { format: '{value}%' } },
+    tooltip: { shared: true, valueSuffix: '%', valueDecimals: 1 },
+    legend: { symbolWidth: 16 },
+    series: [
+      { name: 'Adopted Individuals %', data: days.map(d => d.adopted_individuals_pct != null ? Math.round(d.adopted_individuals_pct * 1000) / 10 : null), color: '#58a6ff', marker: { radius: 3 } },
+      { name: 'PRs Assisted %', data: days.map(d => d.prs_assisted_pct != null ? Math.round(d.prs_assisted_pct * 1000) / 10 : null), color: '#3fb950', marker: { radius: 3 } },
+      { name: 'AI-Assisted LOC %', data: days.map(d => d.ai_assisted_loc_pct != null ? Math.round(d.ai_assisted_loc_pct * 1000) / 10 : null), color: '#bc8cff', marker: { radius: 3 } },
+    ],
+  };
+
+  // Build user overlay if selected
+  if (selectedUser && users.length > 0) {
+    const userByDay = {};
+    users.filter(u => u.user_login === selectedUser).forEach(u => { userByDay[u.day] = u; });
+    if (Object.keys(userByDay).length > 0) {
+      trendOpts.series.push({
+        name: selectedUser + ' Active',
+        data: days.map(d => {
+          const u = userByDay[d.day];
+          return u ? 100 : 0;
+        }),
+        color: '#f78166', dashStyle: 'ShortDash', marker: { radius: 4, symbol: 'diamond' }, lineWidth: 2,
+      });
+    }
+  }
+
+  // Summary stats for donut sub-labels
+  const avgDailyPrs = mean(days.map(d => d.total_prs));
+  const avgAssistedPrs = mean(days.map(d => d.assisted_prs));
+  const avgAssistedLoc = mean(days.map(d => d.assisted_loc));
+  const avgTotalLoc = mean(days.map(d => d.total_loc));
+
+  return (
+    <div className="section-row">
+      <SectionHeader title="Completeness" desc="How much of the intended structure exists — adoption, PR assistance, and AI-assisted share of LOC.">
+        <div className="d-flex flex-items-center" style={{ gap: '8px' }}>
+          <span className="f6 color-fg-muted">View by:</span>
+          <select className="form-select form-select-sm" value={viewBy} onChange={e => setViewBy(e.target.value)} style={{ width: 'auto', background: 'var(--bgColor-muted)', color: 'var(--fgColor-default)', border: '1px solid var(--borderColor-default)' }}>
+            {VIEW_BY_OPTIONS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+          </select>
+        </div>
+      </SectionHeader>
+
+      {viewBy !== 'default' && (
+        <div className="flash flash-warn f6 mb-3">
+          <strong>View by: {VIEW_BY_OPTIONS.find(o => o.key === viewBy)?.label}</strong> — Structural breakdowns by feature are computed from available telemetry. Some dimensions may have limited data.
+        </div>
+      )}
+
+      {!hasPrData && (
+        <div className="flash flash-warn f6 mb-3">
+          <strong>No PR Review data loaded.</strong> PRs Assisted % and AI-Assisted LOC % are using estimated denominators. Upload PR Review JSON for actual org-wide LOC and PR counts.
+        </div>
+      )}
+
+      {/* Donut charts row */}
+      <div className="d-flex flex-wrap mb-3" style={{ gap: '12px', alignItems: 'stretch' }}>
+        <div className="Box p-3" style={{ flex: '1 1 200px' }}>
+          <Chart options={donutOpts('Adopted Individuals', avgAdopted, '#58a6ff')} className="donut-container" />
+          <div className="text-center f6 color-fg-muted mt-1">{fmt(Math.round(mean(days.map(d => d.daily_active_users))))} of {fmt(config.cfg_total_developers)} devs</div>
+        </div>
+        <div className="Box p-3" style={{ flex: '1 1 200px' }}>
+          <Chart options={donutOpts('PRs Assisted', avgPrsAssisted, '#3fb950')} className="donut-container" />
+          <div className="text-center f6 color-fg-muted mt-1">
+            {hasPrData
+              ? <>{fmtCompact(prPeriod.assisted_prs)} of {fmtCompact(prPeriod.total_prs)} PRs</>
+              : <>{fmt(Math.round(mean(days.map(d => d.unique_active_users || d.daily_active_users))))} active devs of {fmt(config.cfg_total_developers)}</>  
+            }
+          </div>
+        </div>
+        <div className="Box p-3" style={{ flex: '1 1 200px' }}>
+          <Chart options={donutOpts('AI-Assisted LOC', avgLocPct, '#bc8cff')} className="donut-container" />
+          <div className="text-center f6 color-fg-muted mt-1">
+            {hasPrData
+              ? <>{fmtCompact(Math.round(prPeriod.assisted_loc))} of {fmtCompact(Math.round(prPeriod.total_loc))} LoC</>
+              : <>{fmtCompact(Math.round(days.reduce((s,d) => s + d.loc_added_sum, 0)))} of {fmtCompact(config.cfg_total_dev_loc_added_day * n)} LoC</>  
+            }
+          </div>
+        </div>
+      </div>
+
+      {/* Daily trend */}
+      <div className="Box p-3">
+        <Chart options={trendOpts} />
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION 2 — CONSISTENCY
+   ═══════════════════════════════════════════════════════ */
+const CONSISTENCY_FACTORS = [
+  { key: 'none', label: 'None (Overall)' },
+  { key: 'feature', label: 'Feature' },
+  { key: 'ide', label: 'IDE' },
+];
+
+function ConsistencySection({ days, selectedUser, users }) {
+  const [factor, setFactor] = useState('none');
+
+  const METRICS = [
+    { key: 'adopted_individuals_pct', label: 'Adopted Individuals %', color: '#58a6ff' },
+    { key: 'prs_assisted_pct', label: 'PRs Assisted %', color: '#3fb950' },
+    { key: 'ai_assisted_loc_pct', label: 'AI-Assisted LOC %', color: '#bc8cff' },
+  ];
+
+  function controlChartOpts(metric) {
+    const values = days.map(d => d[metric.key] != null ? d[metric.key] * 100 : null);
+    const validVals = values.filter(v => v != null);
+    const m = mean(validVals);
+    const sd = stddev(validVals);
+    const ucl = m + 2 * sd;
+    const lcl = Math.max(0, m - 2 * sd);
+
+    // Mark points outside control limits
+    const data = values.map((v, i) => {
+      if (v == null) return null;
+      const outside = v > ucl || v < lcl;
+      return {
+        y: Math.round(v * 100) / 100,
+        marker: outside ? { fillColor: '#f85149', radius: 6, lineWidth: 2, lineColor: '#f85149' } : undefined,
+        color: outside ? '#f85149' : undefined,
+      };
+    });
+
+    const opts = {
+      chart: { type: 'spline', height: 260 },
+      title: { text: metric.label, style: { fontSize: '12px' } },
+      xAxis: { categories: days.map(d => d.day), labels: { rotation: -45, style: { fontSize: '9px' } }, tickInterval: Math.max(1, Math.floor(days.length / 7)) },
+      yAxis: {
+        title: { text: null },
+        min: 0,
+        labels: { format: '{value}%' },
+        plotLines: [
+          { value: m, color: '#8b949e', dashStyle: 'Dash', width: 2, label: { text: 'Mean ' + (m != null ? m.toFixed(1) + '%' : ''), style: { color: '#8b949e', fontSize: '10px' }, align: 'right' } },
+        ],
+        plotBands: [
+          { from: lcl, to: ucl, color: 'rgba(88,166,255,0.06)', label: { text: '±2σ', style: { color: '#484f58', fontSize: '9px' }, align: 'left' } },
+        ],
+      },
+      tooltip: { valueSuffix: '%', valueDecimals: 1 },
+      legend: { enabled: false },
+      series: [
+        { name: metric.label, data: data, color: metric.color, marker: { radius: 3 }, lineWidth: 2 },
+      ],
+    };
+
+    // User overlay
+    if (selectedUser && users.length > 0) {
+      const userByDay = {};
+      users.filter(u => u.user_login === selectedUser).forEach(u => { userByDay[u.day] = u; });
+      if (Object.keys(userByDay).length > 0) {
+        // For individual user, "adopted" = active or not (binary), "task_coverage" = had activity, "loc" = their LOC share
+        const userData = days.map(d => {
+          const u = userByDay[d.day];
+          if (!u) return null;
+          if (metric.key === 'adopted_individuals_pct') return 100; // user is present = 100%
+          if (metric.key === 'prs_assisted_pct') return (u.code_generation_activity_count > 0 || u.user_initiated_interaction_count > 0) ? 100 : 0;
+          if (metric.key === 'ai_assisted_loc_pct') return d.ai_assisted_loc_pct != null ? Math.round(d.ai_assisted_loc_pct * 1000) / 10 : null;
+          return null;
+        });
+        opts.series.push({
+          name: selectedUser,
+          data: userData,
+          color: '#f78166', dashStyle: 'ShortDash', marker: { radius: 3, symbol: 'diamond' }, lineWidth: 2,
+        });
+        opts.legend = { enabled: true };
+      }
+    }
+
+    return opts;
+  }
+
+  return (
+    <div className="section-row">
+      <SectionHeader title="Consistency" desc="Whether the structure behaves coherently — variability, drift, and noise in completeness metrics.">
+        <div className="d-flex flex-items-center" style={{ gap: '8px' }}>
+          <span className="f6 color-fg-muted">Factor:</span>
+          <select className="form-select form-select-sm" value={factor} onChange={e => setFactor(e.target.value)} style={{ width: 'auto', background: 'var(--bgColor-muted)', color: 'var(--fgColor-default)', border: '1px solid var(--borderColor-default)' }}>
+            {CONSISTENCY_FACTORS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+          </select>
+        </div>
+      </SectionHeader>
+
+      {/* Summary KPIs */}
+      <div className="d-flex flex-wrap mb-3" style={{ gap: '12px' }}>
+        {METRICS.map(m => {
+          const vals = days.map(d => d[m.key]).filter(v => v != null);
+          const sd = stddev(vals.map(v => v * 100));
+          const cv = mean(vals) != null && mean(vals) !== 0 ? sd / (mean(vals) * 100) : null;
+          const outliers = (() => {
+            const mn = mean(vals.map(v => v * 100));
+            const s = stddev(vals.map(v => v * 100));
+            return vals.filter(v => Math.abs(v * 100 - mn) > 2 * s).length;
+          })();
+          return (
+            <div key={m.key} style={{ flex: '1 1 200px' }}>
+              <KpiCard
+                label={m.label.replace(' %', '')}
+                value={fmtDec(sd, 1)}
+                unit="σ"
+                sub={`CV: ${cv != null ? fmtPct(cv) : '—'} · ${outliers} outlier${outliers !== 1 ? 's' : ''}`}
+                color={m.color}
+              />
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Control charts grid */}
+      <div className="control-grid">
+        {METRICS.map(m => (
+          <div key={m.key} className="Box p-3">
+            <Chart options={controlChartOpts(m)} className="chart-container-sm" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION 3 — IMPACT
+   ═══════════════════════════════════════════════════════ */
+const COMPLETENESS_METRICS = [
+  { key: 'adopted_individuals_pct', label: '% Adoption' },
+  { key: 'prs_assisted_pct', label: '% PRs Assisted' },
+  { key: 'ai_assisted_loc_pct', label: '% AI-Assisted LOC' },
+];
+
+const DOWNSTREAM_METRICS = [
+  { key: 'prs_per_day', label: 'PRs per Day', format: v => fmtDec(v, 0) },
+  { key: 'loc_per_day', label: 'LOC per Day', format: v => fmtCompact(v) },
+];
+
+function ImpactSection({ days }) {
+  function scatterOpts(xKey, yKey) {
+    const xDef = COMPLETENESS_METRICS.find(m => m.key === xKey) || COMPLETENESS_METRICS[0];
+    const yDef = DOWNSTREAM_METRICS.find(m => m.key === yKey) || DOWNSTREAM_METRICS[0];
+
+    const points = days.map(d => [
+      d[xKey] != null ? d[xKey] * 100 : null,
+      d[yKey],
+    ]).filter(p => p[0] != null && p[1] != null);
+
+    const reg = linearRegression(points);
+
+    const series = [
+      {
+        type: 'scatter',
+        name: 'Daily',
+        data: points.map(p => ({ x: Math.round(p[0] * 100) / 100, y: Math.round(p[1] * 100) / 100 })),
+        color: '#58a6ff',
+        marker: { radius: 5, symbol: 'circle' },
+        tooltip: { pointFormat: `${xDef.label}: <b>{point.x:.1f}%</b><br/>${yDef.label}: <b>{point.y:.1f}</b>` },
+      },
+    ];
+
+    if (reg) {
+      series.push({
+        type: 'line',
+        name: 'Trend',
+        data: reg.line.map(p => [Math.round(p[0] * 100) / 100, Math.round(p[1] * 100) / 100]),
+        color: '#d29922',
+        dashStyle: 'Dash',
+        lineWidth: 2,
+        marker: { enabled: false },
+        enableMouseTracking: false,
+      });
+    }
+
+    return {
+      chart: { height: 280 },
+      title: { text: `${xDef.label} vs ${yDef.label}`, style: { fontSize: '12px' } },
+      xAxis: { title: { text: xDef.label }, labels: { format: '{value}%' }, gridLineWidth: 1 },
+      yAxis: { title: { text: yDef.label }, min: 0 },
+      legend: { enabled: false },
+      series: series,
+    };
+  }
+
+  // 2×3 grid: rows = downstream metrics, cols = completeness metrics
+  return (
+    <div className="section-row">
+      <SectionHeader title="Impact" desc="Whether rising completeness is associated with more PRs and more LOC output." />
+
+      {/* Row 1: Completeness vs PRs per Day */}
+      <div className="f5 color-fg-muted mb-2 mt-3 text-bold">Completeness vs PRs per Day</div>
+      <div className="scatter-grid mb-4">
+        {COMPLETENESS_METRICS.map(cm => (
+          <div key={cm.key + '-prs'} className="Box p-3">
+            <Chart options={scatterOpts(cm.key, 'prs_per_day')} className="chart-container-sm" />
+          </div>
+        ))}
+      </div>
+
+      {/* Row 2: Completeness vs LOC per Day */}
+      <div className="f5 color-fg-muted mb-2 text-bold">Completeness vs LOC per Day</div>
+      <div className="scatter-grid mb-4">
+        {COMPLETENESS_METRICS.map(cm => (
+          <div key={cm.key + '-loc'} className="Box p-3">
+            <Chart options={scatterOpts(cm.key, 'loc_per_day')} className="chart-container-sm" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION 4 — PRIORITIZED IMPROVEMENTS
+   ═══════════════════════════════════════════════════════ */
+
+// Define factors we can rank
+const FACTORS = [
+  { key: 'completion', label: 'Code Completion', getActive: d => d.code_generation_activity_count > 0, getLoc: d => {
+    const feat = d.totals_by_feature?.find(f => f.feature === 'code_completion');
+    return feat ? (feat.loc_added_sum || 0) : 0;
+  }},
+  { key: 'chat', label: 'Chat', getActive: d => {
+    const chatFeats = (d.totals_by_feature || []).filter(f => f.feature && f.feature.startsWith('chat_panel') && f.feature !== 'chat_panel_agent_mode');
+    return chatFeats.some(f => (f.user_initiated_interaction_count || 0) > 0);
+  }, getLoc: d => {
+    const chatFeats = (d.totals_by_feature || []).filter(f => f.feature && f.feature.startsWith('chat_panel') && f.feature !== 'chat_panel_agent_mode');
+    return chatFeats.reduce((s, f) => s + (f.loc_added_sum || 0), 0);
+  }},
+  { key: 'agent_mode', label: 'Agent Mode', getActive: d => d.agent_mode_interaction_count > 0, getLoc: d => {
+    const feat = d.totals_by_feature?.find(f => f.feature === 'chat_panel_agent_mode');
+    return feat ? (feat.loc_added_sum || 0) : 0;
+  }},
+  { key: 'cli', label: 'CLI', getActive: d => d.cli_session_count > 0, getLoc: d => 0 },
+  { key: 'inline_chat', label: 'Inline Chat', getActive: d => {
+    const feat = (d.totals_by_feature || []).find(f => f.feature === 'inline_chat');
+    return feat ? (feat.user_initiated_interaction_count || 0) > 0 : false;
+  }, getLoc: d => {
+    const feat = (d.totals_by_feature || []).find(f => f.feature === 'inline_chat');
+    return feat ? (feat.loc_added_sum || 0) : 0;
+  }},
+];
+
+function PrioritizedImprovementsSection({ days, config }) {
+  const [showCombos, setShowCombos] = useState(false);
+  const n = days.length;
+  const totalDevs = config.cfg_total_developers;
+
+  // Compute per-factor metrics
+  const factorStats = useMemo(() => {
+    return FACTORS.map(f => {
+      // Count days where this factor was active
+      const activeDays = days.filter(d => f.getActive(d)).length;
+      const adoptionRate = activeDays / n;
+
+      // Average daily active users engaged with this factor (approximation from enterprise data)
+      const avgDau = mean(days.map(d => d.daily_active_users));
+
+      // Penetration: what fraction of the total dev population uses this factor
+      const penetration = safeDiv(avgDau * adoptionRate, totalDevs);
+
+      // Gap to full adoption (1 - penetration)
+      const gap = penetration != null ? 1 - Math.min(penetration, 1) : 1;
+
+      // Impact score: downstream correlation — simple proxy: total LoC produced by this factor
+      const totalLoc = days.reduce((s, d) => s + f.getLoc(d), 0);
+      const locShare = safeDiv(totalLoc, days.reduce((s, d) => s + d.loc_added_sum, 0));
+
+      // Opportunity = gap × (1 + locShare) — factors with big gaps AND meaningful output rank highest
+      const opportunity = gap * (1 + (locShare || 0));
+
+      return {
+        ...f,
+        activeDays,
+        adoptionRate,
+        penetration: penetration || 0,
+        gap,
+        totalLoc,
+        locShare: locShare || 0,
+        opportunity,
+        currentImpact: locShare || 0,
+        roomForImprovement: gap,
+      };
+    }).filter(f => f.activeDays > 0 || f.gap > 0.5); // Only show factors with data or significant gap
+  }, [days, totalDevs, n]);
+
+  // Sort by current impact
+  const byImpact = [...factorStats].sort((a, b) => b.currentImpact - a.currentImpact);
+  // Sort by room for improvement
+  const byRoom = [...factorStats].sort((a, b) => b.roomForImprovement - a.roomForImprovement);
+  // Sort by combined opportunity
+  const byOpportunity = [...factorStats].sort((a, b) => b.opportunity - a.opportunity);
+
+  function paretoOpts(factors, valueKey, title, color) {
+    const sorted = [...factors];
+    const values = sorted.map(f => Math.round((f[valueKey] || 0) * 1000) / 10);
+    const total = values.reduce((s, v) => s + v, 0);
+    let cumulative = 0;
+    const cumulativeData = values.map(v => {
+      cumulative += v;
+      return total > 0 ? Math.round(cumulative / total * 1000) / 10 : 0;
+    });
+
+    return {
+      chart: { height: 300 },
+      title: { text: title, style: { fontSize: '12px' } },
+      xAxis: { categories: sorted.map(f => f.label), labels: { style: { fontSize: '11px' } } },
+      yAxis: [
+        { title: { text: 'Score (%)' }, min: 0, labels: { format: '{value}%' } },
+        { title: { text: 'Cumulative %' }, opposite: true, min: 0, max: 100, labels: { format: '{value}%' } },
+      ],
+      tooltip: { shared: true, valueDecimals: 1 },
+      series: [
+        {
+          type: 'column',
+          name: title.includes('Room') ? 'Gap to Full' : 'Impact Score',
+          data: values.map((v, i) => ({ y: v, color: color })),
+          yAxis: 0,
+          borderRadius: 3,
+          dataLabels: { enabled: true, format: '{y:.1f}%', style: { color: '#e6edf3', textOutline: 'none', fontSize: '10px' } },
+        },
+        {
+          type: 'spline',
+          name: 'Cumulative',
+          data: cumulativeData,
+          yAxis: 1,
+          color: '#d29922',
+          marker: { radius: 3 },
+          lineWidth: 2,
+        },
+      ],
+    };
+  }
+
+  return (
+    <div className="section-row">
+      <SectionHeader title="Prioritized Improvements" desc="Where to intervene next — ranking structural gaps by opportunity and impact.">
+        <div className="d-flex flex-items-center" style={{ gap: '8px' }}>
+          <label className="f6 color-fg-muted d-flex flex-items-center" style={{ gap: '4px', cursor: 'pointer' }}>
+            <input type="checkbox" checked={showCombos} onChange={e => setShowCombos(e.target.checked)} />
+            Show combinations
+          </label>
+        </div>
+      </SectionHeader>
+
+      {/* Pareto charts */}
+      <div className="pareto-grid mb-4">
+        <div className="Box p-3">
+          <Chart options={paretoOpts(byImpact, 'currentImpact', 'Ranked by Current Impact', '#58a6ff')} />
+        </div>
+        <div className="Box p-3">
+          <Chart options={paretoOpts(byRoom, 'roomForImprovement', 'Ranked by Room for Improvement', '#3fb950')} />
+        </div>
+      </div>
+
+      {/* Opportunity ranking table */}
+      <div className="Box p-3 mb-3">
+        <h4 className="f5 mb-2">Opportunity Ranking</h4>
+        <p className="f6 color-fg-muted mb-2">Factors ranked by combined opportunity score (gap × potential impact).</p>
+        <table className="width-full f6">
+          <thead>
+            <tr>
+              <th className="color-fg-muted py-1 f6" style={{ fontWeight: 500 }}>Rank</th>
+              <th className="color-fg-muted py-1 f6" style={{ fontWeight: 500 }}>Factor</th>
+              <th className="color-fg-muted py-1 f6 text-right" style={{ fontWeight: 500 }}>Adoption</th>
+              <th className="color-fg-muted py-1 f6 text-right" style={{ fontWeight: 500 }}>LOC Share</th>
+              <th className="color-fg-muted py-1 f6 text-right" style={{ fontWeight: 500 }}>Gap</th>
+              <th className="color-fg-muted py-1 f6 text-right" style={{ fontWeight: 500 }}>Opportunity</th>
+            </tr>
+          </thead>
+          <tbody>
+            {byOpportunity.map((f, i) => (
+              <tr key={f.key}>
+                <td className="py-1">{i + 1}</td>
+                <td className="py-1">
+                  <span className="Label Label--accent mr-1" style={{ fontSize: '0.65rem' }}>{f.key}</span>
+                  {f.label}
+                </td>
+                <td className="py-1 text-right">{fmtPct(f.adoptionRate)}</td>
+                <td className="py-1 text-right">{fmtPct(f.locShare)}</td>
+                <td className="py-1 text-right text-bold" style={{ color: f.gap > 0.5 ? '#f85149' : f.gap > 0.2 ? '#d29922' : '#3fb950' }}>{fmtPct(f.gap)}</td>
+                <td className="py-1 text-right text-bold">{fmtDec(f.opportunity, 2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Combination view */}
+      {showCombos && (
+        <div className="Box p-3">
+          <h4 className="f5 mb-2">Multi-Factor Combinations</h4>
+          <p className="f6 color-fg-muted mb-2">Top combinations of factors ranked by combined opportunity. These highlight multi-dimensional structural gaps.</p>
+          <table className="width-full f6">
+            <thead>
+              <tr>
+                <th className="color-fg-muted py-1 f6" style={{ fontWeight: 500 }}>Rank</th>
+                <th className="color-fg-muted py-1 f6" style={{ fontWeight: 500 }}>Combination</th>
+                <th className="color-fg-muted py-1 f6 text-right" style={{ fontWeight: 500 }}>Combined Gap</th>
+                <th className="color-fg-muted py-1 f6 text-right" style={{ fontWeight: 500 }}>Combined Opportunity</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(() => {
+                const combos = [];
+                for (let i = 0; i < factorStats.length; i++) {
+                  for (let j = i + 1; j < factorStats.length; j++) {
+                    const a = factorStats[i], b = factorStats[j];
+                    combos.push({
+                      label: `${a.label} + ${b.label}`,
+                      combinedGap: (a.gap + b.gap) / 2,
+                      combinedOpportunity: a.opportunity + b.opportunity,
+                    });
+                  }
+                }
+                return combos.sort((a, b) => b.combinedOpportunity - a.combinedOpportunity).slice(0, 10).map((c, i) => (
+                  <tr key={i}>
+                    <td className="py-1">{i + 1}</td>
+                    <td className="py-1">{c.label}</td>
+                    <td className="py-1 text-right">{fmtPct(c.combinedGap)}</td>
+                    <td className="py-1 text-right text-bold">{fmtDec(c.combinedOpportunity, 2)}</td>
+                  </tr>
+                ));
+              })()}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   CONFIG PANEL
+   ═══════════════════════════════════════════════════════ */
+function ConfigPanel({ config, onApply, isOpen, onToggle }) {
+  const [totalDevs, setTotalDevs] = useState(config.cfg_total_developers ?? '');
+  const [totalLoc, setTotalLoc] = useState(config.cfg_total_dev_loc_added_day ?? '');
+  const [wdays, setWdays] = useState(config.cfg_workdays_per_week ?? 5);
+  const [cost, setCost] = useState(config.cfg_labor_cost_per_hour ?? '');
+
+  useEffect(() => {
+    setTotalDevs(config.cfg_total_developers ?? '');
+    setTotalLoc(config.cfg_total_dev_loc_added_day ?? '');
+    setWdays(config.cfg_workdays_per_week ?? 5);
+    setCost(config.cfg_labor_cost_per_hour ?? '');
+  }, [config]);
+
+  const apply = () => {
+    onApply({
+      cfg_total_developers: parseInt(totalDevs) || config.cfg_total_developers,
+      cfg_total_dev_loc_added_day: parseInt(totalLoc) || config.cfg_total_dev_loc_added_day,
+      cfg_workdays_per_week: parseFloat(wdays) || 5,
+      cfg_labor_cost_per_hour: parseFloat(cost) || null,
+    });
+  };
+
+  const downloadConfig = () => {
+    const obj = {
+      cfg_total_developers: parseInt(totalDevs) || null,
+      cfg_total_dev_loc_added_day: parseInt(totalLoc) || null,
+      cfg_workdays_per_week: parseFloat(wdays) || 5,
+      cfg_labor_cost_per_hour: parseFloat(cost) || null,
+    };
+    const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'structural-config.json'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const summary = `${fmt(config.cfg_total_developers)} total devs · ${fmtCompact(config.cfg_total_dev_loc_added_day)} LoC/day target`;
+
+  return (
+    <div className="Box mt-4" style={{ borderColor: isOpen ? 'var(--borderColor-accent-emphasis)' : undefined }}>
+      <div className="Box-header d-flex flex-items-center flex-justify-between" style={{ cursor: 'pointer' }} onClick={onToggle}>
+        <div className="d-flex flex-items-center" style={{ gap: '8px' }}>
+          <span style={{ transition: 'transform 0.15s', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', display: 'inline-block' }}>▶</span>
+          <h4 className="f5 mb-0">Configuration</h4>
+          <span className="Label Label--secondary f6">structural parameters</span>
+        </div>
+        <span className="f6 color-fg-muted">{summary}</span>
+      </div>
+
+      {isOpen && (
+        <div className="Box-body">
+          <p className="f6 color-fg-muted mb-3">Edit the structural parameters below. These control how completeness ratios are calculated. When not provided, defaults are estimated from the uploaded data.</p>
+
+          <h5 className="f6 color-fg-muted text-bold mb-2">Population & Target</h5>
+          <div className="d-flex flex-wrap mb-3" style={{ gap: '12px', alignItems: 'flex-end' }}>
+            <div className="form-group mb-0" style={{ flex: '1 1 220px' }}>
+              <label className="f6 color-fg-muted">Total Developer Population</label>
+              <input type="number" className="form-control input-sm" step="1" min="1" value={totalDevs} onChange={e => setTotalDevs(e.target.value)} placeholder="e.g. 500" />
+              <p className="note f6 color-fg-muted mt-1">The total number of developers in the organization (including those not yet using Copilot).</p>
+            </div>
+            <div className="form-group mb-0" style={{ flex: '1 1 220px' }}>
+              <label className="f6 color-fg-muted">Total Org LoC Added / Day</label>
+              <input type="number" className="form-control input-sm" step="1000" min="0" value={totalLoc} onChange={e => setTotalLoc(e.target.value)} placeholder="e.g. 500000" />
+              <p className="note f6 color-fg-muted mt-1">Total lines of code added across the entire organization per day (from VCS data). Used to compute AI-assisted LOC share.</p>
+            </div>
+          </div>
+
+          <h5 className="f6 color-fg-muted text-bold mb-2">Shared</h5>
+          <div className="d-flex flex-wrap" style={{ gap: '12px', alignItems: 'flex-end' }}>
+            <div className="form-group mb-0" style={{ flex: '1 1 120px' }}>
+              <label className="f6 color-fg-muted">Workdays / Week</label>
+              <input type="number" className="form-control input-sm" step="1" min="1" max="7" value={wdays} onChange={e => setWdays(e.target.value)} />
+            </div>
+            <div className="form-group mb-0" style={{ flex: '1 1 140px' }}>
+              <label className="f6 color-fg-muted">Labor Cost $/hr</label>
+              <input type="number" className="form-control input-sm" step="1" min="0" value={cost} onChange={e => setCost(e.target.value)} placeholder="75" />
+            </div>
+          </div>
+          <div className="d-flex flex-items-center mt-3" style={{ gap: '8px' }}>
+            <button className="btn btn-sm btn-primary" onClick={apply}>Apply &amp; Recalculate</button>
+            <button className="btn btn-sm btn-outline" onClick={downloadConfig}>Download config.json</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Reconciliation Section ── */
+function ReconciliationSection({ rawPrs, filteredPrs, users }) {
+  const excluded = rawPrs.filter(pr => !filteredPrs.some(fp => fp.repository === pr.repository && fp.number === pr.number));
+
+  // Build copilotUsersByDay from user records (same logic as computeStructuralMetrics)
+  const copilotUsersByDay = {};
+  for (const u of users) {
+    if (u.code_generation_activity_count > 0 || u.user_initiated_interaction_count > 0) {
+      (copilotUsersByDay[u.day] = copilotUsersByDay[u.day] || new Set()).add(u.user_login);
+    }
+  }
+  // 3-day lookback assisted check (same as groupPrsByDay)
+  function prIsAssisted(pr) {
+    for (let i = 0; i <= 2; i++) {
+      const check = dayOffset(pr.day, -i);
+      const dayUsers = copilotUsersByDay[check];
+      if (dayUsers && dayUsers.has(pr.user)) return true;
+    }
+    return false;
+  }
+
+  // Group excluded by author
+  const byAuthor = {};
+  for (const pr of excluded) {
+    const key = pr.user;
+    if (!byAuthor[key]) byAuthor[key] = { count: 0, loc: 0, repos: new Set() };
+    byAuthor[key].count++;
+    byAuthor[key].loc += pr.loc_changed;
+    byAuthor[key].repos.add(pr.repository);
+  }
+  const authorRows = Object.entries(byAuthor)
+    .sort((a, b) => b[1].count - a[1].count)
+    .map(([author, d]) => ({ author, ...d, repos: [...d.repos].sort() }));
+
+  // Group excluded by matched bot pattern
+  const byPattern = {};
+  for (const pr of excluded) {
+    const matched = BOT_PATTERNS.find(p => p.test(pr.user));
+    const label = matched ? matched.toString() : 'unknown';
+    if (!byPattern[label]) byPattern[label] = { count: 0, loc: 0 };
+    byPattern[label].count++;
+    byPattern[label].loc += pr.loc_changed;
+  }
+
+  const totalRawLoc = rawPrs.reduce((s, p) => s + p.loc_changed, 0);
+  const totalFilteredLoc = filteredPrs.reduce((s, p) => s + p.loc_changed, 0);
+  const totalExcludedLoc = excluded.reduce((s, p) => s + p.loc_changed, 0);
+
+  // Date ranges
+  const rawDates = rawPrs.map(p => p.day).sort();
+  const filteredDates = filteredPrs.map(p => p.day).sort();
+
+  return (
+    <div className="section-row">
+      <SectionHeader title="Reconciliation" desc="PR data pipeline: what was loaded, what was filtered, and why." />
+
+      <div className="Box p-3 mb-3">
+        <h4 className="f5 mb-2">Summary</h4>
+        <table className="f6" style={{ borderCollapse: 'collapse', width: '100%' }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--borderColor-default)' }}>
+              <th className="text-left py-1 pr-3"></th>
+              <th className="text-right py-1 px-3">PRs</th>
+              <th className="text-right py-1 px-3">LOC</th>
+              <th className="text-right py-1 px-3">Authors</th>
+              <th className="text-left py-1 px-3">Date Range</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td className="py-1 pr-3 text-bold">Loaded from file</td>
+              <td className="text-right py-1 px-3">{fmt(rawPrs.length)}</td>
+              <td className="text-right py-1 px-3">{fmtCompact(totalRawLoc)}</td>
+              <td className="text-right py-1 px-3">{new Set(rawPrs.map(p => p.user)).size}</td>
+              <td className="py-1 px-3">{rawDates[0] || '—'} → {rawDates[rawDates.length-1] || '—'}</td>
+            </tr>
+            <tr style={{ color: '#f85149' }}>
+              <td className="py-1 pr-3">Excluded (bot/agent)</td>
+              <td className="text-right py-1 px-3">−{fmt(excluded.length)}</td>
+              <td className="text-right py-1 px-3">−{fmtCompact(totalExcludedLoc)}</td>
+              <td className="text-right py-1 px-3">{new Set(excluded.map(p => p.user)).size}</td>
+              <td className="py-1 px-3"></td>
+            </tr>
+            <tr style={{ borderTop: '1px solid var(--borderColor-default)', fontWeight: 600 }}>
+              <td className="py-1 pr-3" style={{ color: '#3fb950' }}>Used in dashboard</td>
+              <td className="text-right py-1 px-3" style={{ color: '#3fb950' }}>{fmt(filteredPrs.length)}</td>
+              <td className="text-right py-1 px-3" style={{ color: '#3fb950' }}>{fmtCompact(totalFilteredLoc)}</td>
+              <td className="text-right py-1 px-3" style={{ color: '#3fb950' }}>{new Set(filteredPrs.map(p => p.user)).size}</td>
+              <td className="py-1 px-3" style={{ color: '#3fb950' }}>{filteredDates[0] || '—'} → {filteredDates[filteredDates.length-1] || '—'}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {authorRows.length > 0 && (
+        <div className="Box p-3 mb-3">
+          <h4 className="f5 mb-2">Excluded Authors</h4>
+          <table className="f6" style={{ borderCollapse: 'collapse', width: '100%' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--borderColor-default)' }}>
+                <th className="text-left py-1 pr-3">Author</th>
+                <th className="text-right py-1 px-3">PRs</th>
+                <th className="text-right py-1 px-3">LOC</th>
+                <th className="text-left py-1 px-3">Matched Pattern</th>
+                <th className="text-left py-1 px-3">Repos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {authorRows.map(r => {
+                const matched = BOT_PATTERNS.find(p => p.test(r.author));
+                return (
+                  <tr key={r.author}>
+                    <td className="py-1 pr-3 color-fg-muted"><code>{r.author}</code></td>
+                    <td className="text-right py-1 px-3">{fmt(r.count)}</td>
+                    <td className="text-right py-1 px-3">{fmtCompact(r.loc)}</td>
+                    <td className="py-1 px-3 color-fg-muted"><code>{matched ? matched.toString() : '—'}</code></td>
+                    <td className="py-1 px-3 color-fg-muted f6" style={{ maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.repos.join(', ')}>
+                      {r.repos.length <= 3 ? r.repos.join(', ') : `${r.repos.slice(0, 3).join(', ')} +${r.repos.length - 3} more`}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="Box p-3 mb-3">
+        <h4 className="f5 mb-2">Active Filter Patterns</h4>
+        <p className="f6 color-fg-muted mb-2">PRs by authors matching any of these patterns are excluded from the AI Assisted Coding dashboard (they belong in the Agentic AI Coding dashboard).</p>
+        <div className="d-flex flex-wrap" style={{ gap: '6px' }}>
+          {BOT_PATTERNS.map((p, i) => (
+            <span key={i} className="Label Label--secondary"><code>{p.toString()}</code></span>
+          ))}
+        </div>
+      </div>
+
+      {filteredPrs.length > 0 && (
+        <div className="Box p-3">
+          <h4 className="f5 mb-2">PRs Used in Dashboard ({filteredPrs.length})</h4>
+          <div style={{ maxHeight: '400px', overflow: 'auto' }}>
+            <table className="f6" style={{ borderCollapse: 'collapse', width: '100%' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--borderColor-default)', position: 'sticky', top: 0, background: 'var(--bgColor-default)' }}>
+                  <th className="text-left py-1 pr-3">Author</th>
+                  <th className="text-left py-1 px-3">Repository</th>
+                  <th className="text-right py-1 px-3">#</th>
+                  <th className="text-left py-1 px-3">Date</th>
+                  <th className="text-right py-1 px-3">+Lines</th>
+                  <th className="text-right py-1 px-3">−Lines</th>
+                  <th className="text-center py-1 px-3">Copilot</th>
+                  <th className="text-left py-1 px-3">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredPrs.sort((a, b) => a.day.localeCompare(b.day) || a.user.localeCompare(b.user)).map(pr => {
+                  const assisted = prIsAssisted(pr);
+                  const status = pr.merged_at ? 'merged' : pr.state === 'closed' ? 'closed' : pr.state === 'OPEN' || pr.state === 'open' ? 'open' : pr.state;
+                  const statusColor = status === 'merged' ? '#a371f7' : status === 'open' ? '#3fb950' : status === 'closed' ? '#f85149' : '#8b949e';
+                  return (
+                    <tr key={`${pr.repository}-${pr.number}`}>
+                      <td className="py-1 pr-3"><code>{pr.user}</code></td>
+                      <td className="py-1 px-3 color-fg-muted" style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={pr.repository}>{pr.repository}</td>
+                      <td className="text-right py-1 px-3">{pr.number}</td>
+                      <td className="py-1 px-3">{pr.day}</td>
+                      <td className="text-right py-1 px-3" style={{ color: '#3fb950' }}>+{fmt(pr.additions)}</td>
+                      <td className="text-right py-1 px-3" style={{ color: '#f85149' }}>−{fmt(pr.deletions)}</td>
+                      <td className="text-center py-1 px-3">{assisted ? <span style={{ color: '#3fb950' }}>✓</span> : <span className="color-fg-muted">—</span>}</td>
+                      <td className="py-1 px-3"><span style={{ color: statusColor }}>{status}</span></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   APP
+   ═══════════════════════════════════════════════════════ */
+function App() {
+  const [data, setData] = useState(null);
+  const [config, setConfig] = useState({
+    cfg_total_developers: null,
+    cfg_total_dev_loc_added_day: null,
+    cfg_workdays_per_week: 5,
+    cfg_labor_cost_per_hour: null,
+  });
+  const [configOpen, setConfigOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+
+  const handleData = useCallback((d) => {
+    const structural = computeStructuralMetrics(d.enterprise, d.users, d.config, d.prRecords);
+    setData({ ...d, structural, baseEnterprise: d.enterprise });
+    setConfig(d.config);
+  }, []);
+
+  const handleConfigApply = useCallback((newCfg) => {
+    setConfig(newCfg);
+    if (data) {
+      const structural = computeStructuralMetrics(data.baseEnterprise, data.users, newCfg, data.prRecords);
+      setData(prev => ({ ...prev, structural, config: newCfg }));
+    }
+  }, [data]);
+
+  return (
+    <div className="structural-page">
+      <div className="mb-4">
+        <h1 className="f1">AI Assisted Coding</h1>
+        <p className="f4 color-fg-muted">Understand how deeply Copilot is embedded in your organization</p>
+      </div>
+
+      <UploadPanel onData={handleData} />
+
+      {data && (
+        <>
+          <SourceSummary data={{ ...data, config }} />
+          <DevSearch users={data.users} selectedUser={selectedUser} onSelect={setSelectedUser} />
+          <CompletenessSection days={data.structural} config={config} users={data.users} selectedUser={selectedUser} />
+          <ConsistencySection days={data.structural} selectedUser={selectedUser} users={data.users} />
+          <ImpactSection days={data.structural} />
+          <PrioritizedImprovementsSection days={data.structural} config={config} />
+          {data.rawPrRecords && <ReconciliationSection rawPrs={data.rawPrRecords} filteredPrs={data.prRecords || []} users={data.users} />}
+          <ConfigPanel config={config} onApply={handleConfigApply} isOpen={configOpen} onToggle={() => setConfigOpen(o => !o)} />
+        </>
+      )}
+
+      {!data && (
+        <div className="Box p-5 text-center color-fg-muted">
+          <p className="f3 mb-2">No data loaded</p>
+          <p className="f5">Upload an AI Assisted Coding source JSON above to build the structural view.</p>
+          <p className="f6 mt-3">This dashboard shows structural conditions — completeness, consistency, impact, and prioritized improvements — rather than efficiency estimates.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
