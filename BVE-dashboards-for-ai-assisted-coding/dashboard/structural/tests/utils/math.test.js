@@ -32,6 +32,24 @@ describe('Math Utilities', () => {
     it('should handle zero numerator', () => {
       expect(safeDiv(0, 5)).toBe(0);
     });
+
+    it('should return null for NaN inputs', () => {
+      expect(safeDiv(NaN, 5)).toBeNull();
+      expect(safeDiv(5, NaN)).toBeNull();
+      expect(safeDiv(NaN, NaN)).toBeNull();
+    });
+
+    it('should return null for Infinity inputs', () => {
+      expect(safeDiv(Infinity, 5)).toBeNull();
+      expect(safeDiv(5, Infinity)).toBeNull();
+      expect(safeDiv(Infinity, Infinity)).toBeNull();
+      expect(safeDiv(-Infinity, 5)).toBeNull();
+    });
+
+    it('should handle very large numbers', () => {
+      const large = Number.MAX_SAFE_INTEGER;
+      expect(safeDiv(large, 2)).toBe(large / 2);
+    });
   });
 
   describe('mean', () => {
@@ -65,6 +83,29 @@ describe('Math Utilities', () => {
     it('should handle decimals', () => {
       expect(mean([1.5, 2.5, 3.5])).toBeCloseTo(2.5, 5);
     });
+
+    it('should filter out NaN values', () => {
+      expect(mean([1, NaN, 3])).toBe(2);
+      expect(mean([10, NaN, 20, NaN, 30])).toBe(20);
+    });
+
+    it('should filter out undefined values', () => {
+      expect(mean([1, undefined, 3])).toBe(2);
+      expect(mean([10, undefined, 20])).toBe(15);
+    });
+
+    it('should filter out Infinity', () => {
+      expect(mean([1, Infinity, 3])).toBe(2);
+      expect(mean([1, -Infinity, 3])).toBe(2);
+    });
+
+    it('should return null for array with only NaN', () => {
+      expect(mean([NaN, NaN])).toBeNull();
+    });
+
+    it('should handle mixed null, undefined, and NaN', () => {
+      expect(mean([1, null, NaN, undefined, 3, 5])).toBe(3);
+    });
   });
 
   describe('stddev', () => {
@@ -93,6 +134,26 @@ describe('Math Utilities', () => {
 
     it('should be 0 for identical values', () => {
       expect(stddev([5, 5, 5, 5])).toBe(0);
+    });
+
+    it('should filter out NaN values', () => {
+      const result = stddev([2, NaN, 4, NaN, 6]);
+      expect(result).toBeCloseTo(2, 0);
+    });
+
+    it('should filter out undefined values', () => {
+      const result = stddev([2, undefined, 4, undefined, 6]);
+      expect(result).toBeCloseTo(2, 0);
+    });
+
+    it('should filter out Infinity', () => {
+      const result = stddev([2, Infinity, 4, -Infinity, 6]);
+      expect(result).toBeCloseTo(2, 0);
+    });
+
+    it('should handle mixed null, undefined, and NaN', () => {
+      const result = stddev([2, null, NaN, undefined, 4, 6]);
+      expect(result).toBeCloseTo(2, 0);
     });
   });
 
@@ -145,6 +206,15 @@ describe('Math Utilities', () => {
       
       expect(result).not.toBeNull();
       expect(result.slope).toBeCloseTo(2, 5);
+    });
+
+    it('should handle horizontal line (zero slope)', () => {
+      const points = [[1, 5], [2, 5], [3, 5]];
+      const result = linearRegression(points);
+      
+      expect(result).not.toBeNull();
+      expect(result.slope).toBeCloseTo(0, 5);
+      expect(result.intercept).toBeCloseTo(5, 5);
     });
   });
 

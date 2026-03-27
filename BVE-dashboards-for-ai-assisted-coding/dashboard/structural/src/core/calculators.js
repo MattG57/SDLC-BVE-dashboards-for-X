@@ -58,6 +58,18 @@ export function groupPrsByDay(prs, copilotUsersByDay) {
  * @returns {number|null} Adoption percentage (0-1) or null
  */
 export function calculateAdoptionRate(activeUsers, totalDevs) {
+  // Validate inputs
+  if (activeUsers < 0 || totalDevs <= 0) {
+    console.warn('Invalid inputs to calculateAdoptionRate:', { activeUsers, totalDevs });
+    return null;
+  }
+  
+  // Cap at 100% if active users exceeds total (data quality issue)
+  if (activeUsers > totalDevs) {
+    console.warn('Active users exceeds total developers:', { activeUsers, totalDevs });
+    return 1.0;
+  }
+  
   return safeDiv(activeUsers, totalDevs);
 }
 
@@ -70,9 +82,22 @@ export function calculateAdoptionRate(activeUsers, totalDevs) {
  * @returns {number|null} Penetration rate (0-1) or null
  */
 export function calculatePenetration(activeDays, totalDays, avgDau, totalDevs) {
-  const adoptionRate = safeDiv(activeDays, totalDays);
+  // Validate inputs
+  if (activeDays < 0 || totalDays <= 0 || avgDau < 0 || totalDevs <= 0) {
+    console.warn('Invalid inputs to calculatePenetration:', { activeDays, totalDays, avgDau, totalDevs });
+    return null;
+  }
+  
+  // Cap activeDays at totalDays
+  const cappedActiveDays = Math.min(activeDays, totalDays);
+  
+  const adoptionRate = safeDiv(cappedActiveDays, totalDays);
   if (adoptionRate === null) return null;
-  return safeDiv(avgDau * adoptionRate, totalDevs);
+  
+  const result = safeDiv(avgDau * adoptionRate, totalDevs);
+  
+  // Cap at 1.0 (100%)
+  return result !== null && result > 1.0 ? 1.0 : result;
 }
 
 /**

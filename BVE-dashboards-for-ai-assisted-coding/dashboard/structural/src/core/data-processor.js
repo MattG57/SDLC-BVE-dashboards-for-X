@@ -92,15 +92,22 @@ export function flattenUserReport(records) {
 /**
  * Bot/agent/automation patterns to exclude
  * This dashboard covers human AI-assisted coding only
+ * Patterns are tested case-insensitively
  */
 const BOT_PATTERNS = [
-  /\[bot\]$/i,
-  /-bot$/i,
-  /-agent$/i,
-  /^dependabot$/i,
-  /^github-actions$/i,
-  /^renovate$/i,
-  /^od-octodemo-/i
+  /\[bot\]$/i,           // Ends with [bot]
+  /-bot$/i,              // Ends with -bot
+  /-agent$/i,            // Ends with -agent
+  /^bot-/i,              // Starts with bot-
+  /^dependabot$/i,       // Dependabot
+  /^github-actions$/i,   // GitHub Actions
+  /^renovate$/i,         // Renovate
+  /^greenkeeper$/i,      // Greenkeeper
+  /automation/i,         // Contains "automation"
+  /^ci-/i,               // Starts with ci-
+  /^service-/i,          // Starts with service-
+  /^deploy-/i,           // Starts with deploy-
+  /^od-octodemo-/i,      // OctoDemo bots
 ];
 
 /**
@@ -109,6 +116,7 @@ const BOT_PATTERNS = [
  * @returns {boolean} True if login matches bot patterns
  */
 export function isBot(login) {
+  if (!login || typeof login !== 'string') return true; // Treat null/invalid as bot (filter out)
   return BOT_PATTERNS.some(p => p.test(login));
 }
 

@@ -10,26 +10,29 @@
  * @returns {number|null} Result or null if division not possible
  */
 export function safeDiv(a, b) {
+  // Handle NaN and Infinity
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
   return b && b !== 0 ? a / b : null;
 }
 
 /**
  * Calculate mean (average) of an array
- * @param {number[]} arr - Array of numbers (nulls are filtered out)
+ * @param {number[]} arr - Array of numbers (nulls, undefined, NaN are filtered out)
  * @returns {number|null} Mean value or null if no valid values
  */
 export function mean(arr) {
-  const valid = arr.filter(v => v != null);
+  const valid = arr.filter(v => v != null && Number.isFinite(v));
   return valid.length ? valid.reduce((a, b) => a + b, 0) / valid.length : null;
 }
 
 /**
  * Calculate standard deviation of an array
- * @param {number[]} arr - Array of numbers (nulls are filtered out)
+ * Uses sample standard deviation (n-1 denominator)
+ * @param {number[]} arr - Array of numbers (nulls, undefined, NaN are filtered out)
  * @returns {number} Standard deviation (0 if less than 2 values)
  */
 export function stddev(arr) {
-  const valid = arr.filter(v => v != null);
+  const valid = arr.filter(v => v != null && Number.isFinite(v));
   if (valid.length < 2) return 0;
   const m = mean(valid);
   return Math.sqrt(valid.reduce((s, v) => s + (v - m) ** 2, 0) / (valid.length - 1));

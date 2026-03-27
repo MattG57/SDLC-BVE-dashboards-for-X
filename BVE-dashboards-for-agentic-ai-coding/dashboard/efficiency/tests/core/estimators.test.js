@@ -108,6 +108,15 @@ describe('Agentic Estimators - Merge Rate', () => {
   it('handles perfect merge rate', () => {
     expect(calculateMergeRate(20, 20)).toBe(1.0);
   });
+
+  it('caps at 1.0 when merged exceeds created', () => {
+    expect(calculateMergeRate(15, 10)).toBe(1.0);
+  });
+
+  it('returns null for negative inputs', () => {
+    expect(calculateMergeRate(-5, 10)).toBeNull();
+    expect(calculateMergeRate(5, -10)).toBeNull();
+  });
 });
 
 describe('Agentic Estimators - Aggregate', () => {

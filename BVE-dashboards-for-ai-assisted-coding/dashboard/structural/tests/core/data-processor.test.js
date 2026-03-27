@@ -29,6 +29,30 @@ describe('Data Processor', () => {
       expect(isBot('MyBot[BOT]')).toBe(true);
       expect(isBot('test[Bot]')).toBe(true);
     });
+
+    it('should detect automation patterns', () => {
+      expect(isBot('build-automation')).toBe(true);
+      expect(isBot('test-automation-user')).toBe(true);
+    });
+
+    it('should detect ci/service/deploy prefixes', () => {
+      expect(isBot('ci-runner')).toBe(true);
+      expect(isBot('service-account')).toBe(true);
+      expect(isBot('deploy-bot')).toBe(true);
+      expect(isBot('bot-deployer')).toBe(true);
+    });
+
+    it('should detect additional bot names', () => {
+      expect(isBot('greenkeeper')).toBe(true);
+      expect(isBot('renovate')).toBe(true);
+    });
+
+    it('should return true for null/undefined/invalid logins', () => {
+      expect(isBot(null)).toBe(true);
+      expect(isBot(undefined)).toBe(true);
+      expect(isBot('')).toBe(true); // Empty string is invalid, filter out
+      expect(isBot(123)).toBe(true); // Non-string
+    });
   });
 
   describe('flattenDayTotal', () => {

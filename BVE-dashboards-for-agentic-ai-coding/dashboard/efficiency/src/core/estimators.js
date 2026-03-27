@@ -108,5 +108,18 @@ export function aggregateEstimates(dailyData) {
  */
 export function calculateMergeRate(prsMerged, prsCreated) {
   if (!prsCreated || prsCreated <= 0) return null;
+  
+  // Validate non-negative inputs
+  if (prsMerged < 0 || prsCreated < 0) {
+    console.warn('Negative PR counts:', { prsMerged, prsCreated });
+    return null;
+  }
+  
+  // Cap at 1.0 if merged exceeds created (data quality issue)
+  if (prsMerged > prsCreated) {
+    console.warn('Merged PRs exceeds created PRs:', { prsMerged, prsCreated });
+    return 1.0;
+  }
+  
   return prsMerged / prsCreated;
 }

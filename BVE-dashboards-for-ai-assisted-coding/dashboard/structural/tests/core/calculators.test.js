@@ -29,6 +29,18 @@ describe('Structural Calculators', () => {
     it('should handle decimals', () => {
       expect(calculateAdoptionRate(33, 100)).toBe(0.33);
     });
+
+    it('should return null for negative active users', () => {
+      expect(calculateAdoptionRate(-5, 100)).toBeNull();
+    });
+
+    it('should return null for negative total devs', () => {
+      expect(calculateAdoptionRate(50, -100)).toBeNull();
+    });
+
+    it('should cap at 1.0 when active users exceeds total', () => {
+      expect(calculateAdoptionRate(150, 100)).toBe(1.0);
+    });
   });
 
   describe('calculatePenetration', () => {
@@ -56,6 +68,25 @@ describe('Structural Calculators', () => {
     it('should handle zero active days', () => {
       const result = calculatePenetration(0, 28, 50, 200);
       expect(result).toBe(0);
+    });
+
+    it('should return null for negative inputs', () => {
+      expect(calculatePenetration(-5, 28, 50, 200)).toBeNull();
+      expect(calculatePenetration(20, -28, 50, 200)).toBeNull();
+      expect(calculatePenetration(20, 28, -50, 200)).toBeNull();
+      expect(calculatePenetration(20, 28, 50, -200)).toBeNull();
+    });
+
+    it('should cap activeDays at totalDays', () => {
+      // 30 active days but only 28 total days
+      const result = calculatePenetration(30, 28, 50, 200);
+      expect(result).toBeCloseTo(0.25, 2); // (28/28) * 50/200
+    });
+
+    it('should cap result at 1.0 if calculation exceeds 100%', () => {
+      // Edge case where avgDau > totalDevs
+      const result = calculatePenetration(28, 28, 300, 200);
+      expect(result).toBe(1.0);
     });
   });
 
