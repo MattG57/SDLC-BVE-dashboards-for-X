@@ -1,0 +1,99 @@
+{
+  "pull_requests": {
+    "total_count": 4113,
+    "prs": [
+      {
+        "number": 1,
+        "title": "Bump the npm_and_yarn group across 1 directory with 5 updates",
+        "state": "open",
+        "created_at": "2026-03-12T21:44:15Z",
+        "updated_at": "2026-03-12T21:44:15Z",
+        "user": "dependabot[bot]",
+        "repository": "sebastian-jenkins",
+        "comments": 0,
+        "additions": 312,
+        "deletions": 187,
+        "changed_files": 3
+      },
+      {
+        "number": 92,
+        "title": "Add Help Center page and fix dead footer link",
+        "state": "open",
+        "created_at": "2026-03-12T21:02:44Z",
+        "updated_at": "2026-03-12T21:09:54Z",
+        "user": "Copilot",
+        "repository": "octocat_supply-didactic-doodle",
+        "comments": 0,
+        "additions": 245,
+        "deletions": 12,
+        "changed_files": 5
+      },
+      {
+        "number": 21,
+        "title": "Add RSS feed at /rss.xml for the blog",
+        "state": "open",
+        "created_at": "2026-03-12T20:49:39Z",
+        "updated_at": "2026-03-12T20:55:54Z",
+        "user": "Copilot",
+        "repository": "fourth-coffee",
+        "comments": 0,
+        "additions": 89,
+        "deletions": 3,
+        "changed_files": 2
+      },
+      {
+        "number": 90,
+        "title": "Fix: Help Center footer link navigates to a dedicated Help Center page",
+        "state": "closed",
+        "created_at": "2026-03-12T20:45:06Z",
+        "updated_at": "2026-03-12T21:05:05Z",
+        "user": "Copilot",
+        "repository": "octocat_supply-didactic-doodle",
+        "comments": 0,
+        "additions": 34,
+        "deletions": 8,
+        "changed_files": 2
+      },
+      {
+        "number": 85,
+        "title": "Fix Help Center footer link — create /help-center route and page",
+        "state": "closed",
+        "created_at": "2026-03-12T20:28:28Z",
+        "updated_at": "2026-03-12T21:05:04Z",
+        "user": "Copilot",
+        "repository": "octocat_supply-supreme-waffle",
+        "comments": 0,
+        "additions": 156,
+        "deletions": 22,
+        "changed_files": 4
+      },
+      {
+        "number": 81,
+        "title": "Add read-only public catalog API at /api/catalog",
+        "state": "open",
+        "created_at": "2026-03-12T20:19:23Z",
+        "updated_at": "2026-03-12T20:31:27Z",
+        "user": "Copilot",
+        "repository": "octocat_supply-supreme-waffle",
+        "comments": 0,
+        "additions": 420,
+        "deletions": 15,
+        "changed_files": 7
+      },
+      {
+        "number": 20,
+        "title": "Strengthen testing posture for products and reviews utilities",
+        "state": "closed",
+        "created_at": "2026-03-12T20:14:16Z",
+        "updated_at": "2026-03-12T20:35:12Z",
+        "user": "Copilot",
+        "repository": "fourth-coffee",
+        "comments": 0,
+        "additions": 578,
+        "deletions": 45,
+        "changed_files": 12
+      }
+    ]
+  },
+  "detailed_pr_events": []
+}
