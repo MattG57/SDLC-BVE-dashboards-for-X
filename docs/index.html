@@ -22,7 +22,6 @@
   .category-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px;
     padding-bottom: 12px; border-bottom: 1px solid var(--borderColor-default); }
   .category-header h2 { font-size: 1.25rem; font-weight: 600; color: var(--fgColor-default); margin: 0; }
-  .category-header .label { font-size: 0.75rem; }
 
   /* Dashboard card grid */
   .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
@@ -60,6 +59,9 @@
     background: var(--bgColor-default);
   }
 
+  /* Quick Start section */
+  .quickstart-cta { text-align: center; margin-bottom: 48px; }
+
   /* Footer */
   .landing-footer {
     text-align: center;
@@ -91,7 +93,7 @@
     </div>
     <div class="card-grid">
 
-      <a class="dashboard-card" href="BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency/index.html">
+      <a class="dashboard-card" href="../BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency/index.html">
         <div class="card-icon">⚡</div>
         <h3>Efficiency Dashboard</h3>
         <p>Estimates time and cost savings from Copilot IDE features — interactions-based, LoC-based, and manual daily percentage calculations with labor cost analysis.</p>
@@ -103,7 +105,7 @@
         </div>
       </a>
 
-      <a class="dashboard-card" href="BVE-dashboards-for-ai-assisted-coding/dashboard/structural/index.html">
+      <a class="dashboard-card" href="../BVE-dashboards-for-ai-assisted-coding/dashboard/structural/index.html">
         <div class="card-icon">🏗️</div>
         <h3>Structural Dashboard</h3>
         <p>Assesses organizational adoption patterns — adoption completeness, usage consistency, and output correlation analysis.</p>
@@ -126,7 +128,7 @@
     </div>
     <div class="card-grid">
 
-      <a class="dashboard-card" href="BVE-dashboards-for-agentic-ai-coding/dashboard/efficiency/index.html">
+      <a class="dashboard-card" href="../BVE-dashboards-for-agentic-ai-coding/dashboard/efficiency/index.html">
         <div class="card-icon">🤖</div>
         <h3>Efficiency Dashboard</h3>
         <p>Estimates human-equivalent time saved by Copilot Coding Agent — duration-based and LoC-based calculations with PR quality and turbulence analysis.</p>
@@ -142,7 +144,7 @@
   </div>
 
   <!-- Quick Start -->
-  <div style="text-align: center; margin-bottom: 48px;">
+  <div class="quickstart-cta">
     <a class="btn btn-primary btn-large" href="quickstart.html">📖 Quick Start Guide — How to collect &amp; load data</a>
   </div>
 
