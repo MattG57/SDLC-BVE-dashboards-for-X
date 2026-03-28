@@ -133,6 +133,7 @@ function flattenDayTotal(dt) {
     pr_total_created: pr.total_created || 0,
     pr_total_created_by_copilot: pr.total_created_by_copilot || 0,
     pr_total_reviewed_by_copilot: pr.total_reviewed_by_copilot || 0,
+    cli_prompt_count: cli.prompt_count || 0,
     cli_session_count: cli.session_count || 0,
     cli_request_count: cli.request_count || 0,
     agent_mode_interaction_count: Array.isArray(dt.totals_by_feature)
@@ -160,6 +161,7 @@ function flattenUserReport(records) {
       agent_mode_interaction_count: Array.isArray(u.totals_by_feature)
         ? (u.totals_by_feature.find(f => f.feature === 'chat_panel_agent_mode') || {}).user_initiated_interaction_count || 0
         : 0,
+      cli_prompt_count: (u.totals_by_cli || {}).prompt_count || 0,
     };
   });
 }
@@ -209,7 +211,7 @@ function computeDerived(days, config, selectedMethod) {
       acceptances_per_active_dev: safeDiv(d.code_acceptance_activity_count, dau),
       loc10_added_per_active_dev: safeDiv(d.loc_added_sum / 10, dau),
       agent_mode_per_active_dev: safeDiv(d.agent_mode_interaction_count, dau),
-      cli_sessions_per_active_dev: safeDiv(d.cli_session_count, dau),
+      cli_prompts_per_active_dev: safeDiv(d.cli_prompt_count, dau),
       acceptance_rate: safeDiv(d.code_acceptance_activity_count, d.code_generation_activity_count),
       // Selected method outputs
       time_saved_hours_total_day: selectedHrsDay,
@@ -581,7 +583,7 @@ const DRIVER_SERIES = [
   { key: 'code_acceptance_activity_count', perDev: 'acceptances_per_active_dev', label: 'Accepts', color: '#d29922', scale: 1 },
   { key: 'loc_added_sum', perDev: 'loc10_added_per_active_dev', label: 'LoC/10 Added', color: '#bc8cff', scale: 10 },
   { key: 'agent_mode_interaction_count', perDev: 'agent_mode_per_active_dev', label: 'Agent Mode', color: '#f778ba', scale: 1 },
-  { key: 'cli_session_count', perDev: 'cli_sessions_per_active_dev', label: 'CLI Sessions', color: '#79c0ff', scale: 1 },
+  { key: 'cli_prompt_count', perDev: 'cli_prompts_per_active_dev', label: 'CLI Prompts', color: '#79c0ff', scale: 1 },
 ];
 
 function DriversSection({ days, users, selectedUser }) {
@@ -620,6 +622,7 @@ function DriversSection({ days, users, selectedUser }) {
       { key: 'code_acceptance_activity_count', label: 'Accepts', color: '#d29922', scale: 1 },
       { key: 'loc_added_sum', label: 'LoC/10 Added', color: '#bc8cff', scale: 10 },
       { key: 'agent_mode_interaction_count', label: 'Agent Mode', color: '#f778ba', scale: 1 },
+      { key: 'cli_prompt_count', label: 'CLI Prompts', color: '#79c0ff', scale: 1 },
     ];
     for (const s of USER_DRIVER_MAP) {
       const driverDef = DRIVER_SERIES.find(ds => ds.key === s.key);
@@ -719,11 +722,6 @@ function DriversSection({ days, users, selectedUser }) {
         </div>
         <div className="Box p-3" style={{ flex: '1 1 300px' }}>
           <h4 className="f6 color-fg-muted mb-1">Daily Avg / Dev{selectedUser ? ` vs ${selectedUser}` : ''}</h4>
-          {selectedUser && toggles['cli_session_count'] && (
-            <div className="flash flash-warn mb-2" style={{ fontSize: '0.75rem', padding: '8px' }}>
-              <strong>Note:</strong> CLI session data is only available at organization level. Individual developer CLI metrics are not provided by the GitHub API.
-            </div>
-          )}
           <Chart options={totalsOpts} />
         </div>
       </div>

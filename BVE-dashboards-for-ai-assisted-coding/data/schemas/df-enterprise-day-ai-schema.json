@@ -339,6 +339,18 @@
       ],
       "notes": "Optional for first page."
     },
+    "cli_prompt_count": {
+      "category": "flattened_source",
+      "type": "integer",
+      "source": "enterprise_report.day_totals[*].totals_by_cli.prompt_count",
+      "purpose": "Flattened CLI prompt count.",
+      "calculation": "Flatten from totals_by_cli.prompt_count.",
+      "dependencies": [],
+      "required_for": [
+        "supporting_telemetry"
+      ],
+      "notes": "Used in the drivers section to reflect CLI activity at both enterprise and user level."
+    },
     "cli_session_count": {
       "category": "flattened_source",
       "type": "integer",

@@ -75,6 +75,31 @@ describe('Data Processor - Flatten Day Total', () => {
     expect(result.agentModeInteractions).toBe(50);
   });
 
+  it('extracts CLI prompt count from totals_by_cli', () => {
+    const input = {
+      day: '2024-03-25',
+      totals_by_cli: {
+        prompt_count: 42,
+        session_count: 10,
+        request_count: 15,
+      },
+    };
+
+    const result = flattenDayTotal(input);
+
+    expect(result.cliPromptCount).toBe(42);
+    expect(result.cliSessionCount).toBe(10);
+    expect(result.cliRequestCount).toBe(15);
+  });
+
+  it('defaults CLI prompt count to zero when totals_by_cli is absent', () => {
+    const input = { day: '2024-03-25' };
+
+    const result = flattenDayTotal(input);
+
+    expect(result.cliPromptCount).toBe(0);
+  });
+
   it('handles missing optional fields', () => {
     const input = {
       day: '2024-03-25',
@@ -128,6 +153,33 @@ describe('Data Processor - Flatten User Record', () => {
     expect(result.userLogin).toBe('developer1');
     expect(result.interactions).toBe(50);
     expect(result.locAdded).toBe(100);
+  });
+
+  it('extracts CLI prompt count from user totals_by_cli', () => {
+    const input = {
+      day: '2024-03-25',
+      user_login: 'developer1',
+      totals_by_cli: {
+        prompt_count: 5,
+        session_count: 2,
+        request_count: 3,
+      },
+    };
+
+    const result = flattenUserRecord(input);
+
+    expect(result.cliPromptCount).toBe(5);
+  });
+
+  it('defaults CLI prompt count to zero when user totals_by_cli is absent', () => {
+    const input = {
+      day: '2024-03-25',
+      user_login: 'developer1',
+    };
+
+    const result = flattenUserRecord(input);
+
+    expect(result.cliPromptCount).toBe(0);
   });
 
   it('falls back to IDE-level LoC', () => {
