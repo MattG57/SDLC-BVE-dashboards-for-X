@@ -1,4 +1,6 @@
-# Migration Status: Agentic AI Coding Efficiency Dashboard
+# Migration Archive: Agentic AI Coding Efficiency Dashboard
+
+> Historical implementation note: this file records an earlier migration snapshot. For current readiness and repo-wide status, use [../../docs/dashboard-status.md](../../docs/dashboard-status.md).
 
 **Date:** 2026-03-25  
 **Status:** ✅ Complete - Core modules extracted with aligned structure

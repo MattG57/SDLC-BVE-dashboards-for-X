@@ -7,7 +7,9 @@ Estimates time and cost savings from GitHub Copilot IDE features (code completio
 ### View Dashboard
 
 ```bash
-open index.html
+# macOS: open index.html
+# Linux: xdg-open index.html
+# Windows: start index.html
 ```
 
 ### Run Tests

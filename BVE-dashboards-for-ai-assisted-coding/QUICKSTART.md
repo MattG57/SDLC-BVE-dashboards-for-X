@@ -4,7 +4,9 @@
 
 ```bash
 # Open efficiency dashboard in browser
-open dashboard/efficiency/index.html
+# macOS: open dashboard/efficiency/index.html
+# Linux: xdg-open dashboard/efficiency/index.html
+# Windows: start dashboard/efficiency/index.html
 ```
 
 Upload your data JSON file via the browser interface.
@@ -34,11 +36,11 @@ export GITHUB_TOKEN="your_token_here"
 
 # For Enterprise
 ENTERPRISE="my-enterprise" DAYS=28 \
-  ./data/queries/ai-assisted-coding.sh > my-data.json
+  ./data/queries/copilot-user-and-enterprise-metrics.sh > my-data.json
 
 # For Organization  
 ORG="my-org" DAYS=28 \
-  ./data/queries/ai-assisted-coding.sh > my-data.json
+  ./data/queries/copilot-user-and-enterprise-metrics.sh > my-data.json
 ```
 
 ## Verify Calculations
@@ -86,7 +88,7 @@ BVE-dashboards-for-ai-assisted-coding/
 
 ## Next Steps
 
-1. **Try the dashboard** - `open dashboard/efficiency/index.html`
+1. **Try the dashboard** - `open dashboard/efficiency/index.html` on macOS, `xdg-open dashboard/efficiency/index.html` on Linux, or `start dashboard/efficiency/index.html` on Windows
 2. **Run the tests** - `cd dashboard/efficiency && npm test`
 3. **Read the docs** - `dashboard/efficiency/README.md`
 4. **Review migration** - `docs/MIGRATION-STATUS.md`

@@ -1,5 +1,7 @@
 # Centralized Build System - Implementation Summary
 
+> Historical implementation note: this file is an implementation snapshot from 2024-03-25. For the current build reference, use [BUILD-SYSTEM.md](BUILD-SYSTEM.md).
+
 **Date:** 2024-03-25  
 **Status:** ✅ Complete - Centralized build infrastructure established
 

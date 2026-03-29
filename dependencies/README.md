@@ -2,6 +2,13 @@
 
 This document is the authoritative reference for how query scripts, dashboards, and data schemas relate to each other. Use it when adding, modifying, or removing a script-to-dashboard dependency.
 
+The canonical user and contributor docs now live in:
+
+- `docs/data-collection.md` for runtime query workflows and targets
+- `docs/dashboard-status.md` for dashboard readiness and migration state
+- `docs/development.md` for contributor workflow
+- `README.md` for high-level repository orientation
+
 ---
 
 ## Script → Dashboard Dependency Map
@@ -65,9 +72,11 @@ Runner & settings:
 10. Add a `vitest.config.js` in the dashboard directory and `package.json` with `test`, `test:watch`, and `test:coverage` scripts
 11. Update root `package.json` — add `build:SUITE` and `test:SUITE` npm scripts if this is a new suite, or verify existing scripts cover the new dashboard
 12. Update this file (`dependencies/README.md`) — add rows to the dependency map, config schemas, output shapes, and any new API endpoints
-13. Update root `README.md` — add the dashboard to the architecture tree, the Dashboards section, and the targets table under "Collect Data"
-14. Verify `.gitignore` coverage — the rule `**/dashboard/*/data/` should cover the new output dir automatically
-15. Run `npm test` to confirm all existing and new tests pass
+13. Update `docs/dashboard-status.md` — add the dashboard and its readiness state
+14. Update `docs/data-collection.md` if the new dashboard introduces a new target or collection workflow
+15. Update root `README.md` only if the repository-level dashboard summary or doc index changes
+16. Verify `.gitignore` coverage — the rule `**/dashboard/*/data/` should cover the new output dir automatically
+17. Run `npm test` to confirm all existing and new tests pass
 
 
 Follow these steps when introducing a new query script or connecting an existing script to a new dashboard.
@@ -96,15 +105,16 @@ In the dashboard's `index.html`, find the `{!data && (...)}` block and update it
 
 Add a row to the dependency map table above, document the expected output JSON shape, and add API endpoints.
 
-### 4. Update root `README.md`
+### 4. Update canonical docs
 
-Add the new target to the "Available targets" table under "Collect Data" and update the architecture tree if a new script file was added.
+- Update `docs/data-collection.md` with the new target and collection workflow
+- Update `README.md` only if the top-level quick-start summary should mention the new target
 
 ### 5. Add `.gitignore` coverage
 
 The rule `**/dashboard/*/data/` in `.gitignore` covers any new dashboard `data/` dirs automatically. No action needed unless the output dir is outside this pattern.
 
-### 5. Update tests
+### 6. Update tests
 
 If the new script changes the data shape consumed by a dashboard, update the relevant tests:
 - `tests/core/data-processor.test.js` — add cases for the new data source
@@ -123,7 +133,8 @@ If the new script changes the data shape consumed by a dashboard, update the rel
 4. Update the dashboard's `{!data && (...)}` instruction panel
 5. Update old references in UploadPanel helper text (grep for the old name)
 6. Update this file (`dependencies/README.md`) — dependency map, file locations, data collection scripts
-7. Update root `README.md` — architecture tree, targets table
+7. Update `docs/data-collection.md` — target table, direct script examples, or output-shape references
+8. Update `README.md` only if the repository-level summary needs to change
 
 ### Changing which dashboards a script feeds
 1. Add or remove cases in `get_target_config()` — each case maps one target to one output dir
@@ -131,13 +142,14 @@ If the new script changes the data shape consumed by a dashboard, update the rel
 3. Update the `TARGETS` list
 4. Update instruction panels in affected dashboards
 5. Update this file (`dependencies/README.md`) — dependency map table
-6. Update root `README.md` — targets table under "Collect Data"
+6. Update `docs/data-collection.md` — target table and workflow notes
 
 ### Changing required/optional env vars
 1. Update `required_vars` and/or `optional_vars` in the target's case block
 2. Use `|` (pipe) to denote "one of" for required groups (e.g., `ENTERPRISE|ORG`)
 3. Update the dashboard's `{!data && (...)}` instruction panel if it lists env vars
 4. Update this file (`dependencies/README.md`) — dependency map table
+5. Update `docs/data-collection.md` if users need different runtime inputs or commands
 
 ### Adding or changing a data field in script output
 1. Update the query script's `jq` output construction to include the new/changed field
@@ -148,7 +160,7 @@ If the new script changes the data shape consumed by a dashboard, update the rel
 6. Update `tests/core/schema-validation.test.js` if the field changes validation expectations
 7. Update the **Detailed Output Shapes** section in this file (`dependencies/README.md`)
 8. Update the **Expected Output Shapes** table if top-level keys changed
-9. Run `npm run validate:data` to verify the example still passes schema validation
+9. Run `node scripts/validators/validate-data.js <file> <type>` to verify the example still passes schema validation
 10. Run `npm test` to confirm all tests pass
 
 ### Adding or changing a config key (`cfg_*`/`est_*`)
@@ -176,7 +188,9 @@ If the new script changes the data shape consumed by a dashboard, update the rel
 3. Delete the query script file
 4. Remove or update the dashboard's `{!data && (...)}` instruction panel
 5. Remove the row from this file (`dependencies/README.md`) — dependency map, output shapes, API endpoints, data collection scripts
-6. Update root `README.md` — remove from architecture tree and targets table
+6. Update `docs/data-collection.md` — remove the target and associated workflow
+7. Update `docs/dashboard-status.md` if dashboard readiness changes
+8. Update `README.md` only if the top-level dashboard summary changes
 
 ---
 
@@ -204,7 +218,7 @@ Schema files document the structure of processed dataframes used by the dashboar
 
 ## Example Data Files
 
-Example files are used for validation (`npm run validate:data`) and as reference for expected output shapes.
+Example files are used for validation with `node scripts/validators/validate-data.js <file> <type>` and as reference for expected output shapes.
 
 | File | Top-level Keys | Purpose |
 |---|---|---|
@@ -398,7 +412,7 @@ Each schema has corresponding test files:
 - `schema.test.js`: Validates schema structure
 - `{module}.test.js`: Tests data processing logic
 - Example data files for validation in `data/examples/`
-- Config validation via `npm run validate:data` (uses `ajv` against `data/schemas/`)
+- Config validation via `node scripts/validators/validate-data.js <file> <type>` and dashboard-level schema tests
 
 For detailed API schema examples, refer to:
 - [GitHub Copilot Metrics API Documentation](https://docs.github.com/en/copilot/reference/copilot-usage-metrics)

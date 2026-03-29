@@ -115,6 +115,16 @@
   }
   .qs-footer a { color: var(--fgColor-accent); text-decoration: none; }
   .qs-footer a:hover { text-decoration: underline; }
+  .doc-callout {
+    border: 1px solid var(--borderColor-default);
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin: 0 0 24px;
+    background: var(--bgColor-muted);
+  }
+  .doc-callout p { margin: 0; color: var(--fgColor-muted); line-height: 1.6; }
+  .doc-callout a { color: var(--fgColor-accent); text-decoration: none; }
+  .doc-callout a:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -123,9 +133,13 @@
 
   <!-- Header -->
   <div class="qs-header">
-    <div class="back-link"><a href="index.html">← Back to Dashboards</a></div>
+    <div class="back-link"><a href="index.deprecated.html">← Back to Dashboards</a></div>
     <h1>Quick Start Guide</h1>
     <p>How to collect data and load it into each dashboard.</p>
+  </div>
+
+  <div class="doc-callout">
+    <p>This page is a browser-friendly quickstart flagged for future removal. The canonical docs live in <a href="getting-started.md">getting-started.md</a> and <a href="data-collection.md">data-collection.md</a>.</p>
   </div>
 
   <!-- Prerequisites -->
@@ -156,11 +170,11 @@ export GITHUB_TOKEN="your_token_here"</div>
         <p>Run the query script from the repository root. Use <code>ENTERPRISE</code> or <code>ORG</code> to target your scope.</p>
         <div class="code-block"><span class="comment"># Enterprise-wide metrics (last 28 days)</span>
 ENTERPRISE="my-enterprise" DAYS=28 \
-  ./BVE-dashboards-for-ai-assisted-coding/data/queries/ai-assisted-coding.sh > my-data.json
+  ./BVE-dashboards-for-ai-assisted-coding/data/queries/copilot-user-and-enterprise-metrics.sh > my-data.json
 
 <span class="comment"># Organization-level metrics</span>
 ORG="my-org" DAYS=28 \
-  ./BVE-dashboards-for-ai-assisted-coding/data/queries/ai-assisted-coding.sh > my-data.json</div>
+  ./BVE-dashboards-for-ai-assisted-coding/data/queries/copilot-user-and-enterprise-metrics.sh > my-data.json</div>
         <div class="callout callout-warn">
           <span class="callout-icon">⚠️</span>
           <p>Do <strong>not</strong> redirect stderr into your JSON file. The script writes progress to stderr and data to stdout.<br>
@@ -175,11 +189,19 @@ ORG="my-org" DAYS=28 \
       <div class="step-content">
         <h3>Open a dashboard</h3>
         <p>Open the desired dashboard HTML file directly in your browser.</p>
-        <div class="code-block"><span class="comment"># Efficiency Dashboard</span>
+        <div class="code-block"><span class="comment"># Efficiency Dashboard (macOS)</span>
 open BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency/index.html
+<span class="comment"># Linux</span>
+xdg-open BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency/index.html
+<span class="comment"># Windows</span>
+start BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency/index.html
 
-<span class="comment"># Structural Dashboard</span>
-open BVE-dashboards-for-ai-assisted-coding/dashboard/structural/index.html</div>
+<span class="comment"># Structural Dashboard (macOS)</span>
+open BVE-dashboards-for-ai-assisted-coding/dashboard/structural/index.html
+<span class="comment"># Linux</span>
+xdg-open BVE-dashboards-for-ai-assisted-coding/dashboard/structural/index.html
+<span class="comment"># Windows</span>
+start BVE-dashboards-for-ai-assisted-coding/dashboard/structural/index.html</div>
       </div>
     </div>
 
@@ -227,6 +249,15 @@ open BVE-dashboards-for-ai-assisted-coding/dashboard/structural/index.html</div>
     </div>
   </div>
 
+  <div class="qs-section">
+    <h2>Which Dashboard Should You Use?</h2>
+    <ul>
+      <li><strong>AI-assisted efficiency</strong> — Use this for IDE productivity and labor-cost estimates.</li>
+      <li><strong>AI-assisted structural</strong> — Use this for adoption, consistency, and output-correlation analysis. This dashboard needs both Copilot metrics and PR review metrics.</li>
+      <li><strong>Agentic efficiency</strong> — Use this for Copilot Coding Agent pull-request value, merge outcomes, and turbulence analysis.</li>
+    </ul>
+  </div>
+
   <!-- Agentic AI Coding -->
   <div class="qs-section">
     <h2>Agentic AI Coding Dashboard</h2>
@@ -239,11 +270,11 @@ open BVE-dashboards-for-ai-assisted-coding/dashboard/structural/index.html</div>
         <p>Run the agentic query script. You can target an entire org or a single repository.</p>
         <div class="code-block"><span class="comment"># All repositories in an org (may take 10-15 minutes for large orgs)</span>
 ORG="my-org" DAYS=28 \
-  ./BVE-dashboards-for-agentic-ai-coding/data/queries/agentic-ai-coding.sh > agentic-data.json
+  ./BVE-dashboards-for-agentic-ai-coding/data/queries/coding-agent-pr-metrics.sh > agentic-data.json
 
 <span class="comment"># Single repository (faster)</span>
 ORG="my-org" REPO="my-repo" DAYS=28 \
-  ./BVE-dashboards-for-agentic-ai-coding/data/queries/agentic-ai-coding.sh > agentic-data.json</div>
+  ./BVE-dashboards-for-agentic-ai-coding/data/queries/coding-agent-pr-metrics.sh > agentic-data.json</div>
       </div>
     </div>
 
@@ -251,7 +282,12 @@ ORG="my-org" REPO="my-repo" DAYS=28 \
       <div class="step-number">2</div>
       <div class="step-content">
         <h3>Open the dashboard</h3>
-        <div class="code-block">open BVE-dashboards-for-agentic-ai-coding/dashboard/efficiency/index.html</div>
+        <div class="code-block"><span class="comment"># macOS</span>
+open BVE-dashboards-for-agentic-ai-coding/dashboard/efficiency/index.html
+<span class="comment"># Linux</span>
+xdg-open BVE-dashboards-for-agentic-ai-coding/dashboard/efficiency/index.html
+<span class="comment"># Windows</span>
+start BVE-dashboards-for-agentic-ai-coding/dashboard/efficiency/index.html</div>
       </div>
     </div>
 
@@ -303,9 +339,23 @@ node verify_math.cjs</div>
     <p>This runs example data through all estimation methods and outputs raw values, calculated hours, and per-developer averages.</p>
   </div>
 
+  <div class="qs-section">
+    <h2>Input Mapping</h2>
+    <table class="config-table">
+      <thead>
+        <tr><th>Dashboard</th><th>Required file(s)</th><th>Produced by</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>AI-assisted efficiency</td><td>Copilot metrics JSON</td><td><code>ai-assisted-efficiency</code></td></tr>
+        <tr><td>AI-assisted structural</td><td>Copilot metrics JSON + PR review metrics JSON</td><td><code>ai-assisted-structural</code> and <code>pr-review-structural</code></td></tr>
+        <tr><td>Agentic efficiency</td><td>Agentic PR metrics JSON</td><td><code>agentic-efficiency</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
   <!-- Footer -->
   <div class="qs-footer">
-    <p><a href="index.html">← Back to Dashboards</a></p>
+    <p><a href="index.deprecated.html">← Back to Dashboards</a></p>
     <p><a href="https://github.com/github/SDLC-BVE-dashboards-for-X">View source on GitHub</a></p>
   </div>
 

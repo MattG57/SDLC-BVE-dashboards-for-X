@@ -7,7 +7,9 @@ Estimates human-equivalent time saved by **GitHub Copilot Coding Agent** - the a
 ### View Dashboard
 
 ```bash
-open index.html
+# macOS: open index.html
+# Linux: xdg-open index.html
+# Windows: start index.html
 ```
 
 ### Run Tests

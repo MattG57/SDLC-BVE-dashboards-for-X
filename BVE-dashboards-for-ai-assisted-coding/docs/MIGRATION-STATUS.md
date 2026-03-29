@@ -1,4 +1,6 @@
-# Migration Status: AI Assisted Coding Efficiency Dashboard
+# Migration Archive: AI Assisted Coding Efficiency Dashboard
+
+> Historical implementation note: this file records an earlier migration snapshot. For current readiness and repo-wide status, use [../../docs/dashboard-status.md](../../docs/dashboard-status.md).
 
 **Date:** 2024-03-25  
 **Status:** ✅ Phase 1 Complete - Structure & Core Modules Extracted
@@ -179,7 +181,7 @@ node verify_math.cjs
 
 ### New Location
 ```
-/Users/mattg57/SDLC-BVE-dashboards-for-X/BVE-dashboards-for-ai-assisted-coding/
+BVE-dashboards-for-ai-assisted-coding/
 ```
 
 ## Migration Commands Used

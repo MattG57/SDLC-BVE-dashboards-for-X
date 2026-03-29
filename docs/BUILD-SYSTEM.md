@@ -1,217 +1,156 @@
-# Build System Documentation
+# Build System
 
-## Overview
+This document describes how the repository builds dashboard output. It is intentionally narrower than the general contributor docs in [development.md](development.md).
 
-This repository uses a **centralized build system** that enforces consistency across all BVE dashboards. Each dashboard can be developed modularly with tests, then built into a single-file HTML for deployment.
+## Purpose
 
-## Architecture
+The build system exists to give all dashboards a shared way to:
 
-```
-SDLC-BVE-dashboards-for-X/
-├── scripts/                     # Build & validation scripts
-│   ├── build-dashboard.js       # Build single dashboard
-│   ├── build-all.js             # Build all dashboards
-│   ├── validate-structure.js    # Validate dashboard structure
-│   └── verify-all-calculations.js # Run all verification scripts
-├── build-config/
-│   └── dashboard-config.js      # Central configuration
-├── BVE-dashboards-for-*/        # Dashboard packages
-│   └── dashboard/*/
-│       ├── src/                 # Modular source (development)
-│       ├── tests/               # Unit tests
-│       ├── dist/                # Built output (deployment)
-│       └── index.html           # Original (preserved)
-└── package.json                 # Root package with workspaces
+- validate dashboard structure
+- build deployable single-file HTML output
+- keep external dependency versions consistent
+- support gradual migration from monolithic HTML to modular source
+
+## Key Files
+
+```text
+scripts/build-dashboard.js          Build one configured dashboard
+scripts/build-all.js                Build every configured dashboard
+scripts/validate-structure.js       Validate dashboard layout and scripts
+scripts/verify-all-calculations.js  Run verification scripts
+build-config/dashboard-config.js    Shared build and validation config
+package.json                        Root build/test/validate entry points
 ```
 
-## Build Process
+## Commands
 
-### Single Dashboard
+### Build everything
 
 ```bash
-# Build specific dashboard
-npm run build:ai-assisted
-
-# Or use the script directly
-node scripts/build-dashboard.js BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency
-```
-
-### All Dashboards
-
-```bash
-# Build everything
 npm run build
 ```
 
-### What Happens During Build
-
-1. **Read Configuration** - Load dashboard config from `build-config/dashboard-config.js`
-2. **Bundle JavaScript** - Use esbuild to bundle all `src/` modules
-3. **Bundle CSS** - Combine inline styles (if separate files exist)
-4. **Inject CDN Links** - Add React, Highcharts, Primer CSS from CDNs
-5. **Generate HTML** - Merge template + bundled JS/CSS
-6. **Write Output** - Save to `dist/index.html`
-7. **Validate** - Ensure output is valid single-file HTML
-
-### Fallback Behavior
-
-If modular source (`src/main.js`) doesn't exist yet:
-- ✅ Copies existing `index.html` to `dist/`
-- ⚠️ Warns that modularization is pending
-- 💡 Suggests next steps for extraction
-
-This allows **gradual migration** - dashboards work immediately while we extract modules.
-
-## Configuration
-
-### Dashboard Config (`build-config/dashboard-config.js`)
-
-```javascript
-export const dashboardConfig = {
-  common: {
-    externals: ['react', 'react-dom', 'highcharts'],
-    cdnLinks: { /* CDN URLs */ },
-    output: { format: 'iife', minify: true }
-  },
-  dashboards: {
-    'ai-assisted-coding-efficiency': {
-      path: 'BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency',
-      name: 'AI Assisted Coding — Efficiency Dashboard',
-      entry: 'src/main.js',
-      template: 'src/template.html',
-      output: 'dist/index.html',
-      modules: [ /* list of source files */ ]
-    }
-  }
-};
-```
-
-### Adding a New Dashboard
-
-1. Add entry to `dashboardConfig.dashboards`
-2. Create directory structure
-3. Run `npm run validate`
-4. Build with `npm run build`
-
-## Structure Validation
+### Build a specific dashboard
 
 ```bash
-# Validate all dashboards
+npm run build:ai-assisted
+npm run build:agentic
+```
+
+You can also invoke the builder directly:
+
+```bash
+node scripts/build-dashboard.js BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency
+```
+
+### Validate structure
+
+```bash
 npm run validate
 ```
 
-**Checks:**
-- ✅ Required directories exist (`src/`, `tests/`, `dist/`)
-- ✅ Required files exist (`package.json`, `README.md`)
-- ✅ Required npm scripts defined (`test`, `build`)
-- ⚠️ Warns if modules not extracted yet
-- ⚠️ Warns if no test files found
-
-## Calculation Verification
+### Run verification scripts
 
 ```bash
-# Run all verification scripts
 npm run verify:all
 ```
 
-Runs `verify_math.cjs` for each dashboard to validate:
-- Calculation accuracy
-- Method comparison
-- Expected outputs
+## How Build Resolution Works
 
-## Testing
+The builder reads [../build-config/dashboard-config.js](../build-config/dashboard-config.js) and looks up the dashboard by path.
 
-```bash
-# Run all tests across all dashboards
-npm test
+Each dashboard config defines:
 
-# Run tests for specific dashboard
-npm run test:ai-assisted
-```
+- `path`
+- `name`
+- `entry`
+- `template`
+- `output`
+- `dataSchema`
+- `exampleData`
+- `modules`
 
-Uses **npm workspaces** to run tests in each dashboard package.
+The common config defines:
 
-## Development Workflow
+- external libraries loaded by CDN
+- CDN URLs
+- output format and minification settings
+- validation requirements
 
-### Option 1: Modular First (Recommended for New Dashboards)
+## Build Behavior
 
-1. Create modular source in `src/`
-2. Write tests in `tests/`
-3. Run `npm test` until passing
-4. Run `npm run build`
-5. Deploy `dist/index.html`
+### When modular entry files exist
 
-### Option 2: Extract from Monolith (Current Migration)
+If the configured entry file exists, the builder uses the modular source path:
 
-1. Start with working `index.html`
-2. Extract pure functions to `src/core/`
-3. Write tests for extracted logic
-4. Gradually extract components
-5. Run `npm run build` to generate new version
-6. Compare original vs built output
+1. read dashboard config
+2. bundle application code from `src/`
+3. use the configured template
+4. write output to `dist/index.html`
 
-## Build Output
+### When modular entry files do not exist
 
-### Development Build
-```bash
-NODE_ENV=development npm run build:ai-assisted
-```
-- Unminified code
-- Readable formatting
-- Inline source comments
+If the configured entry file does not exist yet, the builder falls back to the preserved monolithic dashboard:
 
-### Production Build (Default)
-```bash
-npm run build:ai-assisted
-```
-- Minified JavaScript
-- Optimized CSS
-- No source comments
-- Single-file HTML (~100-200 KB)
+- copies `index.html` into `dist/`
+- warns that modularization is still pending
+- keeps the dashboard deployable while migration continues
+
+This fallback behavior is the main reason the build system can support partially migrated dashboards.
+
+## Output Contract
+
+Build output is written to `dist/index.html`.
+
+The intended result is:
+
+- a single-file HTML artifact
+- browser-openable without a server
+- consistent external dependency versions across dashboards
 
 ## External Dependencies
 
-**Always loaded via CDN** (never bundled):
-- React 18 (production UMD)
-- React DOM 18 (production UMD)
+The build config currently treats these libraries as external and loads them from CDNs rather than bundling them:
+
+- React 18
+- React DOM 18
 - Highcharts 11.4.8
-- Highcharts Accessibility Module
+- Highcharts Accessibility module
 - Primer CSS 21.3.1
 
-**Bundled into output**:
-- All application code from `src/`
-- Core business logic
-- Data processors
-- Utilities
+These versions are defined centrally in [../build-config/dashboard-config.js](../build-config/dashboard-config.js).
 
-## File Size Optimization
+## Validation Scope
 
-Current dashboard sizes:
-- **AI Assisted Coding Efficiency**: ~120 KB (including inline JS/CSS)
-- Target for all dashboards: < 200 KB
+`npm run validate` checks structural expectations defined in the shared config, including:
 
-**Optimization techniques:**
-1. Minification (esbuild)
-2. Tree shaking (unused code removal)
-3. CDN for heavy libraries (React, Highcharts)
-4. Inline small assets only
+- required files and directories
+- required package scripts
+- dashboard layout consistency
 
-## Best Practices
+`npm run verify:all` is separate from the HTML build itself. It runs calculation-verification scripts so we can confirm metric logic independently of bundling.
 
-1. **Keep dashboards independent** - No cross-dashboard imports
-2. **Test before building** - All tests should pass
-3. **Validate structure** - Run `npm run validate` regularly
-4. **Version control dist/** - Commit built output for easy deployment
-5. **Document assumptions** - Explain calculation methods in comments
+## Adding or Updating Build Wiring
 
-## Migration Checklist
+When a dashboard needs build wiring:
 
-For each dashboard:
-- [ ] Directory structure created
-- [ ] Core modules extracted to `src/core/`
-- [ ] Tests written with >80% coverage
-- [ ] Build config added to `dashboard-config.js`
-- [ ] Build script tested (`npm run build`)
-- [ ] Output validated (opens in browser, features work)
-- [ ] Verification script passing
-- [ ] README updated
+1. add or update its entry in [../build-config/dashboard-config.js](../build-config/dashboard-config.js)
+2. confirm the root `package.json` exposes the needed build command
+3. run `npm run validate`
+4. run the relevant `npm run build:*` command
+
+If the change also affects query targets, schemas, or dependency mapping, continue in [../dependencies/README.md](../dependencies/README.md).
+
+## What This Doc Does Not Cover
+
+- onboarding and first-run instructions
+- dashboard readiness or migration status
+- query workflow details
+- full change-propagation checklists
+
+Those live in:
+
+- [getting-started.md](getting-started.md)
+- [dashboard-status.md](dashboard-status.md)
+- [data-collection.md](data-collection.md)
+- [../dependencies/README.md](../dependencies/README.md)

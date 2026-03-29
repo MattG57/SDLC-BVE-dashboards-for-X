@@ -1,302 +1,84 @@
 # SDLC BVE Dashboards for X
 
-Business Value Engineering (BVE) dashboards for measuring GitHub Copilot and SDLC metrics impact across organizations.
+Business Value Engineering dashboards for measuring GitHub Copilot and SDLC impact across organizations.
 
-## 🎯 Overview
+## Overview
 
-This repository contains a suite of **single-file HTML dashboards** that run entirely in the browser. Each dashboard is:
+This repository contains browser-run dashboards plus the scripts and tests needed to collect, validate, and explain their inputs.
 
-- ✅ **Self-contained** - No server required, opens directly in browser
-- ✅ **Testable** - Modular source with comprehensive unit tests
-- ✅ **Validated** - Calculation verification scripts included
-- ✅ **Consistent** - Centralized build system enforces standards
+- Self-contained dashboard HTML files
+- Modular source and tests for migrated dashboards
+- Shared build and validation scripts
+- Query runners for AI-assisted and agentic metrics
 
-## 📊 Dashboards
+## Dashboards
 
-### AI Assisted Coding
-Measures GitHub Copilot impact on developer productivity.
+### AI-Assisted Coding
 
-#### 1. Efficiency Dashboard
-**Path:** `BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency/`
-
-Estimates time and cost savings from Copilot IDE features:
-- Interactions-based calculation
-- LoC-based calculation  
-- Manual daily percentage
-- Labor cost savings
-
-**Status:** ✅ Migrated with modular source + tests
-
-#### 2. Structural Dashboard
-**Path:** `BVE-dashboards-for-ai-assisted-coding/dashboard/structural/`
-
-Assesses organizational adoption patterns:
-- Adoption completeness
-- Usage consistency
-- Output correlation
-
-**Status:** 🔄 Pending migration
+- Efficiency dashboard: estimates time and labor-cost savings from Copilot IDE usage
+- Structural dashboard: analyzes adoption patterns, consistency, and output correlation
 
 ### Agentic AI Coding
-Measures autonomous coding agent productivity.
 
-#### Efficiency Dashboard
-**Path:** `BVE-dashboards-for-agentic-ai-coding/dashboard/efficiency/`
+- Efficiency dashboard: estimates human-equivalent value from Copilot Coding Agent pull requests
 
-Estimates human-equivalent time saved by Copilot Coding Agent:
-- Duration-based calculation (merged PRs)
-- LoC-based calculation
-- PR quality metrics
-- Turbulence analysis
+For current readiness and migration state, see [docs/dashboard-status.md](docs/dashboard-status.md).
 
-**Status:** 🔄 Pending migration
-
-## 🚀 Quick Start
-
-### View a Dashboard
+## Quick Start
 
 ```bash
-# Option 1: Open directly
-open BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency/index.html
-
-# Option 2: Build to dist/ first
-npm run build:ai-assisted
-open BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency/dist/index.html
-```
-
-Upload your data JSON via the browser interface.
-
-### Collect Data
-
-Use the top-level runner script to fetch data and place it beside each dashboard:
-
-```bash
-# First run — you'll be prompted for ENTERPRISE/ORG and offered to save a profile
-./run-query.sh ai-assisted-efficiency
-
-# Run with a saved profile
-./run-query.sh agentic-efficiency myorg
-
-# Run all targets at once
-./run-query.sh --all
-
-# Preview resolved config without calling APIs
-./run-query.sh --dry-run ai-assisted-structural
-
-# List available targets
-./run-query.sh --list
-```
-
-Settings are persisted in `query-settings.json` as named profiles.
-
-#### Available targets
-
-| Target | Script | Output dir |
-|--------|--------|------------|
-| `ai-assisted-efficiency` | `copilot-user-and-enterprise-metrics.sh` | `.../dashboard/efficiency/data/` |
-| `ai-assisted-structural` | `copilot-user-and-enterprise-metrics.sh` | `.../dashboard/structural/data/` |
-| `pr-review-structural` | `human-pr-metrics.sh` | `.../dashboard/structural/data/` |
-| `agentic-efficiency` | `coding-agent-pr-metrics.sh` | `.../dashboard/efficiency/data/` |
-
-### Run Tests
-
-```bash
-# Install dependencies (including devDependencies for testing)
 npm install --include=dev
-
-# Run all tests
-npm test
-
-# Run tests for specific dashboard
-npm run test:ai-assisted
+./run-query.sh ai-assisted-efficiency
+# macOS
+open BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency/index.html
+# Linux
+xdg-open BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency/index.html
+# Windows
+start BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency/index.html
 ```
 
-### Build Dashboards
+Use `./run-query.sh --list` to see all data-collection targets.
+
+## Which Dashboard Should I Use?
+
+- Use AI-assisted efficiency when you want to estimate time savings and labor-cost impact from Copilot IDE usage.
+- Use AI-assisted structural when you want to understand adoption spread, consistency, and output correlation across the organization.
+- Use agentic efficiency when you want to estimate human-equivalent value from Copilot Coding Agent pull requests.
+
+For a fuller decision guide and input expectations, see [docs/getting-started.md](docs/getting-started.md) and [docs/data-collection.md](docs/data-collection.md).
+
+## Common Commands
 
 ```bash
-# Build all dashboards
+npm test
 npm run build
-
-# Build specific dashboard
-npm run build:ai-assisted
-
-# Validate structure
 npm run validate
-
-# Verify calculations
 npm run verify:all
 ```
 
-## 🏗️ Architecture
+## Documentation Map
 
-```
-SDLC-BVE-dashboards-for-X/
-├── run-query.sh                    # Top-level data collection runner
-├── query-settings.json             # Named profiles for run-query.sh
-├── scripts/                        # Centralized build scripts
-│   ├── build-dashboard.js          # Build single dashboard
-│   ├── build-all.js                # Build all dashboards
-│   ├── validate-structure.js       # Validate structure
-│   └── verify-all-calculations.js  # Verify math
-├── build-config/
-│   └── dashboard-config.js         # Central configuration
-├── docs/
-│   └── BUILD-SYSTEM.md             # Build system documentation
-├── BVE-dashboards-for-ai-assisted-coding/
-│   ├── dashboard/
-│   │   ├── efficiency/             # ✅ Migrated
-│   │   │   ├── src/                # Modular source
-│   │   │   ├── tests/              # Unit tests
-│   │   │   ├── data/               # Query output (gitignored)
-│   │   │   ├── dist/               # Built output
-│   │   │   └── index.html          # Dashboard
-│   │   └── structural/
-│   │       ├── data/               # Query output (gitignored)
-│   │       └── index.html          # Dashboard
-│   ├── data/
-│   │   ├── queries/                # Data collection scripts
-│   │   │   ├── copilot-user-and-enterprise-metrics.sh
-│   │   │   └── human-pr-metrics.sh
-│   │   ├── schemas/                # JSON schemas
-│   │   └── examples/               # Sample data
-│   └── README.md
-├── BVE-dashboards-for-agentic-ai-coding/
-│   ├── dashboard/
-│   │   └── efficiency/
-│   │       ├── data/               # Query output (gitignored)
-│   │       └── index.html          # Dashboard
-│   ├── data/
-│   │   └── queries/
-│   │       └── coding-agent-pr-metrics.sh
-│   └── (similar structure)
-└── package.json                     # Root with workspaces
-```
+- [docs/getting-started.md](docs/getting-started.md): first successful run
+- [docs/data-collection.md](docs/data-collection.md): canonical query workflow
+- [docs/dashboard-status.md](docs/dashboard-status.md): readiness and migration state
+- [docs/development.md](docs/development.md): contributor workflow
+- [docs/BUILD-SYSTEM.md](docs/BUILD-SYSTEM.md): build internals
+- [dependencies/README.md](dependencies/README.md): dependency map and change-propagation checklists
 
-## 📚 Documentation
+## Package Docs
 
-- **[Build System](docs/BUILD-SYSTEM.md)** - Build process, configuration, workflows
-- **[AI Assisted Coding](BVE-dashboards-for-ai-assisted-coding/README.md)** - Dashboard usage
-- **[Efficiency Dashboard](BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency/README.md)** - Architecture details
-- **[Migration Status](BVE-dashboards-for-ai-assisted-coding/docs/MIGRATION-STATUS.md)** - Current progress
+- [BVE-dashboards-for-ai-assisted-coding/README.md](BVE-dashboards-for-ai-assisted-coding/README.md)
+- [BVE-dashboards-for-agentic-ai-coding/README.md](BVE-dashboards-for-agentic-ai-coding/README.md)
 
-## 🧪 Testing & Validation
+Browser-friendly companions, flagged for future removal:
 
-### Unit Tests
-```bash
-npm test                    # All dashboards
-npm run test:ai-assisted    # Specific dashboard
-```
+- [docs/index.deprecated.html](docs/index.deprecated.html)
+- [docs/quickstart.deprecated.html](docs/quickstart.deprecated.html)
 
-**Coverage:** 50+ tests, >80% code coverage
+## License
 
-### Calculation Verification
-```bash
-npm run verify:all          # All verification scripts
-cd BVE-dashboards-for-ai-assisted-coding/data
-node verify_math.cjs        # Specific dashboard
-```
+This repository does not currently declare a license file.
 
-### Structure Validation
-```bash
-npm run validate            # Check all dashboards
-```
+## Support
 
-Validates:
-- Required directories exist
-- Required files present
-- npm scripts defined
-- Tests exist
-
-## 🔧 Development Workflow
-
-### For New Dashboards
-
-1. Add configuration to `build-config/dashboard-config.js`
-2. Create directory structure
-3. Develop modular source in `src/`
-4. Write tests in `tests/`
-5. Run `npm test` until passing
-6. Run `npm run build`
-7. Deploy `dist/index.html`
-
-### For Existing Dashboards (Migration)
-
-1. Start with working `index.html`
-2. Extract pure functions to `src/core/`
-3. Write tests for extracted logic
-4. Run tests to validate
-5. Gradually extract components
-6. Build and compare outputs
-
-## 📦 Build System
-
-### Centralized Configuration
-All dashboards share:
-- Common CDN dependencies (React, Highcharts, Primer CSS)
-- Build settings (minification, format)
-- Validation rules
-- Output structure
-
-### Build Process
-1. Bundle modular source with esbuild
-2. Inject CDN links
-3. Generate single-file HTML
-4. Output to `dist/`
-
-**Result:** Deployable single-file HTML (~100-200 KB)
-
-### Fallback
-If modular source doesn't exist yet:
-- Copies existing `index.html` to `dist/`
-- Allows gradual migration
-
-See **[Build System Documentation](docs/BUILD-SYSTEM.md)** for details.
-
-## 🎯 Migration Status
-
-| Dashboard | Structure | Core Logic | Tests | Build | Status |
-|-----------|-----------|------------|-------|-------|--------|
-| AI Assisted - Efficiency | ✅ | ✅ | ✅ | ✅ | **Complete** |
-| AI Assisted - Structural | ✅ | ⏳ | ⏳ | ⏳ | Pending |
-| Agentic - Efficiency | ⏳ | ⏳ | ⏳ | ⏳ | Pending |
-
-**Legend:** ✅ Complete | ⏳ Pending | 🔄 In Progress
-
-## 🛠️ Scripts Reference
-
-| Command | Description |
-|---------|-------------|
-| `npm install --include=dev` | Install all dependencies (including test frameworks) |
-| `npm test` | Run all tests |
-| `npm run build` | Build all dashboards |
-| `npm run build:ai-assisted` | Build AI Assisted dashboards |
-| `npm run validate` | Validate dashboard structure |
-| `npm run verify:all` | Verify calculations |
-| `npm run lint` | Lint JavaScript files |
-| `npm run format` | Format code with Prettier |
-
-## 📋 Requirements
-
-- **Node.js:** >= 18.0.0
-- **npm:** >= 9.0.0
-- **Browser:** Modern browser (Chrome, Firefox, Safari, Edge)
-
-## 🤝 Contributing
-
-1. **Add tests first** - Write tests for new logic
-2. **Keep functions pure** - No side effects in core modules
-3. **Update docs** - JSDoc comments + README updates
-4. **Run validation** - `npm run validate && npm test`
-5. **Build before commit** - Ensure `dist/` is up to date
-
-## 📄 License
-
-*(Add license information)*
-
-## 📞 Support
-
-*(Add support/contact information)*
-
----
-
-**Built with:** React 18, Highcharts 11, Primer CSS, esbuild, Vitest
+Open an issue or coordinate with the repository maintainers for usage questions and data assumptions.
