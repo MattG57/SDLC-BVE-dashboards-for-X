@@ -6,6 +6,8 @@ Business Value Engineering dashboards for measuring GitHub Copilot and SDLC impa
 
 This repository contains browser-run dashboards plus the scripts and tests needed to collect, validate, and explain their inputs.
 
+**Last reviewed:** 2026-03-29
+
 - Self-contained dashboard HTML files
 - Modular source and tests for migrated dashboards
 - Shared build and validation scripts
@@ -64,16 +66,12 @@ npm run verify:all
 - [docs/development.md](docs/development.md): contributor workflow
 - [docs/BUILD-SYSTEM.md](docs/BUILD-SYSTEM.md): build internals
 - [dependencies/README.md](dependencies/README.md): dependency map and change-propagation checklists
+- [CONTRIBUTING.md](CONTRIBUTING.md): contributor entry point
 
 ## Package Docs
 
 - [BVE-dashboards-for-ai-assisted-coding/README.md](BVE-dashboards-for-ai-assisted-coding/README.md)
 - [BVE-dashboards-for-agentic-ai-coding/README.md](BVE-dashboards-for-agentic-ai-coding/README.md)
-
-Browser-friendly companions, flagged for future removal:
-
-- [docs/index.deprecated.html](docs/index.deprecated.html)
-- [docs/quickstart.deprecated.html](docs/quickstart.deprecated.html)
 
 ## License
 

@@ -2,6 +2,8 @@
 
 Use this guide for the fastest successful path from clone to dashboard.
 
+**Last reviewed:** 2026-03-29
+
 ## Prerequisites
 
 - Node.js `>=18`
@@ -86,6 +88,34 @@ npm test
 npm run validate
 npm run build
 ```
+
+## Troubleshooting / FAQ
+
+### `gh` auth or token errors
+
+If query scripts fail with GitHub authentication errors:
+
+- run `gh auth login`
+- confirm the token or CLI session has `copilot` plus `read:org` or `read:enterprise` access
+- retry with a small target first, such as `./run-query.sh --dry-run ai-assisted-efficiency`
+
+### Empty or incomplete output
+
+If a query completes but the data looks empty:
+
+- confirm you targeted the right `ORG` or `ENTERPRISE`
+- increase or decrease `DAYS` to sanity-check the window
+- use `./run-query.sh --dry-run <target>` to confirm the resolved configuration
+
+### Test tools not installed
+
+If `npm test` fails because dev tooling is missing, install with:
+
+```bash
+npm install --include=dev
+```
+
+This repo expects dev dependencies to be present for tests and validation.
 
 For detailed collection examples, see [data-collection.md](data-collection.md).
 For current readiness and migration state, see [dashboard-status.md](dashboard-status.md).

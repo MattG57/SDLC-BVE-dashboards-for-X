@@ -35,7 +35,6 @@ This file is the canonical status snapshot for dashboard readiness and migration
 ## Still Pending
 
 - Complete the structural dashboard migration to the same modular/tested pattern as the two efficiency dashboards.
-- Reduce documentation duplication by keeping this file as the only status reference.
 - Continue build and test hardening where new dashboards or schemas are introduced.
 
 ## Related Docs

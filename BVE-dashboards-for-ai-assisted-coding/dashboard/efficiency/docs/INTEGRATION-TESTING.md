@@ -1,5 +1,7 @@
 # Integration Testing Implementation Summary
 
+> Historical implementation note: this file is an integration-testing snapshot from 2024-03-25. For the current contributor workflow, use [../../../../../docs/development.md](../../../../../docs/development.md).
+
 **Date:** 2024-03-25  
 **Status:** ✅ Complete - Integration tests with synthetic data added
 
@@ -29,12 +31,10 @@ Hand-crafted input data with **documented expected outputs**:
 ### 3. Testing Documentation
 **File:** `tests/README.md`
 
-Complete testing strategy documentation:
-- Three-layer testing approach
-- How to use synthetic data
-- Adding new tests
-- Troubleshooting guide
-- Best practices
+Testing-orientation documentation for contributors:
+- test directory layout
+- how to run the suites
+- where to look for integration snapshots and workflow docs
 
 ## Benefits Achieved
 

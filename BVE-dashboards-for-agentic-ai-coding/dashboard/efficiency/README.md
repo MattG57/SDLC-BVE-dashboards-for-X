@@ -227,11 +227,10 @@ tests/
 
 ## Verification
 
-Run verification against example data:
+There is no dedicated `verify_math.cjs` equivalent for this dashboard yet. Use the existing test suite as the current validation path:
 
 ```bash
-cd ../../data
-# (Verification script to be created)
+npm test
 ```
 
 ## Quality Metrics
@@ -252,12 +251,9 @@ cd ../../data
 
 ## Future Enhancements
 
-- [ ] Extract React components
-- [ ] Build script integration
-- [ ] Integration tests with synthetic data
-- [ ] Verification script
-- [ ] Quality trend analysis
-- [ ] Anomaly detection for turbulence spikes
+- A dedicated verification script similar to the AI-assisted dashboard
+- Quality trend analysis
+- Anomaly detection for turbulence spikes
 
 ## Contributing
 

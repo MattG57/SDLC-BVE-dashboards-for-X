@@ -2,6 +2,8 @@
 
 This document describes how the repository builds dashboard output. It is intentionally narrower than the general contributor docs in [development.md](development.md).
 
+**Last reviewed:** 2026-03-29
+
 ## Purpose
 
 The build system exists to give all dashboards a shared way to:

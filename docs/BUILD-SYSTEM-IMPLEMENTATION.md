@@ -190,8 +190,6 @@ SDLC-BVE-dashboards-for-X/
 │   │   ├── queries/                     # Data collection
 │   │   ├── schemas/                     # JSON schemas
 │   │   └── examples/                    # Sample data
-│   ├── docs/
-│   │   └── MIGRATION-STATUS.md
 │   └── README.md
 ├── BVE-dashboards-for-agentic-ai-coding/ # 🔄 Ready for migration
 ├── package.json                          # ✅ New - Root with workspaces

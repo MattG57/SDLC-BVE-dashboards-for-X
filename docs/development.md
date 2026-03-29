@@ -2,6 +2,8 @@
 
 Use this guide for contributor workflows. It focuses on how to work in the repo; for cross-file dependency propagation, use [../dependencies/README.md](../dependencies/README.md).
 
+**Last reviewed:** 2026-03-29
+
 ## Core Commands
 
 ```bash
@@ -55,6 +57,7 @@ If you rename a script, add a new output field, change runner targets, or alter 
 ## Documentation Ownership
 
 - `README.md`: repository front door
+- `CONTRIBUTING.md`: GitHub-facing contributor entry point
 - `docs/getting-started.md`: onboarding
 - `docs/data-collection.md`: runtime data collection workflow
 - `docs/dashboard-status.md`: readiness and migration status

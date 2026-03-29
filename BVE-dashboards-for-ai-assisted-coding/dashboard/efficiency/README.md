@@ -249,13 +249,10 @@ node verify_math.cjs
 
 ## Future Enhancements
 
-- [ ] Extract React components to separate files
-- [ ] Build script to bundle into single HTML
-- [ ] Component-level testing
-- [ ] Storybook for component development
-- [ ] Visual regression testing
-- [ ] TypeScript migration
-- [ ] Build-time schema validation
+- Component-level testing where it adds value beyond the current core and integration coverage
+- Visual regression testing
+- TypeScript migration if the dashboard codebase grows materially
+- Additional schema validation hardening during build or CI
 
 ## Contributing
 
@@ -265,7 +262,3 @@ When adding new features:
 2. **Keep functions pure** - No side effects in core modules
 3. **Update documentation** - JSDoc comments for all public functions
 4. **Run verification** - Ensure calculations match expected results
-
-## Known Issues
-
-See `../../data/verify_math.cjs` for notes on the manual daily % calculation bug (divides by DAU twice, making per-dev estimates too small).
