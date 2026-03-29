@@ -1474,10 +1474,32 @@ function App() {
       )}
 
       {!data && (
-        <div className="Box p-5 text-center color-fg-muted">
-          <p className="f3 mb-2">No data loaded</p>
-          <p className="f5">Upload an AI Assisted Coding source JSON above to build the structural view.</p>
-          <p className="f6 mt-3">This dashboard shows structural conditions — completeness, consistency, impact, and prioritized improvements — rather than efficiency estimates.</p>
+        <div className="Box p-4 color-fg-muted" style={{maxWidth: 720, margin: '0 auto'}}>
+          <p className="f3 mb-3">📋 Getting Started</p>
+          <p className="f5 mb-2">This dashboard shows <strong>structural conditions</strong> — completeness, consistency, impact, and prioritised improvements.</p>
+          <p className="f5 mb-3">It accepts two data sources: Copilot enterprise/user metrics (required) and PR review data (optional, enables LOC &amp; PR-assist analysis).</p>
+          <table className="f6 mb-3" style={{borderCollapse:'collapse',width:'100%'}}>
+            <thead><tr><th style={{padding:'4px 8px',textAlign:'left'}}>Data source</th><th style={{padding:'4px 8px',textAlign:'left'}}>Script</th><th style={{padding:'4px 8px',textAlign:'left'}}>Runner command</th></tr></thead>
+            <tbody>
+              <tr>
+                <td style={{padding:'4px 8px'}}>Copilot metrics <em>(required)</em></td>
+                <td style={{padding:'4px 8px'}}><code>copilot-user-and-enterprise-metrics.sh</code></td>
+                <td style={{padding:'4px 8px'}}><code>./run-query.sh ai-assisted-structural</code></td>
+              </tr>
+              <tr>
+                <td style={{padding:'4px 8px'}}>PR review data <em>(optional)</em></td>
+                <td style={{padding:'4px 8px'}}><code>human-pr-metrics.sh</code></td>
+                <td style={{padding:'4px 8px'}}><code>./run-query.sh pr-review-structural</code></td>
+              </tr>
+            </tbody>
+          </table>
+          <table className="f6 mb-3" style={{borderCollapse:'collapse',width:'100%'}}>
+            <tbody>
+              <tr><td style={{padding:'4px 8px',whiteSpace:'nowrap'}}><strong>Required env</strong></td><td style={{padding:'4px 8px'}}><code>ENTERPRISE</code> or <code>ORG</code> (metrics); <code>ORG</code> (PR data)</td></tr>
+              <tr><td style={{padding:'4px 8px',whiteSpace:'nowrap'}}><strong>Expected data</strong></td><td style={{padding:'4px 8px'}}>JSON with <code>enterprise_report</code> / <code>user_report</code>; PR JSON with <code>pull_requests</code></td></tr>
+            </tbody>
+          </table>
+          <p className="f6">Run the commands above, then upload the output JSON files using the panels above.</p>
         </div>
       )}
     </div>

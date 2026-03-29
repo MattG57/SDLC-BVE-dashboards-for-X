@@ -68,14 +68,35 @@ Upload your data JSON via the browser interface.
 
 ### Collect Data
 
-```bash
-# Set credentials
-export GITHUB_TOKEN="your_token_here"
+Use the top-level runner script to fetch data and place it beside each dashboard:
 
-# Run query script
-cd BVE-dashboards-for-ai-assisted-coding/data/queries
-ENTERPRISE="my-enterprise" DAYS=28 ./ai-assisted-coding.sh > my-data.json
+```bash
+# First run — you'll be prompted for ENTERPRISE/ORG and offered to save a profile
+./run-query.sh ai-assisted-efficiency
+
+# Run with a saved profile
+./run-query.sh agentic-efficiency myorg
+
+# Run all targets at once
+./run-query.sh --all
+
+# Preview resolved config without calling APIs
+./run-query.sh --dry-run ai-assisted-structural
+
+# List available targets
+./run-query.sh --list
 ```
+
+Settings are persisted in `query-settings.json` as named profiles.
+
+#### Available targets
+
+| Target | Script | Output dir |
+|--------|--------|------------|
+| `ai-assisted-efficiency` | `copilot-user-and-enterprise-metrics.sh` | `.../dashboard/efficiency/data/` |
+| `ai-assisted-structural` | `copilot-user-and-enterprise-metrics.sh` | `.../dashboard/structural/data/` |
+| `pr-review-structural` | `human-pr-metrics.sh` | `.../dashboard/structural/data/` |
+| `agentic-efficiency` | `coding-agent-pr-metrics.sh` | `.../dashboard/efficiency/data/` |
 
 ### Run Tests
 
@@ -110,6 +131,8 @@ npm run verify:all
 
 ```
 SDLC-BVE-dashboards-for-X/
+├── run-query.sh                    # Top-level data collection runner
+├── query-settings.json             # Named profiles for run-query.sh
 ├── scripts/                        # Centralized build scripts
 │   ├── build-dashboard.js          # Build single dashboard
 │   ├── build-all.js                # Build all dashboards
@@ -124,16 +147,28 @@ SDLC-BVE-dashboards-for-X/
 │   │   ├── efficiency/             # ✅ Migrated
 │   │   │   ├── src/                # Modular source
 │   │   │   ├── tests/              # Unit tests
+│   │   │   ├── data/               # Query output (gitignored)
 │   │   │   ├── dist/               # Built output
-│   │   │   └── index.html          # Original
-│   │   └── structural/             # 🔄 Pending
+│   │   │   └── index.html          # Dashboard
+│   │   └── structural/
+│   │       ├── data/               # Query output (gitignored)
+│   │       └── index.html          # Dashboard
 │   ├── data/
 │   │   ├── queries/                # Data collection scripts
+│   │   │   ├── copilot-user-and-enterprise-metrics.sh
+│   │   │   └── human-pr-metrics.sh
 │   │   ├── schemas/                # JSON schemas
 │   │   └── examples/               # Sample data
 │   └── README.md
 ├── BVE-dashboards-for-agentic-ai-coding/
-│   └── (similar structure)         # 🔄 Pending
+│   ├── dashboard/
+│   │   └── efficiency/
+│   │       ├── data/               # Query output (gitignored)
+│   │       └── index.html          # Dashboard
+│   ├── data/
+│   │   └── queries/
+│   │       └── coding-agent-pr-metrics.sh
+│   └── (similar structure)
 └── package.json                     # Root with workspaces
 ```
 
