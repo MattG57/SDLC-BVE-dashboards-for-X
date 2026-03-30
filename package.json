@@ -6,8 +6,10 @@
   "type": "module",
   "workspaces": [
     "BVE-dashboards-for-ai-assisted-coding",
+    "BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency",
     "BVE-dashboards-for-ai-assisted-coding/dashboard/structural",
-    "BVE-dashboards-for-agentic-ai-coding"
+    "BVE-dashboards-for-agentic-ai-coding",
+    "BVE-dashboards-for-agentic-ai-coding/dashboard/efficiency"
   ],
   "scripts": {
     "build": "node scripts/build-all.js",

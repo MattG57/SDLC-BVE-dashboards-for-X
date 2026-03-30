@@ -191,14 +191,15 @@ export function fillDayGaps(dayRows, windowDays = 28) {
   const existing = {};
   for (const r of dayRows) existing[r.date] = r;
   
-  // Calculate date range
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // Derive date range from the data itself (latest date as end)
+  // Use UTC methods throughout to avoid timezone-related date shifts
+  const dates = dayRows.map(r => r.date).sort();
+  const endDate = new Date(dates[dates.length - 1] + 'T00:00:00Z');
   
   const filled = [];
   for (let i = windowDays - 1; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
+    const d = new Date(endDate);
+    d.setUTCDate(d.getUTCDate() - i);
     const dateStr = d.toISOString().substring(0, 10);
     
     filled.push(existing[dateStr] || {
