@@ -292,7 +292,14 @@ function KpiCard({ label, value, unit, sub, color, hero }) {
 /* ── File Upload Panel ── */
 function UploadPanel({ onData }) {
   const [processing, setProcessing] = useState(false);
+  const [fileStatuses, setFileStatuses] = useState(null);
   const filesRef = useRef(null);
+
+  const handleFileChange = useCallback(() => {
+    const files = Array.from(filesRef.current?.files || []);
+    if (!files.length) { setFileStatuses(null); return; }
+    setFileStatuses(files.map(f => ({ name: f.name, type: 'pending', status: 'pending' })));
+  }, []);
 
   const handleProcess = useCallback(async () => {
     const files = filesRef.current?.files;
@@ -304,11 +311,18 @@ function UploadPanel({ onData }) {
       const entDays = [];
       const userRecs = [];
       const names = [];
+      const statuses = [];
       let config = { cfg_time_saved_pct_day: null, cfg_baseline_hours_per_dev_per_week: null, cfg_workdays_per_week: 5, cfg_labor_cost_per_hour: null, est_interactions_per_hour: 20, est_hrs_per_kloc: 2 };
 
       for (const f of files) {
-        const raw = await readFile(f);
-        const d = JSON.parse(raw);
+        let d, detectedType, statusEntry;
+        try {
+          const raw = await readFile(f);
+          d = JSON.parse(raw);
+        } catch (parseErr) {
+          statuses.push({ name: f.name, type: 'Unknown', status: 'error', error: 'Invalid JSON: ' + parseErr.message });
+          continue;
+        }
         names.push(f.name);
 
         // Auto-detect: config files have cfg_ keys at top level, source files have enterprise_report
@@ -316,17 +330,24 @@ function UploadPanel({ onData }) {
         const isSource = d.enterprise_report || d.user_report;
 
         if (isConfig && !isSource) {
+          detectedType = 'Configuration';
           if (d.cfg_time_saved_pct_day != null) config.cfg_time_saved_pct_day = d.cfg_time_saved_pct_day;
           if (d.cfg_baseline_hours_per_dev_per_week != null) config.cfg_baseline_hours_per_dev_per_week = d.cfg_baseline_hours_per_dev_per_week;
           if (d.cfg_workdays_per_week != null) config.cfg_workdays_per_week = d.cfg_workdays_per_week;
           if (d.cfg_labor_cost_per_hour != null) config.cfg_labor_cost_per_hour = d.cfg_labor_cost_per_hour;
           if (d.est_interactions_per_hour != null) config.est_interactions_per_hour = d.est_interactions_per_hour;
           if (d.est_hrs_per_kloc != null) config.est_hrs_per_kloc = d.est_hrs_per_kloc;
-        } else {
+        } else if (isSource) {
+          detectedType = 'Source Data (Copilot Metrics)';
           if (d.enterprise_report?.day_totals) entDays.push(...d.enterprise_report.day_totals.map(flattenDayTotal));
           if (Array.isArray(d.user_report)) userRecs.push(...flattenUserReport(d.user_report));
+        } else {
+          detectedType = 'Unknown';
         }
+        statuses.push({ name: f.name, type: detectedType, status: detectedType === 'Unknown' ? 'warn' : 'ok' });
       }
+
+      setFileStatuses(statuses);
 
       if (!entDays.length) { alert('No source data found. Select at least one file containing enterprise_report.'); setProcessing(false); return; }
 
@@ -346,18 +367,53 @@ function UploadPanel({ onData }) {
     setProcessing(false);
   }, [onData]);
 
+  const hasSource = fileStatuses?.some(s => s.type === 'Source Data (Copilot Metrics)');
+  const hasConfig = fileStatuses?.some(s => s.type === 'Configuration');
+
   return (
     <div className="Box color-shadow-medium p-4 mb-4">
       <h3 className="f4 mb-2">Source Data</h3>
-      <p className="f6 color-fg-muted mb-3">Upload one or more JSON files — source data and config are detected automatically.</p>
+      <p className="f6 color-fg-muted mb-3">Upload JSON files — file types are detected automatically.</p>
       <div className="d-flex flex-wrap" style={{ gap: '16px', alignItems: 'flex-end' }}>
         <div style={{ flex: '1 1 300px' }}>
-          <input type="file" ref={filesRef} accept=".json" multiple className="form-control" />
+          <input type="file" ref={filesRef} accept=".json" multiple className="form-control" onChange={handleFileChange} />
         </div>
         <button className="btn btn-primary" onClick={handleProcess} disabled={processing}>
           {processing ? 'Processing…' : 'Process & Build'}
         </button>
       </div>
+      {fileStatuses && (
+        <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--borderColor-default)' }}>
+          <div className="f6 text-bold color-fg-muted mb-2">File Status</div>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <tbody>
+              {fileStatuses.map((s, i) => (
+                <tr key={i}>
+                  <td style={{ width: '20px', paddingRight: '8px' }}>
+                    {s.status === 'ok' ? '✅' : s.status === 'warn' ? '⚠️' : '❌'}
+                  </td>
+                  <td className="f6" style={{ paddingRight: '12px' }}>{s.name}</td>
+                  <td className="f6 color-fg-muted">{s.type}{s.error ? ': ' + s.error : ''}</td>
+                </tr>
+              ))}
+              {!hasSource && (
+                <tr>
+                  <td style={{ width: '20px', paddingRight: '8px' }}>⚠️</td>
+                  <td className="f6 color-fg-muted" style={{ paddingRight: '12px' }}>—</td>
+                  <td className="f6 color-fg-muted">Source Data (Copilot Metrics) — required, not yet uploaded</td>
+                </tr>
+              )}
+              {!hasConfig && (
+                <tr>
+                  <td style={{ width: '20px', paddingRight: '8px' }}>ℹ️</td>
+                  <td className="f6 color-fg-muted" style={{ paddingRight: '12px' }}>—</td>
+                  <td className="f6 color-fg-muted">Configuration — optional, using defaults</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -918,7 +974,8 @@ function SourceSummary({ data }) {
   const range = n > 0 ? `${enterprise[0].day} → ${enterprise[n-1].day}` : 'none';
   return (
     <div className="flash flash-success f6 mb-3">
-      <strong>{fileNames.join(', ')}</strong> loaded · {n} enterprise days ({range}) · {users.length} user-day records · {recon.length} reconciliation checks
+      ✅ Data loaded · <strong>{n} enterprise days</strong> ({range}) · {users.length} user-day records · {recon.length} reconciliation checks
+      <span className="color-fg-muted"> · {fileNames.length} file{fileNames.length !== 1 ? 's' : ''}: {fileNames.join(', ')}</span>
     </div>
   );
 }
