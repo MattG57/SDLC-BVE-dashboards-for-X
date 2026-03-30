@@ -257,11 +257,7 @@ npm test
 
 ## Contributing
 
-When adding features:
-1. **Start with tests** - Write tests first
-2. **Keep functions pure** - No side effects
-3. **Update documentation** - JSDoc + README
-4. **Validate calculations** - Run verification
+Use the canonical contributor workflow in [../../../docs/development.md](../../../docs/development.md).
 
 ## Known Differences
 

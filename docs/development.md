@@ -2,17 +2,39 @@
 
 Use this guide for contributor workflows. It focuses on how to work in the repo; for cross-file dependency propagation, use [../dependencies/README.md](../dependencies/README.md).
 
-**Last reviewed:** 2026-03-29
-
 ## Core Commands
 
 ```bash
 npm install --include=dev
 npm test
 npm run build
+npm run lint
+npm run format
 npm run validate
 npm run verify:all
 ```
+
+## Common Scripts
+
+### Root Workspace
+
+```bash
+npm test
+npm run build
+npm run lint
+npm run format
+npm run validate
+npm run verify:all
+```
+
+### AI-Assisted Workspace
+
+```bash
+npm run dev:efficiency --workspace=BVE-dashboards-for-ai-assisted-coding
+npm run dev:structural --workspace=BVE-dashboards-for-ai-assisted-coding
+```
+
+These convenience commands detect macOS, Linux, and Windows automatically and open the corresponding dashboard in your default browser.
 
 ## Repo Layout
 
@@ -32,9 +54,10 @@ query-settings.json              Saved data collection profiles
 1. Make changes in the relevant dashboard package.
 2. Add or update tests alongside logic changes.
 3. Run `npm test`.
-4. Run `npm run validate`.
-5. Run `npm run build` if the change affects build output.
-6. Update canonical docs if user-facing behavior changed.
+4. Run `npm run lint` and `npm run format` when you touch JS, JSON, or Markdown-heavy files.
+5. Run `npm run validate`.
+6. Run `npm run build` if the change affects build output.
+7. Update canonical docs if user-facing behavior changed.
 
 ## Adding a New Dashboard
 

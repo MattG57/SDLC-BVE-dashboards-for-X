@@ -2,8 +2,6 @@
 
 This is the canonical guide for generating dashboard input JSON.
 
-**Last reviewed:** 2026-03-29
-
 ## Recommended Path: `run-query.sh`
 
 Use the top-level runner from the repository root:

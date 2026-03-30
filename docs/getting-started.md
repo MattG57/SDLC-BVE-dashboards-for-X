@@ -2,8 +2,6 @@
 
 Use this guide for the fastest successful path from clone to dashboard.
 
-**Last reviewed:** 2026-03-29
-
 ## Prerequisites
 
 - Node.js `>=18`
@@ -25,15 +23,18 @@ export GITHUB_TOKEN="your_token_here"
 npm install --include=dev
 ./run-query.sh --list
 ./run-query.sh ai-assisted-efficiency
-# macOS
-open BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency/index.html
-# Linux
-xdg-open BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency/index.html
-# Windows
-start BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency/index.html
+npm run dev:efficiency --workspace=BVE-dashboards-for-ai-assisted-coding
 ```
 
 The first `run-query.sh` run prompts for the required variables and can save them in `query-settings.json` as a reusable profile.
+
+The AI-assisted workspace also provides:
+
+```bash
+npm run dev:structural --workspace=BVE-dashboards-for-ai-assisted-coding
+```
+
+These convenience scripts detect macOS, Linux, and Windows automatically and open the matching dashboard in your default browser.
 
 ## Choose a Dashboard
 
@@ -81,10 +82,20 @@ Choose agentic efficiency if your core question is, "What value are we getting f
 3. Open the relevant `index.html` file directly in your browser.
 4. Upload the generated JSON file through the dashboard UI.
 
+The AI-assisted workspace also has convenience scripts that handle cross-platform open:
+
+```bash
+cd BVE-dashboards-for-ai-assisted-coding
+npm run dev:efficiency
+npm run dev:structural
+```
+
 ## Verify the Repo
 
 ```bash
 npm test
+npm run lint
+npm run format
 npm run validate
 npm run build
 ```

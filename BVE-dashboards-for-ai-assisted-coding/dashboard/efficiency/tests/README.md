@@ -39,5 +39,4 @@ The suite is designed to catch:
 
 ## Related Docs
 
-- integration snapshot: [../docs/INTEGRATION-TESTING.md](../docs/INTEGRATION-TESTING.md)
 - contributor workflow: [../../../../docs/development.md](../../../../docs/development.md)

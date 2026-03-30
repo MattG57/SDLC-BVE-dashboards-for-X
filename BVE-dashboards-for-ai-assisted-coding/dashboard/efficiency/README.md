@@ -242,7 +242,7 @@ node verify_math.cjs
   "est_interactions_per_hour": 20,
   "est_hrs_per_kloc": 2,
   "cfg_labor_cost_per_hour": 150,
-  "cfg_baseline_hrs_per_dev_per_week": 30,
+  "cfg_baseline_hours_per_dev_per_week": 30,
   "cfg_workdays_per_week": 5
 }
 ```
@@ -256,9 +256,4 @@ node verify_math.cjs
 
 ## Contributing
 
-When adding new features:
-
-1. **Start with tests** - Write tests for new calculation logic first
-2. **Keep functions pure** - No side effects in core modules
-3. **Update documentation** - JSDoc comments for all public functions
-4. **Run verification** - Ensure calculations match expected results
+Use the canonical contributor workflow in [../../../docs/development.md](../../../docs/development.md).

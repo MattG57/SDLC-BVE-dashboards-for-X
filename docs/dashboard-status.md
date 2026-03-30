@@ -2,8 +2,6 @@
 
 This file is the canonical status snapshot for dashboard readiness and migration progress.
 
-**Last reviewed:** 2026-03-29
-
 ## Current State
 
 | Dashboard | Path | Data collection target(s) | Modular source | Tests | Build wiring | Status |

@@ -6,8 +6,6 @@ Business Value Engineering dashboards for measuring GitHub Copilot and SDLC impa
 
 This repository contains browser-run dashboards plus the scripts and tests needed to collect, validate, and explain their inputs.
 
-**Last reviewed:** 2026-03-29
-
 - Self-contained dashboard HTML files
 - Modular source and tests for migrated dashboards
 - Shared build and validation scripts
@@ -31,13 +29,10 @@ For current readiness and migration state, see [docs/dashboard-status.md](docs/d
 ```bash
 npm install --include=dev
 ./run-query.sh ai-assisted-efficiency
-# macOS
-open BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency/index.html
-# Linux
-xdg-open BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency/index.html
-# Windows
-start BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency/index.html
+npm run dev:efficiency --workspace=BVE-dashboards-for-ai-assisted-coding
 ```
+
+For contributor workflows and the full command set, including `npm run lint`, `npm run format`, and the AI-assisted `dev:*` helpers, see [docs/development.md](docs/development.md).
 
 Use `./run-query.sh --list` to see all data-collection targets.
 
