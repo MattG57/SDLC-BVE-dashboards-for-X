@@ -404,12 +404,18 @@ function SectionHeader({ title, desc, children }) {
 /* ── File Upload Panel ── */
 function UploadPanel({ onData }) {
   const [processing, setProcessing] = useState(false);
+  const [fileStatuses, setFileStatuses] = useState(null);
   const filesRef = useRef(null);
-  const prFilesRef = useRef(null);
+
+  const handleFileChange = useCallback(() => {
+    const files = Array.from(filesRef.current?.files || []);
+    if (!files.length) { setFileStatuses(null); return; }
+    setFileStatuses(files.map(f => ({ name: f.name, type: 'pending', status: 'pending' })));
+  }, []);
 
   const handleProcess = useCallback(async () => {
     const files = filesRef.current?.files;
-    if (!files || !files.length) { alert('Select at least one Copilot metrics JSON file.'); return; }
+    if (!files || !files.length) { alert('Select at least one JSON file.'); return; }
     setProcessing(true);
     try {
       const readFile = f => new Promise((res, rej) => { const r = new FileReader(); r.onload = e => res(e.target.result); r.onerror = rej; r.readAsText(f); });
@@ -417,7 +423,9 @@ function UploadPanel({ onData }) {
       const entDays = [];
       const userRecs = [];
       const names = [];
+      const statuses = [];
       let prRecords = [];
+      let rawPrRecords = [];
       let config = {
         cfg_total_developers: null,
         cfg_total_dev_loc_added_day: null,
@@ -426,37 +434,46 @@ function UploadPanel({ onData }) {
       };
 
       for (const f of files) {
-        const raw = await readFile(f);
-        const d = JSON.parse(raw);
-        names.push(f.name);
+        let d, detectedType;
+        try {
+          const raw = await readFile(f);
+          d = JSON.parse(raw);
+        } catch (parseErr) {
+          statuses.push({ name: f.name, type: 'Unknown', status: 'error', error: 'Invalid JSON: ' + parseErr.message });
+          continue;
+        }
 
         const isConfig = Object.keys(d).some(k => k.startsWith('cfg_') || k.startsWith('est_'));
         const isSource = d.enterprise_report || d.user_report;
+        // Detect PR Review files: { pull_requests: { prs: [...] } } or { prs: [...] } or top-level array
+        const isPrReview = !isSource && !isConfig && (Array.isArray(d) || Array.isArray(d?.prs) || Array.isArray(d?.pull_requests?.prs));
 
-        if (isConfig && !isSource) {
+        if (isConfig && !isSource && !isPrReview) {
+          detectedType = 'Configuration';
           if (d.cfg_total_developers != null) config.cfg_total_developers = d.cfg_total_developers;
           if (d.cfg_total_dev_loc_added_day != null) config.cfg_total_dev_loc_added_day = d.cfg_total_dev_loc_added_day;
           if (d.cfg_workdays_per_week != null) config.cfg_workdays_per_week = d.cfg_workdays_per_week;
           if (d.cfg_labor_cost_per_hour != null) config.cfg_labor_cost_per_hour = d.cfg_labor_cost_per_hour;
-        } else {
-          if (d.enterprise_report?.day_totals) entDays.push(...d.enterprise_report.day_totals.map(flattenDayTotal));
-          if (Array.isArray(d.user_report)) userRecs.push(...flattenUserReport(d.user_report));
-        }
-      }
-
-      // Process PR Review files (optional)
-      let rawPrRecords = [];
-      const prFiles = prFilesRef.current?.files;
-      if (prFiles && prFiles.length) {
-        for (const f of prFiles) {
-          const raw = await readFile(f);
-          const d = JSON.parse(raw);
-          names.push('PR:' + f.name);
+          names.push(f.name);
+        } else if (isPrReview) {
+          detectedType = 'PR Review Data';
           const { all, filtered } = flattenPrReview(d);
           rawPrRecords.push(...all);
           prRecords.push(...filtered);
+          names.push(f.name);
+        } else if (isSource) {
+          detectedType = 'Source Data (Copilot Metrics)';
+          if (d.enterprise_report?.day_totals) entDays.push(...d.enterprise_report.day_totals.map(flattenDayTotal));
+          if (Array.isArray(d.user_report)) userRecs.push(...flattenUserReport(d.user_report));
+          names.push(f.name);
+        } else {
+          detectedType = 'Unknown';
+          names.push(f.name);
         }
+        statuses.push({ name: f.name, type: detectedType, status: detectedType === 'Unknown' ? 'warn' : 'ok' });
       }
+
+      setFileStatuses(statuses);
 
       if (!entDays.length) { alert('No source data found. Select at least one file containing enterprise_report.'); setProcessing(false); return; }
 
@@ -485,23 +502,61 @@ function UploadPanel({ onData }) {
     setProcessing(false);
   }, [onData]);
 
+  const hasSource = fileStatuses?.some(s => s.type === 'Source Data (Copilot Metrics)');
+  const hasConfig = fileStatuses?.some(s => s.type === 'Configuration');
+  const hasPrReview = fileStatuses?.some(s => s.type === 'PR Review Data');
+
   return (
     <div className="Box color-shadow-medium p-4 mb-4">
       <h3 className="f4 mb-2">Source Data</h3>
-      <p className="f6 color-fg-muted mb-3">Upload Copilot metrics JSON files, and optionally PR Review data for LOC and PR-level analysis.</p>
+      <p className="f6 color-fg-muted mb-3">Upload JSON files — Copilot metrics, PR review data, and config files are all detected automatically.</p>
       <div className="d-flex flex-wrap" style={{ gap: '16px', alignItems: 'flex-end' }}>
         <div style={{ flex: '1 1 300px' }}>
-          <label className="f6 color-fg-muted d-block mb-1">Copilot Metrics (required)</label>
-          <input type="file" ref={filesRef} accept=".json" multiple className="form-control" />
-        </div>
-        <div style={{ flex: '1 1 300px' }}>
-          <label className="f6 color-fg-muted d-block mb-1">PR Review Data (optional — enables LOC &amp; PR assist metrics)</label>
-          <input type="file" ref={prFilesRef} accept=".json" multiple className="form-control" />
+          <input type="file" ref={filesRef} accept=".json" multiple className="form-control" onChange={handleFileChange} />
         </div>
         <button className="btn btn-primary" onClick={handleProcess} disabled={processing}>
           {processing ? 'Processing…' : 'Process & Build'}
         </button>
       </div>
+      {fileStatuses && (
+        <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--borderColor-default)' }}>
+          <div className="f6 text-bold color-fg-muted mb-2">File Status</div>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <tbody>
+              {fileStatuses.map((s, i) => (
+                <tr key={i}>
+                  <td style={{ width: '20px', paddingRight: '8px' }}>
+                    {s.status === 'ok' ? '✅' : s.status === 'warn' ? '⚠️' : '❌'}
+                  </td>
+                  <td className="f6" style={{ paddingRight: '12px' }}>{s.name}</td>
+                  <td className="f6 color-fg-muted">{s.type}{s.error ? ': ' + s.error : ''}</td>
+                </tr>
+              ))}
+              {!hasSource && (
+                <tr>
+                  <td style={{ width: '20px', paddingRight: '8px' }}>⚠️</td>
+                  <td className="f6 color-fg-muted" style={{ paddingRight: '12px' }}>—</td>
+                  <td className="f6 color-fg-muted">Source Data (Copilot Metrics) — required, not yet uploaded</td>
+                </tr>
+              )}
+              {!hasConfig && (
+                <tr>
+                  <td style={{ width: '20px', paddingRight: '8px' }}>ℹ️</td>
+                  <td className="f6 color-fg-muted" style={{ paddingRight: '12px' }}>—</td>
+                  <td className="f6 color-fg-muted">Configuration — optional, using defaults</td>
+                </tr>
+              )}
+              {!hasPrReview && (
+                <tr>
+                  <td style={{ width: '20px', paddingRight: '8px' }}>ℹ️</td>
+                  <td className="f6 color-fg-muted" style={{ paddingRight: '12px' }}>—</td>
+                  <td className="f6 color-fg-muted">PR Review Data — optional, enables LOC &amp; PR assist metrics</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -514,9 +569,10 @@ function SourceSummary({ data }) {
   const prCount = prRecords ? prRecords.length : 0;
   return (
     <div className="flash flash-success f6 mb-3">
-      <strong>{fileNames.join(', ')}</strong> loaded · {n} enterprise days ({range}) · {users.length} user-day records · Target population: {fmt(config.cfg_total_developers)} devs
-      {prCount > 0 && <span> · <strong>{fmt(prCount)} PRs</strong> with LOC data loaded</span>}
-      {prCount === 0 && <span> · <em>No PR review data — using estimated denominators</em></span>}
+      ✅ Data loaded · <strong>{n} enterprise days</strong> ({range}) · {users.length} user-day records · Target population: {fmt(config.cfg_total_developers)} devs
+      {prCount > 0 && <span> · <strong>{fmt(prCount)} PRs</strong> with LOC data</span>}
+      {prCount === 0 && <span className="color-fg-muted"> · No PR review data — using estimated denominators</span>}
+      <span className="color-fg-muted"> · {fileNames.length} file{fileNames.length !== 1 ? 's' : ''}: {fileNames.join(', ')}</span>
     </div>
   );
 }
@@ -1499,7 +1555,7 @@ function App() {
               <tr><td style={{padding:'4px 8px',whiteSpace:'nowrap'}}><strong>Expected data</strong></td><td style={{padding:'4px 8px'}}>JSON with <code>enterprise_report</code> / <code>user_report</code>; PR JSON with <code>pull_requests</code></td></tr>
             </tbody>
           </table>
-          <p className="f6">Run the commands above, then upload the output JSON files using the panels above.</p>
+          <p className="f6">Run the commands above, then upload the output JSON files using the panel above. File types are detected automatically.</p>
         </div>
       )}
     </div>

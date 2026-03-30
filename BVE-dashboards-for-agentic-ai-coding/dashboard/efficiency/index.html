@@ -329,7 +329,14 @@ function SectionHeader({ title, desc }) {
 /* ── File Upload Panel ── */
 function UploadPanel({ onData }) {
   const [processing, setProcessing] = useState(false);
+  const [fileStatuses, setFileStatuses] = useState(null);
   const filesRef = useRef(null);
+
+  const handleFileChange = useCallback(() => {
+    const files = Array.from(filesRef.current?.files || []);
+    if (!files.length) { setFileStatuses(null); return; }
+    setFileStatuses(files.map(f => ({ name: f.name, type: 'pending', status: 'pending' })));
+  }, []);
 
   const handleProcess = useCallback(async () => {
     const files = filesRef.current?.files;
@@ -342,24 +349,21 @@ function UploadPanel({ onData }) {
       let requests = [];
       let devDays = [];
       const names = [];
+      const statuses = [];
       let config = { cfg_workdays_per_week: 5, cfg_labor_cost_per_hour: null, est_human_to_agent_ratio: 10, est_hrs_per_kloc: 4 };
 
       for (const f of files) {
         const raw = await readFile(f);
-        let d;
+        let d, detectedType;
         try {
           d = JSON.parse(raw);
         } catch (parseErr) {
           const preview = raw.substring(0, 120).replace(/\n/g, ' ');
-          throw new Error(
-            `${f.name} is not valid JSON.\n\n` +
-            `File starts with: "${preview}…"\n\n` +
-            (preview.includes('===') || preview.includes('Discovering') || preview.includes('Fetching')
-              ? 'It looks like the script\'s stderr progress messages were captured. ' +
-                'Re-run the script with stdout only:\n  ./coding-agent-pr-metrics.sh > output.json\n' +
-                '(do NOT use 2>&1 or &> which mixes stderr into the file)'
-              : parseErr.message)
-          );
+          const hint = preview.includes('===') || preview.includes('Discovering') || preview.includes('Fetching')
+            ? 'Script stderr mixed into file — re-run with stdout only: ./coding-agent-pr-metrics.sh > output.json'
+            : parseErr.message;
+          statuses.push({ name: f.name, type: 'Unknown', status: 'error', error: 'Invalid JSON: ' + hint });
+          continue;
         }
         names.push(f.name);
 
@@ -368,16 +372,23 @@ function UploadPanel({ onData }) {
         const isSource = d.pr_sessions || d.requests || d.developer_day_summary;
 
         if (isConfig && !isSource) {
+          detectedType = 'Configuration';
           if (d.cfg_workdays_per_week != null) config.cfg_workdays_per_week = d.cfg_workdays_per_week;
           if (d.cfg_labor_cost_per_hour != null) config.cfg_labor_cost_per_hour = d.cfg_labor_cost_per_hour;
           if (d.est_human_to_agent_ratio != null) config.est_human_to_agent_ratio = d.est_human_to_agent_ratio;
           if (d.est_hrs_per_kloc != null) config.est_hrs_per_kloc = d.est_hrs_per_kloc;
-        } else {
+        } else if (isSource) {
+          detectedType = 'Source Data (Agentic Coding Metrics)';
           if (Array.isArray(d.pr_sessions)) prSessions.push(...d.pr_sessions);
           if (Array.isArray(d.requests)) requests.push(...d.requests);
           if (Array.isArray(d.developer_day_summary)) devDays.push(...d.developer_day_summary);
+        } else {
+          detectedType = 'Unknown';
         }
+        statuses.push({ name: f.name, type: detectedType, status: detectedType === 'Unknown' ? 'warn' : 'ok' });
       }
+
+      setFileStatuses(statuses);
 
       if (!devDays.length && !prSessions.length) { alert('No agentic data found. Select a file containing pr_sessions or developer_day_summary.'); setProcessing(false); return; }
 
@@ -391,18 +402,53 @@ function UploadPanel({ onData }) {
     setProcessing(false);
   }, [onData]);
 
+  const hasSource = fileStatuses?.some(s => s.type === 'Source Data (Agentic Coding Metrics)');
+  const hasConfig = fileStatuses?.some(s => s.type === 'Configuration');
+
   return (
     <div className="Box color-shadow-medium p-4 mb-4">
       <h3 className="f4 mb-2">Source Data</h3>
-      <p className="f6 color-fg-muted mb-3">Upload the JSON output from <code>coding-agent-pr-metrics.sh</code> and optional config files.</p>
+      <p className="f6 color-fg-muted mb-3">Upload JSON files — file types are detected automatically.</p>
       <div className="d-flex flex-wrap" style={{ gap: '16px', alignItems: 'flex-end' }}>
         <div style={{ flex: '1 1 300px' }}>
-          <input type="file" ref={filesRef} accept=".json" multiple className="form-control" />
+          <input type="file" ref={filesRef} accept=".json" multiple className="form-control" onChange={handleFileChange} />
         </div>
         <button className="btn btn-primary" onClick={handleProcess} disabled={processing}>
           {processing ? 'Processing…' : 'Process & Build'}
         </button>
       </div>
+      {fileStatuses && (
+        <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--borderColor-default)' }}>
+          <div className="f6 text-bold color-fg-muted mb-2">File Status</div>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <tbody>
+              {fileStatuses.map((s, i) => (
+                <tr key={i}>
+                  <td style={{ width: '20px', paddingRight: '8px' }}>
+                    {s.status === 'ok' ? '✅' : s.status === 'warn' ? '⚠️' : '❌'}
+                  </td>
+                  <td className="f6" style={{ paddingRight: '12px' }}>{s.name}</td>
+                  <td className="f6 color-fg-muted">{s.type}{s.error ? ': ' + s.error : ''}</td>
+                </tr>
+              ))}
+              {!hasSource && (
+                <tr>
+                  <td style={{ width: '20px', paddingRight: '8px' }}>⚠️</td>
+                  <td className="f6 color-fg-muted" style={{ paddingRight: '12px' }}>—</td>
+                  <td className="f6 color-fg-muted">Source Data (Agentic Coding Metrics) — required, not yet uploaded</td>
+                </tr>
+              )}
+              {!hasConfig && (
+                <tr>
+                  <td style={{ width: '20px', paddingRight: '8px' }}>ℹ️</td>
+                  <td className="f6 color-fg-muted" style={{ paddingRight: '12px' }}>—</td>
+                  <td className="f6 color-fg-muted">Configuration — optional, using defaults</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -502,12 +548,12 @@ function SourceSummary({ data }) {
   const devCount = new Set(devDays.map(r => r.developer)).size;
   return (
     <div className="flash flash-success f6 mb-3">
-      <strong>{fileNames.join(', ')}</strong> loaded
-      · {n} days ({range})
+      ✅ Data loaded · <strong>{n} days</strong> ({range})
       · {devCount} developer{devCount !== 1 ? 's' : ''}
       · {devDays.length} dev-day records
       · {prSessions.length} PR sessions
       · {requests.length} request events
+      <span className="color-fg-muted"> · {fileNames.length} file{fileNames.length !== 1 ? 's' : ''}: {fileNames.join(', ')}</span>
     </div>
   );
 }
