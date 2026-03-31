@@ -5,7 +5,7 @@
  * Validates that all dashboards follow the required structure
  */
 
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readFileSync, readdirSync } from 'fs';
 import { resolve, join } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -65,7 +65,6 @@ function validateDashboard(key, config) {
   // Check if tests exist
   const testsDir = join(dashboardDir, 'tests');
   if (existsSync(testsDir)) {
-    const { readdirSync, statSync } = await import('fs');
     try {
       const hasTests = readdirSync(testsDir, { recursive: true })
         .some(file => file.endsWith('.test.js'));

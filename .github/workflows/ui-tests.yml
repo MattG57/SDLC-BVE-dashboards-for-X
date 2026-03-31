@@ -2,6 +2,7 @@ name: UI Tests for Dashboards
 
 on:
   pull_request:
+    branches: [main]
     types: [opened, synchronize, reopened]
 
 jobs:
@@ -14,7 +15,7 @@ jobs:
       - uses: actions/checkout@v6
       - id: list
         run: |
-          workspaces=$(node -e "const p=require('./package.json'); console.log(JSON.stringify(p.workspaces))")
+          workspaces=$(node -e "const p=require('./package.json'); console.log(JSON.stringify(p.workspaces.filter(w => w.includes('/dashboard/'))))")
           echo "workspaces=$workspaces" >> "$GITHUB_OUTPUT"
 
   test:
