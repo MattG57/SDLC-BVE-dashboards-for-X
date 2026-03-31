@@ -268,11 +268,20 @@ function computeStructuralMetrics(entDays, userDays, config, prRecords) {
       ? new Set(dayUsers.filter(u => u.code_generation_activity_count > 0 || u.user_initiated_interaction_count > 0).map(u => u.user_login)).size
       : d.daily_active_users;
 
+    // 4-day lookback adopted users: anyone active in the last 4 days (bridges weekends)
+    const adoptedUsers = new Set();
+    for (let i = 0; i <= 3; i++) {
+      const checkDay = dayOffset(d.day, -i);
+      const checkUsers = copilotUsersByDay[checkDay];
+      if (checkUsers) checkUsers.forEach(login => adoptedUsers.add(login));
+    }
+    const adoptedCount = adoptedUsers.size > 0 ? adoptedUsers.size : d.daily_active_users;
+
     // PR data for this day (for trend chart)
     const prDay = prsByDay[d.day] || { total_prs: 0, assisted_prs: 0, total_loc: 0, assisted_loc: 0 };
 
-    // ── Completeness metric 1: Adopted Individuals %
-    const adopted_individuals_pct = safeDiv(d.daily_active_users, totalDevs);
+    // ── Completeness metric 1: Adopted Individuals % (3-day lookback)
+    const adopted_individuals_pct = safeDiv(adoptedCount, totalDevs);
 
     // ── Completeness metric 2: PRs Assisted % (daily — for trend chart)
     const prs_assisted_pct = hasPrData
@@ -344,6 +353,30 @@ function stddev(arr) {
   if (valid.length < 2) return 0;
   const m = mean(valid);
   return Math.sqrt(valid.reduce((s, v) => s + (v - m) ** 2, 0) / (valid.length - 1));
+}
+
+// Dominant cycle period via autocorrelation — returns the lag (in days) with the
+// strongest repeating pattern, or null if no clear cycle is detected.
+function dominantCyclePeriod(arr) {
+  const valid = arr.filter(v => v != null);
+  const n = valid.length;
+  if (n < 6) return null;
+  const m = mean(valid);
+  const variance = valid.reduce((s, v) => s + (v - m) ** 2, 0);
+  if (variance === 0) return null;
+
+  let bestLag = null, bestR = 0;
+  // Search lags from 2 to half the series length
+  for (let lag = 2; lag <= Math.floor(n / 2); lag++) {
+    let sum = 0;
+    for (let i = 0; i < n - lag; i++) {
+      sum += (valid[i] - m) * (valid[i + lag] - m);
+    }
+    const r = sum / variance;
+    if (r > bestR) { bestR = r; bestLag = lag; }
+  }
+  // Only report if autocorrelation is meaningfully positive
+  return bestR > 0.2 ? { lag: bestLag, r: Math.round(bestR * 100) / 100 } : null;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -631,7 +664,7 @@ const VIEW_BY_OPTIONS = [
   { key: 'cli', label: 'CLI' },
 ];
 
-function CompletenessSection({ days, config, users, selectedUser }) {
+function CompletenessSection({ days, config, users, selectedUser, prRecords }) {
   const [viewBy, setViewBy] = useState('default');
   const n = days.length;
   const hasPrData = days.some(d => d.has_pr_data);
@@ -672,6 +705,47 @@ function CompletenessSection({ days, config, users, selectedUser }) {
     };
   }
 
+  // Compute individual user stats when selected (used by both donuts and trend)
+  const userStats = useMemo(() => {
+    if (!selectedUser || !users.length) return null;
+
+    const userByDay = {};
+    users.filter(u => u.user_login === selectedUser).forEach(u => { userByDay[u.day] = u; });
+
+    const userActiveDays = new Set();
+    Object.entries(userByDay).forEach(([day, u]) => {
+      if (u.code_generation_activity_count > 0 || u.user_initiated_interaction_count > 0) {
+        userActiveDays.add(day);
+      }
+    });
+
+    function userWasAssisted(day) {
+      for (let i = 0; i <= 2; i++) {
+        if (userActiveDays.has(dayOffset(day, -i))) return true;
+      }
+      return false;
+    }
+
+    let totalPrs = 0, assistedPrs = 0, totalLoc = 0, assistedLoc = 0;
+    if (prRecords) {
+      prRecords.filter(pr => pr.user === selectedUser).forEach(pr => {
+        const day = pr.day || (pr.created_at ? pr.created_at.slice(0, 10) : null);
+        if (!day) return;
+        const loc = (pr.additions || 0) + (pr.deletions || 0);
+        const assisted = userWasAssisted(day);
+        totalPrs++;
+        totalLoc += loc;
+        if (assisted) { assistedPrs++; assistedLoc += loc; }
+      });
+    }
+
+    const activeDayCount = userActiveDays.size;
+    const prsAssistedPct = safeDiv(assistedPrs, totalPrs);
+    const locAssistedPct = safeDiv(assistedLoc, totalLoc);
+
+    return { userByDay, userActiveDays, activeDayCount, totalPrs, assistedPrs, totalLoc, assistedLoc, prsAssistedPct, locAssistedPct };
+  }, [selectedUser, users, prRecords, days]);
+
   // Trend chart
   const trendOpts = {
     chart: { type: 'spline', height: 300 },
@@ -688,18 +762,36 @@ function CompletenessSection({ days, config, users, selectedUser }) {
     ],
   };
 
-  // Build user overlay if selected
-  if (selectedUser && users.length > 0) {
-    const userByDay = {};
-    users.filter(u => u.user_login === selectedUser).forEach(u => { userByDay[u.day] = u; });
-    if (Object.keys(userByDay).length > 0) {
+  // Build user overlay on trend chart using precomputed userStats
+  if (userStats) {
+    // Daily adopted trend (3-day lookback, matches org metric)
+    if (userStats.userActiveDays.size > 0) {
       trendOpts.series.push({
         name: selectedUser + ' Active',
         data: days.map(d => {
-          const u = userByDay[d.day];
-          return u ? 100 : 0;
+          for (let i = 0; i <= 3; i++) {
+            if (userStats.userActiveDays.has(dayOffset(d.day, -i))) return 100;
+          }
+          return 0;
         }),
-        color: '#f78166', dashStyle: 'ShortDash', marker: { radius: 4, symbol: 'diamond' }, lineWidth: 2,
+        color: '#58a6ff', dashStyle: 'ShortDash', marker: { radius: 3, symbol: 'diamond' }, lineWidth: 2,
+      });
+    }
+
+    // Period-wide personal assisted rates as constant lines
+    if (userStats.totalPrs > 0) {
+      trendOpts.series.push({
+        name: selectedUser + ' % PRs Assisted (' + fmtPct0(userStats.prsAssistedPct) + ')',
+        data: days.map(() => userStats.prsAssistedPct != null ? Math.round(userStats.prsAssistedPct * 1000) / 10 : null),
+        color: '#3fb950', dashStyle: 'ShortDash', marker: { enabled: false }, lineWidth: 2,
+        tooltip: { pointFormat: selectedUser + ' PRs Assisted: <b>' + fmtPct(userStats.prsAssistedPct) + '</b> (' + userStats.assistedPrs + '/' + userStats.totalPrs + ')<br/>' },
+      });
+
+      trendOpts.series.push({
+        name: selectedUser + ' % LOC Assisted (' + fmtPct0(userStats.locAssistedPct) + ')',
+        data: days.map(() => userStats.locAssistedPct != null ? Math.round(userStats.locAssistedPct * 1000) / 10 : null),
+        color: '#bc8cff', dashStyle: 'ShortDash', marker: { enabled: false }, lineWidth: 2,
+        tooltip: { pointFormat: selectedUser + ' LOC Assisted: <b>' + fmtPct(userStats.locAssistedPct) + '</b> (' + fmtCompact(userStats.assistedLoc) + '/' + fmtCompact(userStats.totalLoc) + ')<br/>' },
       });
     }
   }
@@ -738,6 +830,7 @@ function CompletenessSection({ days, config, users, selectedUser }) {
         <div className="Box p-3" style={{ flex: '1 1 200px' }}>
           <Chart options={donutOpts('Adopted Individuals', avgAdopted, '#58a6ff')} className="donut-container" />
           <div className="text-center f6 color-fg-muted mt-1">{fmt(Math.round(mean(days.map(d => d.daily_active_users))))} of {fmt(config.cfg_total_developers)} devs</div>
+          {userStats && <div className="text-center f6 mt-1" style={{ color: '#58a6ff' }}>{selectedUser}: {userStats.activeDayCount} of {n} days active</div>}
         </div>
         <div className="Box p-3" style={{ flex: '1 1 200px' }}>
           <Chart options={donutOpts('PRs Assisted', avgPrsAssisted, '#3fb950')} className="donut-container" />
@@ -747,6 +840,7 @@ function CompletenessSection({ days, config, users, selectedUser }) {
               : <>{fmt(Math.round(mean(days.map(d => d.unique_active_users || d.daily_active_users))))} active devs of {fmt(config.cfg_total_developers)}</>  
             }
           </div>
+          {userStats && userStats.totalPrs > 0 && <div className="text-center f6 mt-1" style={{ color: '#3fb950' }}>{selectedUser}: {userStats.assistedPrs} of {userStats.totalPrs} PRs ({fmtPct0(userStats.prsAssistedPct)})</div>}
         </div>
         <div className="Box p-3" style={{ flex: '1 1 200px' }}>
           <Chart options={donutOpts('AI-Assisted LOC', avgLocPct, '#bc8cff')} className="donut-container" />
@@ -756,6 +850,7 @@ function CompletenessSection({ days, config, users, selectedUser }) {
               : <>{fmtCompact(Math.round(days.reduce((s,d) => s + d.loc_added_sum, 0)))} of {fmtCompact(config.cfg_total_dev_loc_added_day * n)} LoC</>  
             }
           </div>
+          {userStats && userStats.totalLoc > 0 && <div className="text-center f6 mt-1" style={{ color: '#bc8cff' }}>{selectedUser}: {fmtCompact(userStats.assistedLoc)} of {fmtCompact(userStats.totalLoc)} LoC ({fmtPct0(userStats.locAssistedPct)})</div>}
         </div>
       </div>
 
@@ -776,7 +871,7 @@ const CONSISTENCY_FACTORS = [
   { key: 'ide', label: 'IDE' },
 ];
 
-function ConsistencySection({ days, selectedUser, users }) {
+function ConsistencySection({ days, selectedUser, users, prRecords }) {
   const [factor, setFactor] = useState('none');
 
   const METRICS = [
@@ -830,20 +925,58 @@ function ConsistencySection({ days, selectedUser, users }) {
     if (selectedUser && users.length > 0) {
       const userByDay = {};
       users.filter(u => u.user_login === selectedUser).forEach(u => { userByDay[u.day] = u; });
-      if (Object.keys(userByDay).length > 0) {
-        // For individual user, "adopted" = active or not (binary), "task_coverage" = had activity, "loc" = their LOC share
+
+      // Build set of Copilot-active days for 3-day lookback
+      const userActiveDays = new Set();
+      Object.entries(userByDay).forEach(([day, u]) => {
+        if (u.code_generation_activity_count > 0 || u.user_initiated_interaction_count > 0) {
+          userActiveDays.add(day);
+        }
+      });
+
+      function userWasAssisted(day) {
+        for (let i = 0; i <= 2; i++) {
+          if (userActiveDays.has(dayOffset(day, -i))) return true;
+        }
+        return false;
+      }
+
+      // Compute user's period-wide assisted rates
+      let uTotalPrs = 0, uAssistedPrs = 0, uTotalLoc = 0, uAssistedLoc = 0;
+      if (prRecords) {
+        prRecords.filter(pr => pr.user === selectedUser).forEach(pr => {
+          const day = pr.day || (pr.created_at ? pr.created_at.slice(0, 10) : null);
+          if (!day) return;
+          const loc = (pr.additions || 0) + (pr.deletions || 0);
+          uTotalPrs++;
+          uTotalLoc += loc;
+          if (userWasAssisted(day)) { uAssistedPrs++; uAssistedLoc += loc; }
+        });
+      }
+
+      if (Object.keys(userByDay).length > 0 || uTotalPrs > 0) {
         const userData = days.map(d => {
-          const u = userByDay[d.day];
-          if (!u) return null;
-          if (metric.key === 'adopted_individuals_pct') return 100; // user is present = 100%
-          if (metric.key === 'prs_assisted_pct') return (u.code_generation_activity_count > 0 || u.user_initiated_interaction_count > 0) ? 100 : 0;
-          if (metric.key === 'ai_assisted_loc_pct') return d.ai_assisted_loc_pct != null ? Math.round(d.ai_assisted_loc_pct * 1000) / 10 : null;
+          if (metric.key === 'adopted_individuals_pct') {
+            // 4-day lookback — matches org metric
+            for (let i = 0; i <= 3; i++) {
+              if (userActiveDays.has(dayOffset(d.day, -i))) return 100;
+            }
+            return 0;
+          }
+          if (metric.key === 'prs_assisted_pct') {
+            // Constant line: user's personal % PRs assisted
+            return uTotalPrs > 0 ? Math.round(uAssistedPrs / uTotalPrs * 1000) / 10 : null;
+          }
+          if (metric.key === 'ai_assisted_loc_pct') {
+            // Constant line: user's personal % LOC assisted
+            return uTotalLoc > 0 ? Math.round(uAssistedLoc / uTotalLoc * 1000) / 10 : null;
+          }
           return null;
         });
         opts.series.push({
           name: selectedUser,
           data: userData,
-          color: '#f78166', dashStyle: 'ShortDash', marker: { radius: 3, symbol: 'diamond' }, lineWidth: 2,
+          color: metric.color, dashStyle: 'ShortDash', marker: { radius: 3, symbol: 'diamond' }, lineWidth: 2,
         });
         opts.legend = { enabled: true };
       }
@@ -874,13 +1007,14 @@ function ConsistencySection({ days, selectedUser, users }) {
             const s = stddev(vals.map(v => v * 100));
             return vals.filter(v => Math.abs(v * 100 - mn) > 2 * s).length;
           })();
+          const cycle = dominantCyclePeriod(vals.map(v => v * 100));
           return (
             <div key={m.key} style={{ flex: '1 1 200px' }}>
               <KpiCard
                 label={m.label.replace(' %', '')}
                 value={fmtDec(sd, 1)}
                 unit="σ"
-                sub={`CV: ${cv != null ? fmtPct(cv) : '—'} · ${outliers} outlier${outliers !== 1 ? 's' : ''}`}
+                sub={`CV: ${cv != null ? fmtPct(cv) : '—'} · ${outliers} outlier${outliers !== 1 ? 's' : ''}${cycle ? ` · ${cycle.lag}-day cycle (r=${cycle.r})` : ''}`}
                 color={m.color}
               />
             </div>
@@ -1520,8 +1654,8 @@ function App() {
         <>
           <SourceSummary data={{ ...data, config }} />
           <DevSearch users={data.users} selectedUser={selectedUser} onSelect={setSelectedUser} />
-          <CompletenessSection days={data.structural} config={config} users={data.users} selectedUser={selectedUser} />
-          <ConsistencySection days={data.structural} selectedUser={selectedUser} users={data.users} />
+          <CompletenessSection days={data.structural} config={config} users={data.users} selectedUser={selectedUser} prRecords={data.prRecords} />
+          <ConsistencySection days={data.structural} selectedUser={selectedUser} users={data.users} prRecords={data.prRecords} />
           <ImpactSection days={data.structural} />
           <PrioritizedImprovementsSection days={data.structural} config={config} />
           {data.rawPrRecords && <ReconciliationSection rawPrs={data.rawPrRecords} filteredPrs={data.prRecords || []} users={data.users} />}
