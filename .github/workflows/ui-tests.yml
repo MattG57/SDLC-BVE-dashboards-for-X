@@ -1,0 +1,57 @@
+name: UI Tests for Dashboards
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+jobs:
+  discover:
+    name: Discover workspaces
+    runs-on: ubuntu-latest
+    outputs:
+      workspaces: ${{ steps.list.outputs.workspaces }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: list
+        run: |
+          workspaces=$(node -e "const p=require('./package.json'); console.log(JSON.stringify(p.workspaces.filter(w => w.includes('/dashboard/'))))")
+          echo "workspaces=$workspaces" >> "$GITHUB_OUTPUT"
+
+  test:
+    name: Test (${{ matrix.workspace }})
+    needs: discover
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        workspace: ${{ fromJson(needs.discover.outputs.workspaces) }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 18
+      - run: npm install --include=dev
+      - run: npm test --workspace=${{ matrix.workspace }}
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 18
+      - run: npm install --include=dev
+      - run: npm run lint
+
+  validate:
+    name: Validate structure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 18
+      - run: npm install --include=dev
+      - run: npm run validate
