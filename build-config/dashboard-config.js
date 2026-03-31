@@ -97,12 +97,10 @@ export const dashboardConfig = {
       'package.json',
       'README.md',
       'src/',
-      'tests/',
-      'dist/'
+      'tests/'
     ],
     requiredScripts: [
-      'test',
-      'build'
+      'test'
     ],
     requiredTestCoverage: 80 // Minimum 80% coverage
   }
