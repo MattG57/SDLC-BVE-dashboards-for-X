@@ -56,7 +56,7 @@ for slug in "${!DASHBOARDS[@]}"; do
     manifest="$manifest],\"generated\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
     echo "$manifest" > "$dest/data/manifest.json"
 
-    echo "  ✔ $slug/data/ ($(ls "$dest/data"/*.json | wc -l) files)"
+    echo "  ✔ $slug/data/ ($(find "$dest/data" -name '*.json' ! -name 'manifest.json' | wc -l) data files)"
   fi
 done
 

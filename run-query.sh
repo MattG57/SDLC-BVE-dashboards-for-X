@@ -195,7 +195,7 @@ resolve_vars() {
 
       if [[ "$found" == false ]]; then
         if ! is_interactive; then
-          err "At least one of ${group//|/ or } is required (non-interactive mode — set the env var before running)."
+          err "At least one of ${group//|/ or } is required (non-interactive mode — set one of these env vars before running)."
           exit 1
         fi
         echo "" >&2
@@ -220,7 +220,7 @@ resolve_vars() {
       # Simple required var
       if [[ -z "${!group:-}" ]]; then
         if ! is_interactive; then
-          err "$group is required (non-interactive mode — set the env var before running)."
+          err "$group is required (non-interactive mode — set $group env var before running)."
           exit 1
         fi
         local val
