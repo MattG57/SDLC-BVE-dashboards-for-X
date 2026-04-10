@@ -88,6 +88,33 @@ Matching rules:
 - `ai-assisted-structural` output must be combined with `pr-review-structural` output in the AI-assisted structural dashboard.
 - `agentic-efficiency` output goes to the agentic efficiency dashboard.
 
+## Automated Nightly Collection & Publishing
+
+A GitHub Actions workflow (`.github/workflows/deploy-dashboards.yml`) runs `run-query.sh --all` on a nightly schedule and publishes every dashboard to GitHub Pages.
+
+### Setup
+
+1. **Create a GitHub PAT** with `copilot`, `read:org` (and `read:enterprise` if using enterprise-level metrics) scopes.
+2. **Add the PAT** as a repository secret named `DASHBOARD_GH_TOKEN`.
+3. **Set repository variables** for the query parameters:
+   - `ENTERPRISE` — GitHub Enterprise slug (if applicable)
+   - `ORG` — GitHub Organization name
+   - `DAYS` — Lookback window in days (default: `28`)
+4. **Enable GitHub Pages** in the repository settings (Source: GitHub Actions).
+
+### How it works
+
+| Step | Description |
+|---|---|
+| **Collect** | The workflow runs `./run-query.sh --all` with env vars from secrets/variables. In CI mode the script skips interactive prompts and fails fast on missing variables. |
+| **Build** | `scripts/build-pages.sh` assembles the `_site/` directory: each dashboard's HTML, its `data/*.json` files, and a `data/manifest.json` listing available data files. A landing page links to all dashboards. |
+| **Deploy** | The site is uploaded and deployed to GitHub Pages via `actions/upload-pages-artifact` and `actions/deploy-pages`. |
+| **Auto-load** | When served from Pages, each dashboard fetches `./data/manifest.json` on load and automatically processes the listed data files. Manual file upload remains as a fallback. |
+
+### Manual trigger
+
+The workflow also supports `workflow_dispatch` with optional overrides for `enterprise`, `org`, and `days`.
+
 ## Output Shapes
 
 | Script | Top-level keys |
@@ -121,6 +148,8 @@ BVE-dashboards-for-ai-assisted-coding/data/queries/human-pr-metrics.sh
 BVE-dashboards-for-agentic-ai-coding/data/queries/coding-agent-pr-metrics.sh
 run-query.sh
 query-settings.json
+scripts/build-pages.sh
+.github/workflows/deploy-dashboards.yml
 ```
 
 For dependency mapping, expected schema details, and change-propagation checklists, see [../dependencies/README.md](../dependencies/README.md).
