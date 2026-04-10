@@ -676,8 +676,8 @@ function LeverageRectangleSection({ days, config, selectedEstimate, onEstimateCh
       {/* KPI tiles */}
       <div className="d-flex flex-wrap mb-3" style={{ gap: '12px' }}>
         <div style={{ flex: '1 1 140px' }}>
-          <KpiCard label="Total Task Hours" value={fmtCompact(totalTaskHours)}
-            sub={`${totalDevs} devs × ${nonWeekendDays} workdays × ${(pctTimeCoding * 100).toFixed(0)}% × 8h`} />
+          <KpiCard label="Active Dev-Hours" value={fmtCompact(activeDevHours)}
+            sub={`${fmtDec(avgDau, 0)} avg active devs × ${n} days × ${(pctTimeCoding * 100).toFixed(0)}% × 8h`} />
         </div>
         <div style={{ flex: '1 1 140px' }}>
           <KpiCard label="Completions (Merged PRs)" value={fmtCompact(totalCompletions)}
