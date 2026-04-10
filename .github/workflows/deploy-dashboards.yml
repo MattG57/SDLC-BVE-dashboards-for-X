@@ -38,6 +38,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Restore cached data
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            BVE-dashboards-for-ai-assisted-coding/dashboard/*/data/*.json
+            BVE-dashboards-for-agentic-ai-coding/dashboard/*/data/*.json
+          key: dashboard-data-${{ github.run_id }}
+          restore-keys: dashboard-data-
+
       - name: Collect data
         if: ${{ inputs.skip_data_collection != true }}
         env:
@@ -46,6 +55,15 @@ jobs:
           ORG: ${{ inputs.org || vars.ORG || '' }}
           DAYS: ${{ inputs.days || vars.DAYS || '28' }}
         run: ./run-query.sh --all
+
+      - name: Save data to cache
+        if: ${{ inputs.skip_data_collection != true }}
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            BVE-dashboards-for-ai-assisted-coding/dashboard/*/data/*.json
+            BVE-dashboards-for-agentic-ai-coding/dashboard/*/data/*.json
+          key: dashboard-data-${{ github.run_id }}
 
       - name: Build Pages site
         run: bash scripts/build-pages.sh
