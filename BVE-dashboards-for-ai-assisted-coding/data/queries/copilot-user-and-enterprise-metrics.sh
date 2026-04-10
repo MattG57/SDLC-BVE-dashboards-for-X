@@ -57,15 +57,19 @@ fi
 
 SINCE_DATE=$(date -u -v-${DAYS}d +"%Y-%m-%d" 2>/dev/null || date -u -d "${DAYS} days ago" +"%Y-%m-%d")
 
+# Use temp files for all large payloads to avoid ARG_MAX limits
+TMP_DIR=$(mktemp -d)
+trap 'rm -rf "$TMP_DIR"' EXIT
+
 if [[ -n "$ENTERPRISE" ]]; then
   echo "Fetching Copilot enterprise metrics for: $ENTERPRISE (28-day report)" >&2
   ENTERPRISE_URL=$(gh api \
     -H "Accept: application/vnd.github+json" \
     -H "X-GitHub-Api-Version: 2022-11-28" \
     "/enterprises/$ENTERPRISE/copilot/metrics/reports/enterprise-28-day/latest" | jq -r '.download_links[0]')
-    
-  ENTERPRISE_REPORT=$(curl -sL "$ENTERPRISE_URL")
-  
+
+  curl -sL "$ENTERPRISE_URL" > "$TMP_DIR/enterprise_report.json"
+
   echo "" >&2
   echo "Fetching Copilot user metrics for: $ENTERPRISE (28-day report)" >&2
   USER_URL=$(gh api \
@@ -73,28 +77,25 @@ if [[ -n "$ENTERPRISE" ]]; then
     -H "X-GitHub-Api-Version: 2022-11-28" \
     "/enterprises/$ENTERPRISE/copilot/metrics/reports/users-28-day/latest" | jq -r '.download_links[0]')
 
-  curl -sL "$USER_URL" | jq -s '.' > /tmp/user_report.json
+  curl -sL "$USER_URL" | jq -s '.' > "$TMP_DIR/user_report.json"
 
   jq -n \
-    --argjson er "$ENTERPRISE_REPORT" \
-    --slurpfile ur /tmp/user_report.json \
-    '{ enterprise_report: $er, user_report: $ur[0] }'
-  
-  rm -f /tmp/user_report.json
-    
+    --slurpfile er "$TMP_DIR/enterprise_report.json" \
+    --slurpfile ur "$TMP_DIR/user_report.json" \
+    '{ enterprise_report: $er[0], user_report: $ur[0] }'
+
 elif [[ -n "$ORG" ]]; then
   echo "Fetching Copilot metrics for organization: $ORG (last $DAYS days since $SINCE_DATE)" >&2
   ORG_URL=$(gh api \
     -H "X-GitHub-Api-Version: 2022-11-28" \
     "/orgs/$ORG/copilot/metrics/reports/enterprise-28-day/latest" | jq -r '.download_links[0]')
-    
-  ORG_PAYLOAD=$(curl -sL "$ORG_URL")
-  ORG_REPORT=$(echo "$ORG_PAYLOAD" | jq --arg since "$SINCE_DATE" '[.[] | select(.day >= $since)]')
+
+  curl -sL "$ORG_URL" | jq --arg since "$SINCE_DATE" '[.[] | select(.day >= $since)]' > "$TMP_DIR/org_report.json"
 
   jq -n \
-    --slurpfile or <(echo "${ORG_REPORT:-null}") \
+    --slurpfile or "$TMP_DIR/org_report.json" \
     '{ organization_report: $or[0] }'
-    
+
 else
   echo "Error: Either ENTERPRISE or ORG environment variable is required" >&2
   exit 1
