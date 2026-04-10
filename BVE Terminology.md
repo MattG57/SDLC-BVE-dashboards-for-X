@@ -41,6 +41,15 @@ The mapping from completions into revenue, margin, risk reduction, avoided loss,
 **Room for improvement**
 The gap between current leverage and plausible improved leverage.
 
+**Leverage rectangle**
+A geometric representation of an element's leverage: width = dev-hours, height = completions, area = dev-hour × completions volume. The slope of the diagonal = leverage (completions / dev-hour).
+
+**Integrated leverage**
+The combined leverage across multiple elements, calculated as total completions / total dev-hours.
+
+**Projection mode**
+A scenario showing how leverage changes when a structural factor improves to 100%. Conservative picks the factor yielding the least change; aggressive picks the most impactful factor within a cap.
+
 ---
 
 ## 2. Element of Leverage terms

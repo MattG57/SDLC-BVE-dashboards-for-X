@@ -2,7 +2,7 @@
 
 This package measures the efficiency and quality impact of GitHub Copilot Coding Agent activity.
 
-## Dashboard
+## Dashboards
 
 ### Efficiency Dashboard
 
@@ -18,6 +18,21 @@ Primary inputs:
 - Optional config JSON with `cfg_*` and `est_*` overrides
 
 Implementation details live in [dashboard/efficiency/README.md](dashboard/efficiency/README.md).
+
+### Element Dashboard (Leverage)
+
+Path: `dashboard/element/`
+
+Purpose:
+- Visualize leverage as a rectangle (dev-hours × completions) using an additive model
+- Project improved leverage via structural factor scenarios (Adoption, Merge Rate, Repo Coverage)
+- Duration-based and LoC-based estimation methods
+- Developer search overlay for per-dev leverage comparison
+
+Primary inputs:
+- Same agentic metrics JSON as the efficiency dashboard
+- Optional config JSON with `cfg_*` and `est_*` overrides
+- Loaded via file upload (no `run-query.sh` target needed)
 
 ## What Makes It Different
 

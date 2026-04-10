@@ -208,6 +208,8 @@ Shows:
 * biggest opportunities
 * business translation
 
+The **integrated leverage dashboard** (`dashboard/integrated/index.html`) serves as the current implementation of this top-level page, aggregating AI-Assisted and Agentic elements into a combined leverage view.
+
 ## Element page
 
 Explains:

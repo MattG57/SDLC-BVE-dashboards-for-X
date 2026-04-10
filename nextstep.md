@@ -1,3 +1,11 @@
+**STATUS: IMPLEMENTED** — The element dashboards now exist at:
+- `BVE-dashboards-for-ai-assisted-coding/dashboard/element/index.html`
+- `BVE-dashboards-for-agentic-ai-coding/dashboard/element/index.html`
+
+This document is retained as a historical design spec.
+
+---
+
 Step proposal: Add Leverage Insights (detailed view) that mirrors Leverage Summary and replaces Efficiency + Improvement Opportunities
 
 1) Intent (what this step accomplishes)

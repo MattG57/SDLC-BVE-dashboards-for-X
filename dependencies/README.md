@@ -35,6 +35,11 @@ Dashboard HTML (each has a data/ output dir beside it):
   BVE-dashboards-for-ai-assisted-coding/dashboard/structural/index.html
   BVE-dashboards-for-agentic-ai-coding/dashboard/efficiency/index.html
 
+Dashboard HTML (file-upload only, no data/ dir or runner target):
+  BVE-dashboards-for-ai-assisted-coding/dashboard/element/index.html
+  BVE-dashboards-for-agentic-ai-coding/dashboard/element/index.html
+  dashboard/integrated/index.html
+
 Runner & settings:
   run-query.sh              ← registry lives here (get_target_config function)
   query-settings.json       ← named profiles for env vars

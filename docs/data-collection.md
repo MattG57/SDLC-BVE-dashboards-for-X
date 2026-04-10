@@ -75,6 +75,11 @@ Collect both before loading the dashboard.
 | AI-assisted efficiency | Copilot metrics JSON | `ai-assisted-efficiency` | Can be loaded alone |
 | AI-assisted structural | Copilot metrics JSON + PR review metrics JSON | `ai-assisted-structural`, `pr-review-structural` | Must be paired |
 | Agentic efficiency | Agentic PR metrics JSON | `agentic-efficiency` | Can be loaded alone |
+| AI-assisted element | Copilot metrics JSON + optional PR review + config | File upload (no target) | Same data as efficiency/structural |
+| Agentic element | Agentic PR metrics JSON + optional config | File upload (no target) | Same data as agentic efficiency |
+| Integrated leverage | AI-assisted + agentic JSON + optional config | File upload (no target) | Auto-detects file types |
+
+> **Note:** The element and integrated dashboards do not have `run-query.sh` targets. They load data via browser file upload using the same JSON files produced by the existing targets.
 
 ## From Collection to Dashboard
 

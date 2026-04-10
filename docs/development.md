@@ -43,8 +43,15 @@ scripts/                         Central build and validation scripts
 build-config/                    Shared dashboard build configuration
 docs/                            Canonical user and contributor docs
 dependencies/                    Dependency mapping and change checklists
+dashboard/
+  integrated/                    Integrated leverage dashboard (file-upload only)
 BVE-dashboards-for-ai-assisted-coding/
+  dashboard/efficiency/          Efficiency dashboard (query-target-backed)
+  dashboard/structural/          Structural dashboard (query-target-backed)
+  dashboard/element/             Element leverage dashboard (file-upload only)
 BVE-dashboards-for-agentic-ai-coding/
+  dashboard/efficiency/          Efficiency dashboard (query-target-backed)
+  dashboard/element/             Element leverage dashboard (file-upload only)
 run-query.sh                     Data collection runner
 query-settings.json              Saved data collection profiles
 ```

@@ -32,6 +32,21 @@ Primary inputs:
 - Copilot metrics JSON from `copilot-user-and-enterprise-metrics.sh`
 - PR review metrics JSON from `human-pr-metrics.sh`
 
+### Element Dashboard (Leverage)
+
+Path: `dashboard/element/`
+
+Purpose:
+- Visualize leverage as a rectangle (dev-hours × completions)
+- Project improved leverage via structural factor scenarios (Adoption, % PRs Assisted, % AI-Assisted LOC)
+- Developer search overlay for per-dev leverage comparison
+- Daily trend panels with 7-day smoothing
+
+Primary inputs:
+- Same Copilot metrics and PR review JSON as efficiency/structural dashboards
+- Optional config JSON with `cfg_*` and `est_*` overrides
+- Loaded via file upload (no `run-query.sh` target needed)
+
 ## Data Assets
 
 - Query scripts: `data/queries/`

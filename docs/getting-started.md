@@ -67,6 +67,33 @@ Use this when you want to estimate human-equivalent value from Copilot Coding Ag
 - Input: coding-agent PR metrics JSON
 - Best for: autonomous-agent throughput, PR outcomes, and turbulence analysis
 
+### AI-Assisted Element (Leverage)
+
+Use this when you want a leverage-focused view of AI-assisted coding with structural factor projections.
+
+- Dashboard: `BVE-dashboards-for-ai-assisted-coding/dashboard/element/index.html`
+- Target: none — uses file upload with the same JSON as efficiency/structural dashboards
+- Input: Copilot metrics JSON (and optionally PR review JSON and config)
+- Best for: leverage rectangle visualization, dev-hours × completions, projection scenarios
+
+### Agentic Element (Leverage)
+
+Use this when you want a leverage-focused view of agentic coding with additive scaling projections.
+
+- Dashboard: `BVE-dashboards-for-agentic-ai-coding/dashboard/element/index.html`
+- Target: none — uses file upload with the same JSON as agentic efficiency
+- Input: Agentic PR metrics JSON (and optional config)
+- Best for: agent leverage rectangle, duration/LoC estimation methods, structural factor projections
+
+### Integrated Leverage
+
+Use this when you want to see the combined leverage across AI-assisted and agentic elements.
+
+- Dashboard: `dashboard/integrated/index.html`
+- Target: none — uses file upload (accepts both AI-assisted and agentic JSON files)
+- Input: Any combination of AI-assisted metrics, agentic metrics, PR review data, and config
+- Best for: org-wide leverage shape, comparing element contributions, projection scenarios
+
 ## Decision Guide
 
 Choose AI-assisted efficiency if your core question is, "How much developer time or cost are IDE features saving?"
@@ -74,6 +101,10 @@ Choose AI-assisted efficiency if your core question is, "How much developer time
 Choose AI-assisted structural if your core question is, "Is adoption broad, steady, and correlated with output?" This dashboard requires two input files.
 
 Choose agentic efficiency if your core question is, "What value are we getting from Copilot Coding Agent PRs?" This dashboard is about merged agent work rather than IDE interactions.
+
+Choose an element dashboard if your core question is, "What is the leverage of this element and how does it change with structural improvements?" These dashboards visualize leverage as a rectangle.
+
+Choose the integrated dashboard if your core question is, "What is the combined leverage across all elements?" This dashboard aggregates AI-assisted and agentic data into a single view.
 
 ## Typical Workflow
 
