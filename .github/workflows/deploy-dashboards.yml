@@ -1,0 +1,53 @@
+name: Collect Data & Deploy Dashboards
+
+on:
+  schedule:
+    - cron: '0 6 * * *' # Daily at 6 AM UTC
+  workflow_dispatch:
+    inputs:
+      enterprise:
+        description: 'GitHub Enterprise slug (overrides ENTERPRISE variable)'
+        required: false
+      org:
+        description: 'GitHub Organization name (overrides ORG variable)'
+        required: false
+      days:
+        description: 'Number of days to look back (overrides DAYS variable)'
+        required: false
+        default: '28'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-deploy
+  cancel-in-progress: false
+
+jobs:
+  collect-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Collect data
+        env:
+          GH_TOKEN: ${{ secrets.DASHBOARD_GH_TOKEN }}
+          ENTERPRISE: ${{ inputs.enterprise || vars.ENTERPRISE || '' }}
+          ORG: ${{ inputs.org || vars.ORG || '' }}
+          DAYS: ${{ inputs.days || vars.DAYS || '28' }}
+        run: ./run-query.sh --all
+
+      - name: Build Pages site
+        run: bash scripts/build-pages.sh
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v4
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
