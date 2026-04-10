@@ -1,0 +1,1310 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark" data-dark-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agentic AI Coding — Element Dashboard</title>
+<link rel="stylesheet" href="https://unpkg.com/@primer/css@21.3.1/dist/primer.css">
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/highcharts.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/highcharts-more.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/modules/accessibility.js"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  body { background: var(--bgColor-default); }
+  .element-page { max-width: 1280px; margin: 0 auto; padding: 24px 16px; }
+
+  .definition-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px; }
+  @media (max-width: 768px) { .definition-row { grid-template-columns: 1fr; } }
+  .def-card { border-top: 3px solid var(--borderColor-accent-emphasis); }
+  .def-card-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; }
+  .def-card-value { font-size: 1rem; font-weight: 600; line-height: 1.4; }
+  .def-card-sub { font-size: 0.8rem; }
+
+  .kpi-card { text-align: center; }
+  .kpi-value { font-size: 2rem; font-weight: 600; line-height: 1.2; }
+  .kpi-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; }
+  .kpi-sub { font-size: 0.75rem; }
+  .kpi-unit { font-size: 1.1rem; font-weight: 400; opacity: 0.65; margin-left: 2px; }
+  .kpi-hero .kpi-value { font-size: 3rem; }
+  .kpi-hero .kpi-label { font-size: 0.85rem; }
+  .kpi-hero .kpi-sub { font-size: 0.85rem; }
+  .kpi-hero { border-top: 3px solid var(--borderColor-accent-emphasis); }
+
+  .section-row { margin-bottom: 32px; padding-top: 8px; }
+  .chart-container { min-height: 320px; }
+  .chart-container-sm { min-height: 240px; }
+  .donut-container { min-height: 200px; }
+
+  .opportunity-card { border-left: 3px solid var(--borderColor-accent-emphasis); }
+
+  .factor-table { width: 100%; border-collapse: collapse; }
+  .factor-table th, .factor-table td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--borderColor-default); font-size: 0.875rem; }
+  .factor-table th { color: var(--fgColor-muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; }
+  .factor-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .upload-area { border: 2px dashed var(--borderColor-default); border-radius: 6px; padding: 24px; text-align: center; transition: border-color 0.15s; }
+  .upload-area:hover { border-color: var(--fgColor-accent); }
+
+  .panel-toggle { cursor: pointer; user-select: none; }
+  .panel-toggle:hover { background: var(--bgColor-muted); }
+  .panel-chevron { transition: transform 0.15s; display: inline-block; font-size: 0.75rem; color: var(--fgColor-muted); }
+  .panel-chevron.open { transform: rotate(90deg); }
+
+  .highcharts-background { fill: transparent !important; }
+
+  .leverage-section { border: 2px solid var(--borderColor-accent-emphasis); border-radius: 8px; padding: 20px; margin-bottom: 32px; }
+  .leverage-section h2 { margin: 0 0 4px 0; }
+
+  .insights-section { border: 1px solid var(--borderColor-default); border-radius: 8px; padding: 20px; margin-bottom: 32px; }
+  .insights-section h2 { margin: 0 0 4px 0; }
+
+  .trend-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  @media (max-width: 900px) { .trend-grid { grid-template-columns: 1fr; } }
+</style>
+<script>
+Highcharts.setOptions({
+  chart: { backgroundColor: 'transparent', style: { fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif' } },
+  colors: ['#58a6ff', '#3fb950', '#d29922', '#f85149', '#bc8cff', '#f778ba', '#79c0ff', '#56d364'],
+  title: { style: { color: '#e6edf3', fontSize: '14px', fontWeight: '600' } },
+  subtitle: { style: { color: '#8b949e', fontSize: '12px' } },
+  xAxis: { labels: { style: { color: '#8b949e' } }, gridLineColor: '#30363d', lineColor: '#30363d', tickColor: '#30363d' },
+  yAxis: { labels: { style: { color: '#8b949e' } }, gridLineColor: '#30363d', title: { style: { color: '#8b949e' } } },
+  legend: { itemStyle: { color: '#e6edf3' }, itemHoverStyle: { color: '#58a6ff' } },
+  tooltip: { backgroundColor: '#161b22', borderColor: '#30363d', style: { color: '#e6edf3' } },
+  plotOptions: { series: { animation: { duration: 400 } } },
+  credits: { enabled: false },
+});
+</script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useMemo, useCallback } = React;
+
+/* ════════════════════════════════════════════════════════════════════════════
+   UTILITIES
+   ════════════════════════════════════════════════════════════════════════════ */
+
+function safeDiv(a, b) { return b > 0 ? a / b : null; }
+function fmtDec(v, d = 1) { return v != null ? v.toFixed(d) : '—'; }
+function fmtPct(v) { return v != null ? (v * 100).toFixed(1) + '%' : '—'; }
+function fmtPct0(v) { return v != null ? Math.round(v * 100) + '%' : '—'; }
+function fmt(v) { return v != null ? v.toLocaleString() : '—'; }
+function fmtCompact(v) {
+  if (v == null) return '—';
+  if (Math.abs(v) >= 1e6) return (v / 1e6).toFixed(1) + 'M';
+  if (Math.abs(v) >= 1e3) return (v / 1e3).toFixed(1) + 'k';
+  return v.toFixed(0);
+}
+function fmtCurrency(v) {
+  if (v == null) return '—';
+  if (Math.abs(v) >= 1e6) return '$' + (v / 1e6).toFixed(1) + 'M';
+  if (Math.abs(v) >= 1e3) return '$' + (v / 1e3).toFixed(1) + 'k';
+  return '$' + v.toFixed(0);
+}
+function mean(arr) { const v = arr.filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; }
+
+function linearRegression(points) {
+  const n = points.length;
+  if (n < 3) return null;
+  let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+  for (const [x, y] of points) { sumX += x; sumY += y; sumXY += x * y; sumX2 += x * x; }
+  const denom = n * sumX2 - sumX * sumX;
+  if (Math.abs(denom) < 1e-10) return null;
+  const slope = (n * sumXY - sumX * sumY) / denom;
+  const intercept = (sumY - slope * sumX) / n;
+  const xMin = Math.min(...points.map(p => p[0]));
+  const xMax = Math.max(...points.map(p => p[0]));
+  return { slope, intercept, line: [[xMin, slope * xMin + intercept], [xMax, slope * xMax + intercept]] };
+}
+
+function dayOffset(dayStr, offset) {
+  const d = new Date(dayStr + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() + offset);
+  return d.toISOString().slice(0, 10);
+}
+
+function isWeekend(dayStr) {
+  const d = new Date(dayStr + 'T12:00:00Z');
+  const dow = d.getUTCDay();
+  return dow === 0 || dow === 6;
+}
+
+function smooth7(arr) {
+  return arr.map((_, i) => {
+    const start = Math.max(0, i - 6);
+    const slice = arr.slice(start, i + 1).filter(v => v != null);
+    return slice.length > 0 ? slice.reduce((a, b) => a + b, 0) / slice.length : null;
+  });
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   ESTIMATION METHODS & DRIVER SERIES
+   ════════════════════════════════════════════════════════════════════════════ */
+
+const ESTIMATION_METHODS = [
+  { key: 'duration', label: 'Duration-Based',
+    descFn: (cfg) => `Agent PR duration × ${cfg.est_duration_factor || 2}`,
+    calcTotal: (prSessions, cfg) => {
+      const multiplier = cfg.est_duration_factor || 2;
+      const totalMinutes = prSessions
+        .filter(pr => pr.duration_minutes != null)
+        .reduce((s, pr) => s + pr.duration_minutes, 0);
+      return totalMinutes * multiplier / 60;
+    }},
+  { key: 'loc', label: 'LoC-Based',
+    descFn: (cfg) => `${cfg.est_hrs_per_kloc || 2} hours per 1,000 LoC merged`,
+    calcTotal: (prSessions, cfg) => {
+      const rate = cfg.est_hrs_per_kloc || 2;
+      return prSessions
+        .filter(pr => pr.merged)
+        .reduce((s, pr) => s + ((pr.additions || 0) + (pr.deletions || 0)) / 1000 * rate, 0);
+    }},
+];
+
+const DRIVER_SERIES = [
+  { key: 'total_agent_requests', perDev: 'requests_per_dev', label: 'Agent Requests', color: '#58a6ff' },
+  { key: 'sessions_started', perDev: 'sessions_per_dev', label: 'Sessions', color: '#3fb950' },
+  { key: 'agent_prs_created', perDev: 'prs_created_per_dev', label: 'PRs Created', color: '#d29922' },
+  { key: 'agent_prs_merged', perDev: 'prs_merged_per_dev', label: 'PRs Merged', color: '#bc8cff' },
+  { key: 'agent_loc_added', perDev: 'loc_added_per_dev', label: 'LoC Added (÷100)', color: '#f778ba', scale: 100 },
+  { key: 'agent_session_minutes', perDev: 'session_mins_per_dev', label: 'Session Min', color: '#79c0ff' },
+];
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   DATA PROCESSING
+   ════════════════════════════════════════════════════════════════════════════ */
+
+function flattenPrSession(pr) {
+  return {
+    repo: pr.repo || '',
+    pr_number: pr.pr_number,
+    pr_url: pr.pr_url || '',
+    pr_title: pr.pr_title || '',
+    day: pr.pr_merged_at?.slice(0, 10) || pr.pr_created_at?.slice(0, 10) || '',
+    created_at: pr.pr_created_at,
+    closed_at: pr.pr_closed_at,
+    merged_at: pr.pr_merged_at,
+    state: pr.pr_state || pr.latest_status || 'unknown',
+    merged: !!pr.pr_merged_at || pr.latest_status === 'Merged',
+    draft: pr.pr_draft || false,
+    author: pr.pr_author_login || '',
+    merged_by: pr.merged_by || null,
+    additions: pr.additions || 0,
+    deletions: pr.deletions || 0,
+    changed_files: pr.changed_files || 0,
+    duration_minutes: pr.duration_minutes,
+    changes_requested_count: pr.changes_requested_count || 0,
+    reopened_count: pr.reopened_count || 0,
+    additional_guidance_count: pr.additional_guidance_count || 0,
+    origin_request_type: pr.origin_request_type || null,
+    origin_requested_by: pr.origin_requested_by || null,
+    origin_requested_at: pr.origin_requested_at || null,
+  };
+}
+
+function flattenDevDay(dd) {
+  return {
+    day: dd.date || dd.day,
+    developer: dd.developer || dd.user_login || '',
+    issue_assignment_requests: dd.issue_assignment_requests || 0,
+    pr_followup_requests: dd.pr_followup_requests || 0,
+    total_agent_requests: dd.total_agent_requests || 0,
+    sessions_started: dd.sessions_started || 0,
+    agent_prs_created: dd.agent_prs_created || 0,
+    agent_prs_merged: dd.agent_prs_merged || 0,
+    agent_loc_added: dd.agent_loc_added || 0,
+    agent_loc_deleted: dd.agent_loc_deleted || 0,
+    agent_session_minutes: dd.agent_session_minutes || 0,
+    changes_requested_total: dd.changes_requested_total || 0,
+    median_merge_minutes: dd.median_merge_minutes,
+  };
+}
+
+function computeDerivedDays(devDays, config) {
+  const byDay = {};
+  for (const dd of devDays) {
+    if (!byDay[dd.day]) byDay[dd.day] = {
+      day: dd.day, active_devs: 0, total_agent_requests: 0, sessions_started: 0,
+      agent_prs_created: 0, agent_prs_merged: 0, agent_loc_added: 0, agent_loc_deleted: 0,
+      agent_session_minutes: 0, changes_requested_total: 0, merge_minutes_list: [], dev_set: new Set(),
+    };
+    const d = byDay[dd.day];
+    d.dev_set.add(dd.developer);
+    d.total_agent_requests += dd.total_agent_requests;
+    d.sessions_started += dd.sessions_started;
+    d.agent_prs_created += dd.agent_prs_created;
+    d.agent_prs_merged += dd.agent_prs_merged;
+    d.agent_loc_added += dd.agent_loc_added;
+    d.agent_loc_deleted += dd.agent_loc_deleted;
+    d.agent_session_minutes += dd.agent_session_minutes;
+    d.changes_requested_total += dd.changes_requested_total;
+    if (dd.median_merge_minutes != null) d.merge_minutes_list.push(dd.median_merge_minutes);
+  }
+  return Object.values(byDay).map(d => {
+    const activeDevs = d.dev_set.size;
+    return {
+      day: d.day,
+      active_devs: activeDevs,
+      total_agent_requests: d.total_agent_requests,
+      sessions_started: d.sessions_started,
+      agent_prs_created: d.agent_prs_created,
+      agent_prs_merged: d.agent_prs_merged,
+      agent_loc_added: d.agent_loc_added,
+      agent_loc_deleted: d.agent_loc_deleted,
+      agent_session_minutes: d.agent_session_minutes,
+      changes_requested_total: d.changes_requested_total,
+      median_merge_minutes: d.merge_minutes_list.length > 0
+        ? d.merge_minutes_list.sort((a,b) => a-b)[Math.floor(d.merge_minutes_list.length / 2)]
+        : null,
+      requests_per_dev: safeDiv(d.total_agent_requests, activeDevs),
+      sessions_per_dev: safeDiv(d.sessions_started, activeDevs),
+      prs_created_per_dev: safeDiv(d.agent_prs_created, activeDevs),
+      prs_merged_per_dev: safeDiv(d.agent_prs_merged, activeDevs),
+      loc_added_per_dev: safeDiv(d.agent_loc_added / 100, activeDevs),
+      session_mins_per_dev: safeDiv(d.agent_session_minutes, activeDevs),
+      merge_rate: safeDiv(d.agent_prs_merged, d.agent_prs_created),
+    };
+  }).sort((a, b) => a.day.localeCompare(b.day));
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   SHARED COMPONENTS
+   ════════════════════════════════════════════════════════════════════════════ */
+
+function Chart({ options, className = 'chart-container' }) {
+  const ref = useRef(null);
+  const chartRef = useRef(null);
+  useEffect(() => {
+    if (ref.current) chartRef.current = Highcharts.chart(ref.current, options);
+    return () => { if (chartRef.current) chartRef.current.destroy(); };
+  }, [JSON.stringify(options)]);
+  return <div ref={ref} className={className} />;
+}
+
+function KpiCard({ label, value, unit, sub, color, hero }) {
+  return (
+    <div className={`Box p-3 kpi-card${hero ? ' kpi-hero' : ''}`}>
+      <div className="kpi-label color-fg-muted mb-1">{label}</div>
+      <div className="kpi-value" style={color ? { color } : {}}>
+        {value}{unit && <span className="kpi-unit">{unit}</span>}
+      </div>
+      {sub && <div className="kpi-sub color-fg-muted mt-1">{sub}</div>}
+    </div>
+  );
+}
+
+function DefinitionCard({ label, value, description, icon }) {
+  return (
+    <div className="Box p-3 def-card">
+      <div className="def-card-label color-fg-muted mb-1">{icon && <span className="mr-1">{icon}</span>}{label}</div>
+      <div className="def-card-value color-fg-default">{value}</div>
+      {description && <div className="def-card-sub color-fg-muted mt-2">{description}</div>}
+    </div>
+  );
+}
+
+function SourceSummary({ data }) {
+  const n = data.days.length;
+  const range = n > 0 ? `${data.days[0].day} → ${data.days[n - 1].day}` : 'none';
+  const prCount = data.prSessions ? data.prSessions.length : 0;
+  const devDayCount = data.devDays ? data.devDays.length : 0;
+  const reqCount = data.requests ? data.requests.length : 0;
+  return (
+    <div className="flash flash-success f6 mb-3">
+      ✅ Data loaded · <strong>{n} days</strong> ({range})
+      {prCount > 0 && <> · {fmtCompact(prCount)} PR sessions</>}
+      {devDayCount > 0 && <> · {fmtCompact(devDayCount)} dev-day records</>}
+      {reqCount > 0 && <> · {fmtCompact(reqCount)} requests</>}
+      <span className="color-fg-muted"> · {data.fileNames.length} file{data.fileNames.length !== 1 ? 's' : ''}: {data.fileNames.join(', ')}</span>
+    </div>
+  );
+}
+
+function Panel({ title, desc, children, detailChildren }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="section-row">
+      <div className="mb-3 pb-2" style={{ borderBottom: '1px solid var(--borderColor-default)', borderTop: '2px solid var(--borderColor-muted)', paddingTop: '12px' }}>
+        <h2 className="f2 color-fg-accent">{title}</h2>
+        {desc && <p className="f6 color-fg-muted">{desc}</p>}
+      </div>
+      {children}
+      {detailChildren && (
+        <>
+          <div className="panel-toggle d-flex flex-items-center mt-3 px-2 py-2 rounded-2" onClick={() => setOpen(!open)}
+               style={{ gap: '6px', border: '1px solid var(--borderColor-default)', display: 'inline-flex' }}>
+            <span className={`panel-chevron${open ? ' open' : ''}`}>▶</span>
+            <span className="f6 text-bold color-fg-muted">{open ? 'Hide' : 'Show'} Daily Trends & Factors</span>
+          </div>
+          {open && <div className="mt-3">{detailChildren}</div>}
+        </>
+      )}
+    </div>
+  );
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   UPLOAD PANEL
+   ════════════════════════════════════════════════════════════════════════════ */
+
+function UploadPanel({ onData }) {
+  const [processing, setProcessing] = useState(false);
+  const [fileStatuses, setFileStatuses] = useState(null);
+  const filesRef = useRef(null);
+
+  const handleProcess = useCallback(async () => {
+    const files = filesRef.current?.files;
+    if (!files || !files.length) { alert('Select at least one JSON file.'); return; }
+    setProcessing(true);
+    try {
+      const prSessions = [], devDays = [], requests = [], names = [], statuses = [];
+      let config = {
+        cfg_total_developers: 100, cfg_pct_time_reviewing: 0.2, cfg_labor_cost_per_hour: 75,
+        cfg_workdays_per_week: 5, cfg_total_repos: null,
+        est_duration_factor: 2, est_hrs_per_kloc: 2,
+      };
+
+      for (const f of files) {
+        let d;
+        try { d = JSON.parse(await f.text()); }
+        catch (e) { statuses.push({ name: f.name, type: 'Unknown', status: 'error', error: 'Invalid JSON' }); continue; }
+        names.push(f.name);
+
+        const isConfig = Object.keys(d).some(k => k.startsWith('cfg_') || k.startsWith('est_'));
+        const isSource = d.pr_sessions || d.requests || d.developer_day_summary;
+
+        if (isConfig && !isSource) {
+          Object.assign(config, d);
+          statuses.push({ name: f.name, type: 'Configuration', status: 'ok' });
+        } else if (isSource) {
+          if (Array.isArray(d.pr_sessions)) prSessions.push(...d.pr_sessions.map(flattenPrSession));
+          if (Array.isArray(d.developer_day_summary)) devDays.push(...d.developer_day_summary.map(flattenDevDay));
+          if (Array.isArray(d.requests)) requests.push(...d.requests);
+          statuses.push({ name: f.name, type: 'Agentic Source Data', status: 'ok' });
+        } else {
+          statuses.push({ name: f.name, type: 'Unknown', status: 'warn' });
+        }
+      }
+      setFileStatuses(statuses);
+      if (!prSessions.length && !devDays.length && !requests.length) {
+        alert('No agentic source data found (need pr_sessions, developer_day_summary, or requests).');
+        setProcessing(false);
+        return;
+      }
+
+      const days = computeDerivedDays(devDays, config);
+      onData({ days, prSessions, devDays, requests, config, fileNames: names });
+    } catch (e) { console.error(e); alert('Error: ' + e.message); }
+    setProcessing(false);
+  }, [onData]);
+
+  return (
+    <div className="Box color-shadow-medium p-4 mb-4">
+      <h3 className="f4 mb-2">Source Data</h3>
+      <p className="f6 color-fg-muted mb-3">Upload agentic AI coding JSON files (PR sessions, developer day summaries, requests, config).</p>
+      <div className="d-flex flex-wrap" style={{ gap: '16px', alignItems: 'flex-end' }}>
+        <div style={{ flex: '1 1 300px' }}>
+          <input type="file" ref={filesRef} accept=".json" multiple className="form-control" />
+        </div>
+        <button className="btn btn-primary" onClick={handleProcess} disabled={processing}>
+          {processing ? 'Processing…' : 'Process & Build'}
+        </button>
+      </div>
+      {fileStatuses && (
+        <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--borderColor-default)' }}>
+          <div className="f6 text-bold color-fg-muted mb-2">File Status</div>
+          {fileStatuses.map((s, i) => (
+            <div key={i} className="f6 mb-1">
+              {s.status === 'ok' ? '✅' : s.status === 'warn' ? '⚠️' : '❌'} {s.name} — <span className="color-fg-muted">{s.type}{s.error ? ': ' + s.error : ''}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   DEV SEARCH
+   ════════════════════════════════════════════════════════════════════════════ */
+
+function DevSearch({ devDays, selectedUser, onSelect }) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const logins = useMemo(() => [...new Set(devDays.map(u => u.developer))].filter(Boolean).sort(), [devDays]);
+  const filtered = query ? logins.filter(l => l.toLowerCase().includes(query.toLowerCase())).slice(0, 10) : logins.slice(0, 10);
+
+  const select = (login) => { onSelect(login); setQuery(''); setOpen(false); };
+  const clear = () => { onSelect(null); setQuery(''); };
+
+  if (!devDays.length) return null;
+
+  return (
+    <div className="d-flex flex-items-center mb-3" style={{ gap: '8px', position: 'relative' }}>
+      <span className="f6 color-fg-muted text-bold">Developer:</span>
+      <span className="f6 color-fg-muted" style={{ fontStyle: 'italic' }}>Overlay individual developer data to compare to Org averages</span>
+      {selectedUser ? (
+        <div className="d-flex flex-items-center" style={{ gap: '6px' }}>
+          <span className="Label Label--accent">{selectedUser}</span>
+          <button className="btn-octicon" onClick={clear} title="Clear" style={{ color: 'var(--fgColor-muted)', cursor: 'pointer', background: 'none', border: 'none', fontSize: '14px' }}>✕</button>
+        </div>
+      ) : (
+        <div style={{ position: 'relative', width: '220px' }}>
+          <input
+            type="text" className="form-control input-sm" placeholder="Search by login…"
+            value={query} onChange={e => { setQuery(e.target.value); setOpen(true); }}
+            onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
+          />
+          {open && filtered.length > 0 && (
+            <div className="Box color-shadow-large" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, maxHeight: '200px', overflow: 'auto' }}>
+              {filtered.map(l => (
+                <div key={l} className="Box-row px-3 py-1 f6" style={{ cursor: 'pointer' }} onMouseDown={() => select(l)}>
+                  {l}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {selectedUser && <span className="f6 color-fg-muted">(dashed lines on charts)</span>}
+    </div>
+  );
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   LEVERAGE RECTANGLE SECTION (Leverage Summary)
+   ════════════════════════════════════════════════════════════════════════════ */
+
+function LeverageRectangleSection({ days, prSessions, config, selectedEstimate, onEstimateChange, structuralFactor, onStructuralFactorChange }) {
+  const setStructuralFactor = onStructuralFactorChange;
+  const n = days.length;
+  const totalDevs = config.cfg_total_developers || 100;
+  const totalRepos = config.cfg_total_repos;
+
+  // Compute estimates by each method
+  const estByMethod = {};
+  for (const m of ESTIMATION_METHODS) {
+    estByMethod[m.key] = m.calcTotal(prSessions, config);
+  }
+
+  // Active dev-hours comes from selected estimate method
+  const activeDevHours = estByMethod[selectedEstimate] || estByMethod['duration'] || 0;
+  const totalMerged = prSessions.filter(pr => pr.merged).length;
+  const totalCreated = prSessions.length;
+  const totalCompletions = totalMerged;
+  const currentLeverage = safeDiv(totalCompletions, activeDevHours);
+  const hoursPerCompletion = safeDiv(activeDevHours, totalCompletions);
+
+  // Agent duration (always shown for reference)
+  const totalAgentMinutes = prSessions
+    .filter(pr => pr.duration_minutes != null)
+    .reduce((s, pr) => s + pr.duration_minutes, 0);
+  const totalAgentDurationHrs = totalAgentMinutes / 60;
+  const prsWithDuration = prSessions.filter(pr => pr.duration_minutes != null);
+
+  // Average dev-hours per PR (for scaling projections) — uses selected method's rate
+  const avgDevHoursPerPr = totalCreated > 0 ? activeDevHours / totalCreated : 0;
+
+  // Structural factors
+  const avgActiveDevs = mean(days.map(d => d.active_devs));
+  const adoptionPct = safeDiv(avgActiveDevs, totalDevs);
+  const overallMergeRate = safeDiv(totalMerged, totalCreated);
+  const activeRepos = new Set(prSessions.map(pr => pr.repo).filter(Boolean)).size;
+  const repoCoverage = totalRepos ? safeDiv(activeRepos, totalRepos) : null;
+
+  const STRUCTURAL_FACTORS = [
+    { key: 'adoption', label: 'Adoption', current: adoptionPct, color: '#58a6ff',
+      detail: `${fmtDec(avgActiveDevs, 0)} of ${totalDevs} devs using agent` },
+    { key: 'merge_rate', label: 'Merge Rate', current: overallMergeRate, color: '#3fb950',
+      detail: `${totalMerged} of ${totalCreated} PRs merged` },
+    { key: 'coverage', label: 'Repo Coverage', current: repoCoverage, color: '#bc8cff',
+      detail: `${activeRepos} of ${totalRepos || activeRepos} repos with agent activity` },
+  ];
+
+  const selectedFactor = STRUCTURAL_FACTORS.find(f => f.key === structuralFactor) || STRUCTURAL_FACTORS[0];
+  const currentLevel = selectedFactor.current || 0;
+
+  // Projected: scale UP completions and dev-hours proportionally if factor → 100%
+  // Same leverage slope, more volume. Uses same avg duration per PR.
+  const scaleFactor = currentLevel > 0 ? (1 / currentLevel) : 1;
+  const projectedCompletions = currentLevel > 0 ? Math.round(totalCompletions * scaleFactor) : totalCompletions;
+  const projectedPRs = currentLevel > 0 ? Math.round(totalCreated * scaleFactor) : totalCreated;
+  const projectedDevHours = currentLevel > 0 ? (projectedPRs * avgDevHoursPerPr) : activeDevHours;
+  const projectedLeverage = safeDiv(projectedCompletions, projectedDevHours);
+
+  // Build leverage rectangle chart
+  const xMax = Math.max(activeDevHours, projectedDevHours) * 1.15;
+  const yMax = Math.max(totalCompletions, projectedCompletions) * 1.3;
+
+  const rectSeries = [];
+
+  // Layer 1 (bottom): Projected — largest rectangle (scaled up)
+  if (currentLevel > 0 && currentLevel < 1) {
+    rectSeries.push({
+      type: 'polygon', name: `Projected (${selectedFactor.label} → 100%)`,
+      data: [[0, 0], [projectedDevHours, 0], [projectedDevHours, projectedCompletions], [0, projectedCompletions]],
+      color: `rgba(${selectedFactor.color === '#58a6ff' ? '88,166,255' : selectedFactor.color === '#3fb950' ? '63,185,80' : '188,140,255'},0.08)`,
+      lineWidth: 1, lineColor: selectedFactor.color, dashStyle: 'ShortDash',
+      enableMouseTracking: true,
+      tooltip: { headerFormat: '', pointFormat: `<b>Projected (${selectedFactor.label} → 100%)</b><br/>Dev-Hours: ${fmtCompact(projectedDevHours)}<br/>Completions: ${fmtCompact(projectedCompletions)}<br/>Leverage: ${fmtDec(projectedLeverage, 3)}<br/>${fmtDec(scaleFactor, 1)}× current volume` },
+    });
+  }
+
+  // Layer 2 (top): Existing — measured rectangle
+  rectSeries.push({
+    type: 'polygon', name: 'Existing (measured)',
+    data: [[0, 0], [activeDevHours, 0], [activeDevHours, totalCompletions], [0, totalCompletions]],
+    color: 'rgba(88,166,255,0.15)', lineWidth: 2, lineColor: '#58a6ff',
+    enableMouseTracking: true,
+    tooltip: { headerFormat: '', pointFormat: `<b>Existing</b><br/>Dev-Hours: ${fmtCompact(activeDevHours)}<br/>Completions: ${fmtCompact(totalCompletions)}<br/>Leverage: ${fmtDec(currentLeverage, 3)}` },
+  });
+
+  // Counterfactual = origin (0,0) — without the agent, zero completions
+  rectSeries.push({
+    type: 'scatter', name: 'Counterfactual (without AI)',
+    data: [{ x: 0, y: 0 }],
+    color: '#f85149',
+    marker: { radius: 8, symbol: 'circle', lineWidth: 2, lineColor: '#f85149', fillColor: 'rgba(248,81,73,0.5)' },
+    tooltip: { headerFormat: '', pointFormat: '<b>Counterfactual (without AI)</b><br/>Without the agent: 0 completions, 0 dev-hours<br/>This is purely additive capacity.' },
+  });
+
+  // Leverage slope line (same slope applies at any scale)
+  rectSeries.push({
+    type: 'line', name: `Leverage = ${fmtDec(currentLeverage, 3)}`,
+    data: [[0, 0], [Math.max(activeDevHours, projectedDevHours), Math.max(totalCompletions, projectedCompletions)]],
+    color: '#3fb950', dashStyle: 'Dash', lineWidth: 2,
+    marker: { enabled: true, radius: 5, symbol: 'circle' },
+    enableMouseTracking: false,
+  });
+
+  const rectChartOpts = {
+    chart: { type: 'scatter', height: 420 },
+    title: { text: 'Leverage Rectangle' },
+    subtitle: { text: `More completions at minimal dev time → higher leverage` },
+    xAxis: { title: { text: 'Est. Human Dev-Hours', style: { fontSize: '13px', fontWeight: '600' } }, min: 0, max: xMax, gridLineWidth: 1, labels: { formatter: function() { return fmtCompact(this.value); } } },
+    yAxis: { title: { text: 'Completions (Merged Agent PRs)', style: { fontSize: '13px', fontWeight: '600' } }, min: 0, max: yMax, labels: { formatter: function() { return fmtCompact(this.value); } } },
+    tooltip: { useHTML: true, headerFormat: '' },
+    legend: { enabled: true, align: 'center', verticalAlign: 'bottom' },
+    plotOptions: { series: { animation: { duration: 600 }, states: { inactive: { opacity: 0.6 } } } },
+    series: rectSeries,
+  };
+
+  // Structural factor donuts
+  function completenessDonutOpts(title, pct, color, isSelected) {
+    const val = pct != null ? Math.min(pct * 100, 100) : 0;
+    return {
+      chart: { type: 'pie', height: 160, margin: [0, 0, 30, 0] },
+      title: { text: fmtPct0(pct), verticalAlign: 'middle', y: -8, style: { fontSize: '22px', fontWeight: '700', color: '#e6edf3' } },
+      subtitle: { text: title, align: 'center', verticalAlign: 'bottom', y: -5, style: { fontSize: '10px' } },
+      tooltip: { pointFormat: '<b>{point.percentage:.1f}%</b>' },
+      plotOptions: { pie: { innerSize: '70%', borderWidth: isSelected ? 3 : 0,
+        borderColor: isSelected ? color : 'transparent', dataLabels: { enabled: false } } },
+      series: [{ data: [{ name: title, y: val, color }, { name: 'Gap', y: Math.max(100 - val, 0), color: '#30363d' }] }],
+    };
+  }
+
+  return (
+    <div className="leverage-section">
+      <h2 className="f2 color-fg-accent">Leverage Summary</h2>
+      <p className="f6 color-fg-muted mb-3">Period aggregates: human dev-hours, merged agent PRs, leverage, and structural projections.</p>
+
+      {/* KPI tiles */}
+      <div className="d-flex flex-wrap mb-3" style={{ gap: '12px' }}>
+        <div style={{ flex: '1 1 140px' }}>
+          <KpiCard label="Agent Duration Hours" value={fmtCompact(totalAgentDurationHrs)}
+            sub={`sum of PR durations · ${prsWithDuration.length} PRs with duration`} />
+        </div>
+        <div style={{ flex: '1 1 140px' }}>
+          <KpiCard label="Est. Human Dev-Hours" value={fmtCompact(activeDevHours)}
+            sub={`via ${(ESTIMATION_METHODS.find(m => m.key === selectedEstimate) || ESTIMATION_METHODS[0]).label}`} />
+        </div>
+        <div style={{ flex: '1 1 140px' }}>
+          <KpiCard label="Completions (Merged Agent PRs)" value={fmtCompact(totalCompletions)}
+            sub={`${n} day period · ${totalCreated} total PRs created`} />
+        </div>
+        <div style={{ flex: '0 0 200px' }}>
+          <KpiCard hero label="Current Leverage" value={fmtDec(currentLeverage, 3)}
+            sub="merged PRs / human dev-hour" color="#3fb950" />
+        </div>
+        <div style={{ flex: '1 1 140px' }}>
+          <KpiCard label="Hrs / Completion" value={fmtDec(hoursPerCompletion, 2)} unit="hrs"
+            sub="inverse leverage" />
+        </div>
+      </div>
+
+      {/* Estimation method selector */}
+      <h3 className="f5 color-fg-default mb-2">Human Dev-Hours Estimate <span className="f6 color-fg-muted">(click to change)</span></h3>
+      <div className="d-flex flex-wrap mb-3" style={{ gap: '12px' }}>
+        {ESTIMATION_METHODS.map((m, i) => {
+          const total = estByMethod[m.key];
+          const isSelected = m.key === selectedEstimate;
+          const color = ['#58a6ff', '#3fb950'][i];
+          return (
+            <div key={m.key} className="Box p-3" onClick={() => onEstimateChange(m.key)}
+              style={{ flex: '1 1 200px', cursor: 'pointer',
+                borderColor: isSelected ? color : undefined, borderWidth: isSelected ? '2px' : undefined,
+                transition: 'border-color 0.15s' }}>
+              <div className="f6 color-fg-muted text-bold mb-1">{m.label}</div>
+              <div className="f2 text-bold" style={{ color }}>{fmtCompact(total)}<span className="kpi-unit">hrs</span></div>
+              <div className="f6 color-fg-muted mt-1">{m.descFn(config)}</div>
+              {isSelected && <div className="f6 mt-1" style={{ color }}>▲ Using for leverage</div>}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Central leverage rectangle */}
+      <div className="Box p-3 mb-3">
+        <div className="d-flex flex-items-center flex-justify-between mb-2">
+          <div className="f5 text-bold color-fg-default" style={{ fontStyle: 'italic' }}>
+            More completions at minimal dev time → higher leverage
+          </div>
+          <div className="d-flex flex-items-center" style={{ gap: '8px' }}>
+            {(() => {
+              const mDef = ESTIMATION_METHODS.find(m => m.key === selectedEstimate) || ESTIMATION_METHODS[0];
+              return <span className="Label d-flex flex-items-center" style={{ color: '#58a6ff', borderColor: '#58a6ff', gap: '4px', fontSize: '12px', padding: '4px 10px' }}>
+                Estimate: {mDef.label} ({fmtCompact(activeDevHours)} hrs)
+              </span>;
+            })()}
+            {currentLevel > 0 && currentLevel < 1 &&
+              <span className="Label d-flex flex-items-center" style={{ color: selectedFactor.color, borderColor: selectedFactor.color, gap: '4px', fontSize: '12px', padding: '4px 10px' }}>
+                Projection: {selectedFactor.label} ({fmtPct(currentLevel)}) → 100% ({fmtDec(scaleFactor, 1)}×)
+              </span>
+            }
+          </div>
+        </div>
+        <Chart options={rectChartOpts} />
+      </div>
+
+      {/* Structural factor donuts */}
+      <h3 className="f5 color-fg-default mb-2">Structural Factors <span className="f6 color-fg-muted">(click to change projection)</span></h3>
+      <div className="d-flex flex-wrap mb-3" style={{ gap: '12px', alignItems: 'stretch' }}>
+        {STRUCTURAL_FACTORS.map(f => {
+          const isSelected = f.key === structuralFactor;
+          return (
+            <div key={f.key} className="Box p-3" onClick={() => setStructuralFactor(f.key)}
+              style={{ flex: '1 1 180px', cursor: 'pointer', borderColor: isSelected ? f.color : undefined,
+                borderWidth: isSelected ? '2px' : undefined, transition: 'border-color 0.15s' }}>
+              <Chart options={completenessDonutOpts(f.label, f.current, f.color, isSelected)} className="donut-container" />
+              <div className="text-center f6 color-fg-muted mt-1">{f.detail}</div>
+              {isSelected && <div className="text-center f6 mt-1" style={{ color: f.color }}>▲ Projecting from this factor</div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   TREND CHART (reusable)
+   ════════════════════════════════════════════════════════════════════════════ */
+
+function TrendChart({ title, days, orgKey, userDayMap, selectedUser, smoothing, color, yLabel, isPercent, chartType }) {
+  const orgRaw = days.map(d => {
+    const v = d[orgKey];
+    return v != null ? (isPercent ? v * 100 : v) : null;
+  });
+  const orgData = smoothing ? smooth7(orgRaw) : orgRaw;
+
+  const series = [{
+    name: 'Org Average',
+    type: chartType || 'spline',
+    data: orgData,
+    color: color,
+    marker: { radius: 2 },
+  }];
+
+  if (selectedUser && userDayMap) {
+    const userRaw = days.map(d => {
+      const rec = userDayMap[d.day];
+      if (!rec) return null;
+      const v = rec[orgKey];
+      return v != null ? (isPercent ? v * 100 : v) : null;
+    });
+    const userData = smoothing ? smooth7(userRaw) : userRaw;
+    series.push({
+      name: selectedUser,
+      type: chartType || 'spline',
+      data: userData,
+      color: '#d29922',
+      dashStyle: 'ShortDash',
+      marker: { radius: 3, symbol: 'diamond' },
+      lineWidth: 2,
+    });
+  }
+
+  const opts = {
+    chart: { height: 260 },
+    title: { text: title, style: { fontSize: '13px' } },
+    xAxis: { categories: days.map(d => d.day), labels: { rotation: -45, style: { fontSize: '9px' }, step: Math.max(1, Math.floor(days.length / 8)) } },
+    yAxis: { title: { text: yLabel || '' }, min: 0, labels: isPercent ? { format: '{value}%' } : {} },
+    tooltip: { shared: true, valueDecimals: isPercent ? 1 : 2, valueSuffix: isPercent ? '%' : '' },
+    legend: { enabled: !!selectedUser },
+    series,
+  };
+
+  return <Chart options={opts} className="chart-container-sm" />;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   COMPLETIONS TREND CHART (custom for PR-based metrics)
+   ════════════════════════════════════════════════════════════════════════════ */
+
+function CompletionsTrendChart({ title, days, dataMap, selectedUser, userDataMap, smoothing, color, yLabel, chartType }) {
+  const orgRaw = days.map(d => {
+    const entry = dataMap[d.day];
+    return entry != null ? entry : 0;
+  });
+  const orgData = smoothing ? smooth7(orgRaw) : orgRaw;
+
+  const series = [{
+    name: 'Org',
+    type: chartType || 'spline',
+    data: orgData,
+    color: color,
+    marker: { radius: 2 },
+  }];
+
+  if (selectedUser && userDataMap) {
+    const userRaw = days.map(d => {
+      const v = userDataMap[d.day];
+      return v != null ? v : 0;
+    });
+    const userData = smoothing ? smooth7(userRaw) : userRaw;
+    series.push({
+      name: selectedUser,
+      type: chartType || 'spline',
+      data: userData,
+      color: '#d29922',
+      dashStyle: 'ShortDash',
+      marker: { radius: 3, symbol: 'diamond' },
+      lineWidth: 2,
+    });
+  }
+
+  const opts = {
+    chart: { height: 260 },
+    title: { text: title, style: { fontSize: '13px' } },
+    xAxis: { categories: days.map(d => d.day), labels: { rotation: -45, style: { fontSize: '9px' }, step: Math.max(1, Math.floor(days.length / 8)) } },
+    yAxis: { title: { text: yLabel || '' }, min: 0 },
+    tooltip: { shared: true, valueDecimals: 1 },
+    legend: { enabled: !!selectedUser },
+    series,
+  };
+
+  return <Chart options={opts} className="chart-container-sm" />;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   LEVERAGE INSIGHTS SECTION
+   ════════════════════════════════════════════════════════════════════════════ */
+
+function LeverageInsightsSection({ days, prSessions, devDays, config, selectedUser, onSelectUser, selectedEstimate, structuralFactor }) {
+  const [smoothing, setSmoothing] = useState(false);
+  const n = days.length;
+  const totalDevs = config.cfg_total_developers || 100;
+  const totalRepos = config.cfg_total_repos;
+
+  // Build user day map for selected user (from devDays)
+  const userDayMap = useMemo(() => {
+    if (!selectedUser || !devDays.length) return null;
+    const map = {};
+    for (const dd of devDays) {
+      if (dd.developer === selectedUser) {
+        map[dd.day] = {
+          ...dd,
+          requests_per_dev: dd.total_agent_requests,
+          sessions_per_dev: dd.sessions_started,
+          prs_created_per_dev: dd.agent_prs_created,
+          prs_merged_per_dev: dd.agent_prs_merged,
+          loc_added_per_dev: dd.agent_loc_added / 100,
+          session_mins_per_dev: dd.agent_session_minutes,
+          changes_requested_per_dev: dd.changes_requested_total,
+        };
+      }
+    }
+    return Object.keys(map).length > 0 ? map : null;
+  }, [selectedUser, devDays]);
+
+  // Dev structural metrics for overlay
+  const userStructuralMap = useMemo(() => {
+    if (!selectedUser || !devDays.length) return null;
+    const map = {};
+    const devRecords = devDays.filter(u => u.developer === selectedUser);
+    for (const dd of devRecords) {
+      const isActive = (dd.total_agent_requests || 0) > 0;
+      map[dd.day] = {
+        adoption_pct: isActive ? 1.0 : 0.0,
+      };
+    }
+    return Object.keys(map).length > 0 ? map : null;
+  }, [selectedUser, devDays]);
+
+  // PR-related data maps from prSessions
+  const { mergedByDay, userMergedByDay, incompletionsByDay, userIncompletionsByDay } = useMemo(() => {
+    const mergedByDay = {};
+    const userMergedByDay = {};
+    const incompletionsByDay = {};
+    const userIncompletionsByDay = {};
+
+    for (const pr of prSessions) {
+      if (!pr.day) continue;
+
+      if (pr.merged) {
+        const mergeDay = pr.merged_at?.slice(0, 10) || pr.day;
+        mergedByDay[mergeDay] = (mergedByDay[mergeDay] || 0) + 1;
+        if (selectedUser && (pr.origin_requested_by === selectedUser || pr.author === selectedUser)) {
+          userMergedByDay[mergeDay] = (userMergedByDay[mergeDay] || 0) + 1;
+        }
+      }
+
+      if (!pr.merged && (pr.state === 'closed' || pr.state === 'CLOSED' || pr.state === 'Closed')) {
+        const closeDay = pr.closed_at?.slice(0, 10) || pr.day;
+        incompletionsByDay[closeDay] = (incompletionsByDay[closeDay] || 0) + 1;
+        if (selectedUser && (pr.origin_requested_by === selectedUser || pr.author === selectedUser)) {
+          userIncompletionsByDay[closeDay] = (userIncompletionsByDay[closeDay] || 0) + 1;
+        }
+      }
+    }
+
+    return { mergedByDay, userMergedByDay, incompletionsByDay, userIncompletionsByDay };
+  }, [prSessions, selectedUser]);
+
+  // Merge rate per user
+  const userMergeRateMap = useMemo(() => {
+    if (!selectedUser || !devDays.length) return null;
+    const map = {};
+    for (const dd of devDays) {
+      if (dd.developer === selectedUser) {
+        map[dd.day] = {
+          merge_rate: safeDiv(dd.agent_prs_merged, dd.agent_prs_created),
+        };
+      }
+    }
+    return Object.keys(map).length > 0 ? map : null;
+  }, [selectedUser, devDays]);
+
+  // Adoption % per day (org)
+  const adoptionDays = useMemo(() => {
+    return days.map(d => ({
+      ...d,
+      adoption_pct: safeDiv(d.active_devs, totalDevs),
+    }));
+  }, [days, totalDevs]);
+
+  // Changes requested per dev per day (org)
+  const changesRequestedDays = useMemo(() => {
+    return days.map(d => ({
+      ...d,
+      changes_requested_per_dev: safeDiv(d.changes_requested_total, d.active_devs),
+    }));
+  }, [days]);
+
+  // User changes requested map
+  const userChangesReqMap = useMemo(() => {
+    if (!selectedUser || !devDays.length) return null;
+    const map = {};
+    for (const dd of devDays) {
+      if (dd.developer === selectedUser) {
+        map[dd.day] = {
+          changes_requested_per_dev: dd.changes_requested_total,
+        };
+      }
+    }
+    return Object.keys(map).length > 0 ? map : null;
+  }, [selectedUser, devDays]);
+
+  // Diagnostic leverage rectangle — normalized per developer (additive model)
+  const estByMethod = {};
+  for (const m of ESTIMATION_METHODS) {
+    estByMethod[m.key] = m.calcTotal(prSessions, config);
+  }
+  const activeDevHours = estByMethod[selectedEstimate] || estByMethod['duration'] || 0;
+  const totalMerged = prSessions.filter(pr => pr.merged).length;
+  const totalCreated = prSessions.length;
+  const totalCompletions = totalMerged;
+
+  // Average dev-hours per PR (for scaling projections)
+  const avgDevHoursPerPr = totalCreated > 0 ? activeDevHours / totalCreated : 0;
+
+  // Unique developers in the period
+  const uniqueDevs = useMemo(() => {
+    const logins = new Set();
+    for (const dd of devDays) {
+      if (dd.developer) logins.add(dd.developer);
+    }
+    return Math.max(logins.size, 1);
+  }, [devDays]);
+
+  // Normalized org metrics (per dev)
+  const orgHoursPerDev = activeDevHours / uniqueDevs;
+  const orgCompletionsPerDev = totalCompletions / uniqueDevs;
+  const currentLeverage = safeDiv(totalCompletions, activeDevHours);
+
+  // Structural factor values
+  const avgActiveDevs = mean(days.map(d => d.active_devs));
+  const adoptionPct = safeDiv(avgActiveDevs, totalDevs);
+  const overallMergeRate = safeDiv(totalMerged, totalCreated);
+  const activeRepos = new Set(prSessions.map(pr => pr.repo).filter(Boolean)).size;
+  const repoCoverage = totalRepos ? safeDiv(activeRepos, totalRepos) : null;
+
+  const factorMap = { adoption: adoptionPct, merge_rate: overallMergeRate, coverage: repoCoverage };
+  const factorLabelMap = { adoption: 'Adoption', merge_rate: 'Merge Rate', coverage: 'Repo Coverage' };
+  const factorColorMap = { adoption: '#58a6ff', merge_rate: '#3fb950', coverage: '#bc8cff' };
+  const currentLevel = factorMap[structuralFactor] || 0;
+
+  // Projected: scale UP both axes proportionally (additive model, same avg duration per PR)
+  const scaleFactor = currentLevel > 0 ? (1 / currentLevel) : 1;
+  const projectedCompletionsPerDev = currentLevel > 0 ? orgCompletionsPerDev * scaleFactor : orgCompletionsPerDev;
+  const projectedPRsTotal = currentLevel > 0 ? Math.round(totalCreated * scaleFactor) : totalCreated;
+  const projectedHoursPerDev = currentLevel > 0 ? (projectedPRsTotal * avgDevHoursPerPr / uniqueDevs) : orgHoursPerDev;
+  const projectedLeverage = safeDiv(projectedCompletionsPerDev, projectedHoursPerDev);
+
+  const devStats = useMemo(() => {
+    if (!selectedUser) return null;
+    const devRecords = devDays.filter(u => u.developer === selectedUser);
+    const activeDays = devRecords.filter(u => (u.total_agent_requests || 0) > 0).length;
+    const devPrsCreated = devRecords.reduce((s, dd) => s + (dd.agent_prs_created || 0), 0);
+    const devHourProxy = devPrsCreated * avgDevHoursPerPr;
+    const devCompletions = devRecords.reduce((s, dd) => s + (dd.agent_prs_merged || 0), 0);
+    const devLeverage = safeDiv(devCompletions, devHourProxy);
+    return { activeDays, devHourProxy, devCompletions, devLeverage };
+  }, [selectedUser, devDays, avgDevHoursPerPr]);
+
+  const xMax = Math.max(orgHoursPerDev, projectedHoursPerDev, (devStats?.devHourProxy || 0) * 1.2) * 1.15;
+  const yMax = Math.max(orgCompletionsPerDev, projectedCompletionsPerDev, (devStats?.devCompletions || 0) * 1.2) * 1.3;
+
+  const diagRectSeries = [];
+
+  // Layer 1 (bottom): Projected — largest rectangle (scaled up)
+  if (currentLevel > 0 && currentLevel < 1) {
+    diagRectSeries.push({
+      type: 'polygon', name: `Projected (${factorLabelMap[structuralFactor]} → 100%)`,
+      data: [[0, 0], [projectedHoursPerDev, 0], [projectedHoursPerDev, projectedCompletionsPerDev], [0, projectedCompletionsPerDev]],
+      color: `rgba(${factorColorMap[structuralFactor] === '#58a6ff' ? '88,166,255' : factorColorMap[structuralFactor] === '#3fb950' ? '63,185,80' : '188,140,255'},0.08)`,
+      lineWidth: 1, lineColor: factorColorMap[structuralFactor] || '#bc8cff', dashStyle: 'ShortDash',
+      enableMouseTracking: true,
+      tooltip: { headerFormat: '', pointFormat: `<b>Projected (${factorLabelMap[structuralFactor]} → 100%)</b><br/>Hours/Dev: ${fmtDec(projectedHoursPerDev, 1)}<br/>Completions/Dev: ${fmtDec(projectedCompletionsPerDev, 1)}<br/>Leverage: ${fmtDec(projectedLeverage, 3)}<br/>${fmtDec(scaleFactor, 1)}× current volume` },
+    });
+  }
+
+  // Layer 2 (top): Existing — measured rectangle
+  diagRectSeries.push({
+    type: 'polygon', name: 'Org Existing',
+    data: [[0, 0], [orgHoursPerDev, 0], [orgHoursPerDev, orgCompletionsPerDev], [0, orgCompletionsPerDev]],
+    color: 'rgba(88,166,255,0.12)', lineWidth: 2, lineColor: '#58a6ff',
+    enableMouseTracking: true,
+    tooltip: { headerFormat: '', pointFormat: `<b>Existing (per dev)</b><br/>Hours/Dev: ${fmtDec(orgHoursPerDev, 1)}<br/>Completions/Dev: ${fmtDec(orgCompletionsPerDev, 1)}<br/>Leverage: ${fmtDec(currentLeverage, 3)}<br/>${uniqueDevs} developers` },
+  });
+
+  // Counterfactual = origin
+  diagRectSeries.push({
+    type: 'scatter', name: 'Counterfactual (without AI)',
+    data: [{ x: 0, y: 0 }],
+    color: '#f85149',
+    marker: { radius: 6, symbol: 'circle', lineWidth: 2, lineColor: '#f85149', fillColor: 'rgba(248,81,73,0.5)' },
+    tooltip: { headerFormat: '', pointFormat: '<b>Without agent: 0 completions, 0 dev-hours</b>' },
+  });
+
+  // Leverage slope line
+  const slopeEndX = Math.max(orgHoursPerDev, projectedHoursPerDev);
+  const slopeEndY = Math.max(orgCompletionsPerDev, projectedCompletionsPerDev);
+  diagRectSeries.push({
+    type: 'line', name: `Leverage = ${fmtDec(currentLeverage, 3)}`,
+    data: [[0, 0], [slopeEndX, slopeEndY]],
+    color: '#3fb950', dashStyle: 'Dash', lineWidth: 2,
+    marker: { enabled: false }, enableMouseTracking: false,
+  });
+
+  // Developer scatter point
+  if (devStats && devStats.devHourProxy > 0) {
+    diagRectSeries.push({
+      type: 'scatter', name: `${selectedUser}`,
+      data: [{ x: devStats.devHourProxy, y: devStats.devCompletions,
+        custom: { leverage: devStats.devLeverage, activeDays: devStats.activeDays } }],
+      color: '#d29922',
+      marker: { radius: 10, symbol: 'diamond', lineWidth: 2, lineColor: '#d29922', fillColor: 'rgba(210,153,34,0.7)' },
+      tooltip: { headerFormat: '', pointFormat:
+        `<b>${selectedUser}</b><br/>Hours: ${fmtDec(devStats.devHourProxy, 1)}<br/>Completions: ${devStats.devCompletions}<br/>Leverage: ${fmtDec(devStats.devLeverage, 3)}<br/>Active Days: ${devStats.activeDays}` },
+    });
+    // Dev leverage line
+    if (devStats.devCompletions > 0) {
+      const devSlope = devStats.devCompletions / devStats.devHourProxy;
+      const extendX = Math.min(devStats.devHourProxy * 1.3, xMax);
+      diagRectSeries.push({
+        type: 'line', name: `Dev Leverage = ${fmtDec(devStats.devLeverage, 3)}`,
+        data: [[0, 0], [extendX, devSlope * extendX]],
+        color: '#d29922', dashStyle: 'ShortDot', lineWidth: 1,
+        marker: { enabled: false }, enableMouseTracking: false,
+      });
+    }
+  }
+
+  const diagRectOpts = {
+    chart: { type: 'scatter', height: 420 },
+    title: { text: 'Diagnostic Leverage Rectangle' },
+    subtitle: { text: selectedUser ? `Per-developer view · Org vs ${selectedUser}` : 'Per-developer view · Select a developer to overlay their position' },
+    xAxis: { title: { text: 'Hours / Dev', style: { fontSize: '13px', fontWeight: '600' } }, min: 0, max: xMax, gridLineWidth: 1, labels: { formatter: function() { return fmtCompact(this.value); } } },
+    yAxis: { title: { text: 'Completions / Dev', style: { fontSize: '13px', fontWeight: '600' } }, min: 0, max: yMax, labels: { formatter: function() { return fmtCompact(this.value); } } },
+    tooltip: { useHTML: true, headerFormat: '' },
+    legend: { enabled: true, align: 'center', verticalAlign: 'bottom' },
+    plotOptions: { series: { animation: { duration: 600 }, states: { inactive: { opacity: 0.6 } } } },
+    series: diagRectSeries,
+  };
+
+  return (
+    <div className="insights-section">
+      <h2 className="f2 color-fg-accent">Leverage Insights</h2>
+      <p className="f6 color-fg-muted mb-3">Daily trends + developer overlay. (Trends are signals; estimates are aggregate.)</p>
+
+      <DevSearch devDays={devDays} selectedUser={selectedUser} onSelect={onSelectUser} />
+
+      {/* 7-day smoothing toggle */}
+      <label className="d-flex flex-items-center mb-3" style={{ gap: '6px', cursor: 'pointer' }}>
+        <input type="checkbox" checked={smoothing} onChange={e => setSmoothing(e.target.checked)} />
+        <span className="f6 color-fg-muted">7-day rolling average</span>
+      </label>
+
+      {/* Diagnostic leverage rectangle */}
+      <div className="Box p-3 mb-4">
+        <div className="d-flex flex-items-center flex-justify-between mb-2">
+          <div className="f5 text-bold color-fg-default" style={{ fontStyle: 'italic' }}>
+            More completions at minimal dev time → higher leverage
+          </div>
+          <div className="d-flex flex-items-center" style={{ gap: '8px' }}>
+            {(() => {
+              const mDef = ESTIMATION_METHODS.find(m => m.key === selectedEstimate) || ESTIMATION_METHODS[0];
+              return <span className="Label d-flex flex-items-center" style={{ color: '#58a6ff', borderColor: '#58a6ff', gap: '4px', fontSize: '12px', padding: '4px 10px' }}>
+                Estimate: {mDef.label} ({fmtCompact(activeDevHours / uniqueDevs)} hrs/dev)
+              </span>;
+            })()}
+            {currentLevel > 0 && currentLevel < 1 &&
+              <span className="Label d-flex flex-items-center" style={{ color: factorColorMap[structuralFactor] || '#bc8cff', borderColor: factorColorMap[structuralFactor] || '#bc8cff', gap: '4px', fontSize: '12px', padding: '4px 10px' }}>
+                Projection: {factorLabelMap[structuralFactor]} ({fmtPct(currentLevel)}) → 100% ({fmtDec(scaleFactor, 1)}×)
+              </span>
+            }
+          </div>
+        </div>
+        <Chart options={diagRectOpts} />
+      </div>
+
+      {/* Trend Panels */}
+      <h3 className="f5 color-fg-default mb-2">Activity Signals <span className="f6 color-fg-muted">(per active dev)</span></h3>
+      <div className="trend-grid mb-4">
+        <div className="Box p-3">
+          <TrendChart title="Agent Requests / Dev" days={days} orgKey="requests_per_dev"
+            userDayMap={userDayMap} selectedUser={selectedUser} smoothing={smoothing} color="#58a6ff" yLabel="Count" />
+        </div>
+        <div className="Box p-3">
+          <TrendChart title="Sessions / Dev" days={days} orgKey="sessions_per_dev"
+            userDayMap={userDayMap} selectedUser={selectedUser} smoothing={smoothing} color="#3fb950" yLabel="Count" />
+        </div>
+        <div className="Box p-3">
+          <TrendChart title="PRs Created / Dev" days={days} orgKey="prs_created_per_dev"
+            userDayMap={userDayMap} selectedUser={selectedUser} smoothing={smoothing} color="#d29922" yLabel="Count" />
+        </div>
+        <div className="Box p-3">
+          <TrendChart title="Agent LoC Added / Dev (÷100)" days={days} orgKey="loc_added_per_dev"
+            userDayMap={userDayMap} selectedUser={selectedUser} smoothing={smoothing} color="#bc8cff" yLabel="LoC/100" />
+        </div>
+      </div>
+
+      <h3 className="f5 color-fg-default mb-2">Structural Factors <span className="f6 color-fg-muted">(%)</span></h3>
+      <div className="trend-grid mb-4">
+        <div className="Box p-3">
+          <TrendChart title="Adoption %" days={adoptionDays} orgKey="adoption_pct"
+            userDayMap={userStructuralMap} selectedUser={selectedUser} smoothing={smoothing}
+            color="#58a6ff" yLabel="%" isPercent />
+        </div>
+        <div className="Box p-3">
+          <TrendChart title="Merge Rate %" days={days} orgKey="merge_rate"
+            userDayMap={userMergeRateMap} selectedUser={selectedUser} smoothing={smoothing}
+            color="#3fb950" yLabel="%" isPercent />
+        </div>
+      </div>
+
+      <h3 className="f5 color-fg-default mb-2">Quality / Turbulence Signals</h3>
+      <div className="trend-grid mb-4">
+        <div className="Box p-3">
+          <TrendChart title="Median Duration to Merge (minutes)" days={days} orgKey="median_merge_minutes"
+            userDayMap={userDayMap} selectedUser={selectedUser} smoothing={smoothing}
+            color="#79c0ff" yLabel="Minutes" />
+        </div>
+        <div className="Box p-3">
+          <TrendChart title="Changes Requested / Dev" days={changesRequestedDays} orgKey="changes_requested_per_dev"
+            userDayMap={userChangesReqMap} selectedUser={selectedUser} smoothing={smoothing}
+            color="#f85149" yLabel="Count" />
+        </div>
+      </div>
+
+      <h3 className="f5 color-fg-default mb-2">Completions</h3>
+      <div className="trend-grid mb-3">
+        <div className="Box p-3">
+          <CompletionsTrendChart title="Valid Completions (Merged Agent PRs)" days={days}
+            dataMap={mergedByDay} selectedUser={selectedUser} userDataMap={selectedUser ? userMergedByDay : null}
+            smoothing={smoothing} color="#58a6ff" yLabel="PRs" />
+        </div>
+        <div className="Box p-3">
+          <CompletionsTrendChart title="Failed Completions (Closed w/o Merge)" days={days}
+            dataMap={incompletionsByDay} selectedUser={selectedUser} userDataMap={selectedUser ? userIncompletionsByDay : null}
+            smoothing={smoothing} color="#f85149" yLabel="PRs" chartType="column" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   CONFIG PANEL
+   ════════════════════════════════════════════════════════════════════════════ */
+
+function ConfigPanel({ config, onApply, isOpen, onToggle }) {
+  const [cfg, setCfg] = useState(config);
+  useEffect(() => setCfg(config), [config]);
+  const set = (k, v) => setCfg(prev => ({ ...prev, [k]: v }));
+  const apply = () => onApply(cfg);
+
+  const fields = [
+    { section: 'Organization', items: [
+      { key: 'cfg_total_developers', label: 'Total Developers', type: 'number' },
+      { key: 'cfg_pct_time_reviewing', label: '% Time Reviewing Agent Work (0–1)', type: 'number', step: '0.05' },
+      { key: 'cfg_labor_cost_per_hour', label: 'Labor Cost $/hr', type: 'number' },
+      { key: 'cfg_workdays_per_week', label: 'Workdays / Week', type: 'number' },
+      { key: 'cfg_total_repos', label: 'Total Repos', type: 'number' },
+    ]},
+    { section: 'Estimation Constants', items: [
+      { key: 'est_duration_factor', label: 'Duration Multiplier (agent→human hours)', type: 'number', step: '1' },
+      { key: 'est_hrs_per_kloc', label: 'Hrs per 1K LoC', type: 'number', step: '0.5' },
+    ]},
+  ];
+
+  return (
+    <div className="Box mt-4" style={{ borderColor: isOpen ? 'var(--borderColor-accent-emphasis)' : undefined }}>
+      <div className="Box-header d-flex flex-items-center flex-justify-between" style={{ cursor: 'pointer' }} onClick={onToggle}>
+        <div className="d-flex flex-items-center" style={{ gap: '8px' }}>
+          <span style={{ transition: 'transform 0.15s', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', display: 'inline-block' }}>▶</span>
+          <h4 className="f5 mb-0">Configuration</h4>
+        </div>
+        <span className="f6 color-fg-muted">{cfg.cfg_total_developers} devs · ×{cfg.est_duration_factor || 2} duration multiplier</span>
+      </div>
+      {isOpen && (
+        <div className="Box-body">
+          {fields.map(section => (
+            <div key={section.section} className="mb-3">
+              <h5 className="f6 color-fg-muted text-bold mb-2">{section.section}</h5>
+              <div className="d-flex flex-wrap" style={{ gap: '12px', alignItems: 'flex-end' }}>
+                {section.items.map(f => (
+                  <div key={f.key} className="form-group mb-0" style={{ flex: '1 1 160px' }}>
+                    <label className="f6 color-fg-muted">{f.label}</label>
+                    <input type={f.type} className="form-control input-sm" step={f.step || '1'}
+                      value={cfg[f.key] ?? ''} onChange={e => set(f.key, e.target.value === '' ? null : parseFloat(e.target.value))} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+          <div className="d-flex flex-items-center mt-3" style={{ gap: '8px' }}>
+            <button className="btn btn-sm btn-primary" onClick={apply}>Apply & Recalculate</button>
+            <button className="btn btn-sm btn-outline" onClick={() => {
+              const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: 'application/json' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a'); a.href = url; a.download = 'config.json'; a.click();
+              URL.revokeObjectURL(url);
+            }}>💾 Save config.json</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   APP
+   ════════════════════════════════════════════════════════════════════════════ */
+
+function App() {
+  const [data, setData] = useState(null);
+  const [config, setConfig] = useState({
+    cfg_total_developers: 100, cfg_pct_time_reviewing: 0.2, cfg_labor_cost_per_hour: 75,
+    cfg_workdays_per_week: 5, cfg_total_repos: null,
+    est_duration_factor: 2, est_hrs_per_kloc: 2,
+  });
+  const [configOpen, setConfigOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [selectedEstimate, setSelectedEstimate] = useState('duration');
+  const [structuralFactor, setStructuralFactor] = useState('adoption');
+
+  const recompute = useCallback((raw, cfg) => {
+    const days = computeDerivedDays(raw.devDays, cfg);
+    return { ...raw, days };
+  }, []);
+
+  const handleData = useCallback((raw) => {
+    const merged = { ...raw };
+    setData(merged);
+    if (raw.config) setConfig(prev => ({ ...prev, ...raw.config }));
+  }, []);
+
+  const handleConfigApply = useCallback((cfg) => {
+    setConfig(cfg);
+    if (data) setData(prev => recompute(prev, cfg));
+  }, [data, recompute]);
+
+  return (
+    <div className="element-page">
+      <h1 className="f0 color-fg-default mb-1">Agentic AI Coding</h1>
+      <p className="f5 color-fg-muted mb-4">Element of Leverage</p>
+
+      <UploadPanel onData={handleData} />
+
+      {data && data.days && (
+        <>
+          <SourceSummary data={data} />
+
+          <div className="definition-row">
+            <DefinitionCard icon="🎯" label="Job to Be Done"
+              value="Autonomously implement code changes from issue descriptions"
+              description="Developers assign issues to Copilot, which creates PRs. Humans review and merge." />
+            <DefinitionCard icon="✅" label="What Counts as a Completion"
+              value="A Copilot-authored PR that gets merged"
+              description="Valid = PR achieved its purpose and was merged by a human reviewer. Failed = PR closed without merge." />
+            <DefinitionCard icon="📋" label="Job Class"
+              value="Value-creating (delegated)"
+              description="The agent creates code autonomously; humans guide via issue descriptions and review feedback." />
+          </div>
+
+          <LeverageRectangleSection days={data.days} prSessions={data.prSessions || []} config={config}
+            selectedEstimate={selectedEstimate} onEstimateChange={setSelectedEstimate}
+            structuralFactor={structuralFactor} onStructuralFactorChange={setStructuralFactor} />
+
+          <LeverageInsightsSection days={data.days} prSessions={data.prSessions || []} devDays={data.devDays || []}
+            config={config} selectedUser={selectedUser} onSelectUser={setSelectedUser}
+            selectedEstimate={selectedEstimate} structuralFactor={structuralFactor} />
+
+          <ConfigPanel config={config} onApply={handleConfigApply} isOpen={configOpen} onToggle={() => setConfigOpen(!configOpen)} />
+        </>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
