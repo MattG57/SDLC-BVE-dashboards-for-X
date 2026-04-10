@@ -1,1 +1,7 @@
-{"default":{"ENTERPRISE":"octodemo","ORG":"octodemo-demo","DAYS":"28"}}
+{
+  "default": {
+    "DAYS": "28",
+    "ENTERPRISE": "octodemo",
+    "ORG": "octodemo"
+  }
+}
