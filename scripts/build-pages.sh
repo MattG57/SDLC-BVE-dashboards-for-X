@@ -17,8 +17,10 @@ mkdir -p "$SITE_DIR"
 # ─── Dashboard registry: site-slug → repo-relative source path ────────────────
 
 declare -A DASHBOARDS=(
+  ["ai-assisted-coding/element"]="BVE-dashboards-for-ai-assisted-coding/dashboard/element"
   ["ai-assisted-coding/efficiency"]="BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency"
   ["ai-assisted-coding/structural"]="BVE-dashboards-for-ai-assisted-coding/dashboard/structural"
+  ["agentic-ai-coding/element"]="BVE-dashboards-for-agentic-ai-coding/dashboard/element"
   ["agentic-ai-coding/efficiency"]="BVE-dashboards-for-agentic-ai-coding/dashboard/efficiency"
   ["integrated"]="dashboard/integrated"
 )
@@ -146,7 +148,7 @@ cat > "$SITE_DIR/index.html" << 'LANDING_EOF'
   <!-- Row 2: AI Assisted Coding -->
   <p class="row-label">AI Assisted Coding</p>
   <div class="icon-grid">
-    <a class="app-icon disabled" href="#">
+    <a class="app-icon" href="ai-assisted-coding/element/">
       <div class="icon-tile tile-leverage">⚡</div>
       <span class="icon-label">Leverage</span>
     </a>
@@ -163,7 +165,7 @@ cat > "$SITE_DIR/index.html" << 'LANDING_EOF'
   <!-- Row 3: Agentic AI Coding -->
   <p class="row-label">Agentic AI Coding</p>
   <div class="icon-grid">
-    <a class="app-icon disabled" href="#">
+    <a class="app-icon" href="agentic-ai-coding/element/">
       <div class="icon-tile tile-leverage">⚡</div>
       <span class="icon-label">Leverage</span>
     </a>
