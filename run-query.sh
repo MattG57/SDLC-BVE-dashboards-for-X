@@ -16,6 +16,16 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SETTINGS_FILE="${SCRIPT_DIR}/query-settings.json"
 
+# ─── Interactive detection ─────────────────────────────────────────────────────
+# Non-interactive when CI is set or /dev/tty is unavailable.  In non-interactive
+# mode the script never prompts — missing required variables become hard errors
+# and profile-save prompts are skipped.
+# ───────────────────────────────────────────────────────────────────────────────
+
+is_interactive() {
+  [[ -z "${CI:-}" ]] && [[ -e /dev/tty ]]
+}
+
 # ─── Colors (disabled when stderr is not a terminal) ──────────────────────────
 
 if [[ -t 2 ]]; then
@@ -136,6 +146,7 @@ save_profile() {
 }
 
 prompt_save() {
+  if ! is_interactive; then return 0; fi
   echo "" >&2
   local save_answer
   read -r -p "$(printf '%b' "${BLUE}ℹ${NC}") Save these settings for next time? [y/N] " save_answer </dev/tty
@@ -183,6 +194,10 @@ resolve_vars() {
       done
 
       if [[ "$found" == false ]]; then
+        if ! is_interactive; then
+          err "At least one of ${group//|/ or } is required (non-interactive mode — set the env var before running)."
+          exit 1
+        fi
         echo "" >&2
         warn "One of the following is required: ${group//|/ or }"
         for var in "${group_vars[@]}"; do
@@ -204,6 +219,10 @@ resolve_vars() {
     else
       # Simple required var
       if [[ -z "${!group:-}" ]]; then
+        if ! is_interactive; then
+          err "$group is required (non-interactive mode — set the env var before running)."
+          exit 1
+        fi
         local val
         read -r -p "$(printf '%b' "${BLUE}ℹ${NC}") $group (required): " val </dev/tty
         if [[ -z "$val" ]]; then

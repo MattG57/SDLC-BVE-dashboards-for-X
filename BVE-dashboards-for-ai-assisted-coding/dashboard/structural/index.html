@@ -1633,6 +1633,56 @@ function App() {
     setConfig(d.config);
   }, []);
 
+  // Auto-load data from ./data/ when served via GitHub Pages
+  useEffect(() => {
+    fetch('./data/manifest.json')
+      .then(r => r.ok ? r.json() : null)
+      .then(manifest => {
+        if (!manifest?.files?.length) return null;
+        return Promise.all(manifest.files.map(f =>
+          fetch('./data/' + f).then(r => r.ok ? r.json() : null)
+        ));
+      })
+      .then(results => {
+        if (!results) return;
+        const entDays = [];
+        const userRecs = [];
+        let prRecords = [];
+        let rawPrRecords = [];
+        let autoConfig = { cfg_total_developers: null, cfg_total_dev_loc_added_day: null, cfg_workdays_per_week: 5, cfg_labor_cost_per_hour: null };
+        for (const d of results) {
+          if (!d) continue;
+          const isSource = d.enterprise_report || d.user_report;
+          const isPrReview = !isSource && (Array.isArray(d) || Array.isArray(d?.prs) || Array.isArray(d?.pull_requests?.prs));
+          if (isPrReview) {
+            const { all, filtered } = flattenPrReview(d);
+            rawPrRecords.push(...all);
+            prRecords.push(...filtered);
+          } else if (isSource) {
+            if (d.enterprise_report?.day_totals) entDays.push(...d.enterprise_report.day_totals.map(flattenDayTotal));
+            if (Array.isArray(d.user_report)) userRecs.push(...flattenUserReport(d.user_report));
+          }
+        }
+        if (!entDays.length) return;
+        const dayMap = {};
+        for (const r of entDays) dayMap[r.day] = r;
+        const enterprise = Object.values(dayMap).sort((a, b) => a.day.localeCompare(b.day));
+        const userMap = {};
+        for (const r of userRecs) userMap[r.day + '|' + r.user_login] = r;
+        const users = Object.values(userMap);
+        if (autoConfig.cfg_total_developers == null) {
+          const maxMau = Math.max(...enterprise.map(d => d.monthly_active_users || 0));
+          autoConfig.cfg_total_developers = maxMau > 0 ? Math.round(maxMau * 1.25) : Math.round(Math.max(...enterprise.map(d => d.daily_active_users)) * 2);
+        }
+        if (autoConfig.cfg_total_dev_loc_added_day == null) {
+          const avgLoc = enterprise.reduce((s, d) => s + d.loc_added_sum, 0) / enterprise.length;
+          autoConfig.cfg_total_dev_loc_added_day = avgLoc > 0 ? Math.round(avgLoc * 2.5) : 100000;
+        }
+        handleData({ enterprise, users, config: autoConfig, fileNames: ['auto-loaded'], prRecords: prRecords.length > 0 ? prRecords : null, rawPrRecords: rawPrRecords.length > 0 ? rawPrRecords : null });
+      })
+      .catch(() => {}); // Silent fail — manual upload still available
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleConfigApply = useCallback((newCfg) => {
     setConfig(newCfg);
     if (data) {

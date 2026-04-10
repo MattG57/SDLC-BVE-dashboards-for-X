@@ -1052,6 +1052,60 @@ function App() {
     if (raw.config) setConfig(mergedConfig);
   }, [config, aiMethod, recomputeAi, recomputeAgentic]);
 
+  // Auto-load data from ./data/ when served via GitHub Pages
+  useEffect(() => {
+    fetch('./data/manifest.json')
+      .then(r => r.ok ? r.json() : null)
+      .then(manifest => {
+        if (!manifest?.files?.length) return null;
+        return Promise.all(manifest.files.map(f =>
+          fetch('./data/' + f).then(r => r.ok ? r.json() : null)
+        ));
+      })
+      .then(results => {
+        if (!results) return;
+        const aiEntDays = [], aiUserRecs = [], aiPrRecords = [];
+        const agPrSessions = [], agDevDays = [], agRequests = [];
+        let autoConfig = {
+          cfg_total_developers: 100, cfg_pct_time_coding: 0.5, cfg_labor_cost_per_hour: 75,
+          cfg_workdays_per_week: 5, cfg_time_saved_pct_day: null, cfg_baseline_hours_per_dev_per_week: null,
+          est_interactions_per_hour: 20, est_hrs_per_kloc: 2, cfg_total_dev_loc_added_day: 10000,
+          cfg_pct_time_reviewing: 0.2, cfg_total_repos: null, est_duration_factor: 2,
+        };
+        for (const d of results) {
+          if (!d) continue;
+          const isAiSource = d.enterprise_report || d.user_report;
+          const isAgenticSource = d.pr_sessions || d.requests || d.developer_day_summary;
+          if (isAiSource) {
+            if (d.enterprise_report?.day_totals) aiEntDays.push(...d.enterprise_report.day_totals.map(flattenDayTotal));
+            if (Array.isArray(d.user_report)) aiUserRecs.push(...flattenUserReport(d.user_report));
+          } else if (isAgenticSource) {
+            if (Array.isArray(d.pr_sessions)) agPrSessions.push(...d.pr_sessions.map(flattenPrSession));
+            if (Array.isArray(d.developer_day_summary)) agDevDays.push(...d.developer_day_summary.map(flattenDevDay));
+            if (Array.isArray(d.requests)) agRequests.push(...d.requests);
+          }
+        }
+        if (!aiEntDays.length && !agPrSessions.length && !agDevDays.length) return;
+        let aiData = null;
+        if (aiEntDays.length > 0) {
+          const dayMap = {};
+          for (const r of aiEntDays) dayMap[r.day] = r;
+          const enterprise = Object.values(dayMap).sort((a, b) => a.day.localeCompare(b.day));
+          const userMap = {};
+          for (const r of aiUserRecs) userMap[r.day + '|' + r.user_login] = r;
+          const users = Object.values(userMap);
+          aiData = { enterprise, users, prRecords: aiPrRecords.length > 0 ? aiPrRecords : null };
+        }
+        let agenticData = null;
+        if (agPrSessions.length > 0 || agDevDays.length > 0) {
+          const agDays = computeDerivedDays(agDevDays, autoConfig);
+          agenticData = { days: agDays, prSessions: agPrSessions, devDays: agDevDays, requests: agRequests };
+        }
+        handleData({ aiData, agenticData, config: autoConfig, fileNames: ['auto-loaded'] });
+      })
+      .catch(() => {}); // Silent fail — manual upload still available
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleConfigApply = useCallback((cfg) => {
     setConfig(cfg);
     if (data) {

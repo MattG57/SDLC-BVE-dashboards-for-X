@@ -1029,6 +1029,37 @@ function App() {
     setConfig(d.config);
   }, [method]);
 
+  // Auto-load data from ./data/ when served via GitHub Pages
+  useEffect(() => {
+    fetch('./data/manifest.json')
+      .then(r => r.ok ? r.json() : null)
+      .then(manifest => {
+        if (!manifest?.files?.length) return null;
+        return Promise.all(manifest.files.map(f =>
+          fetch('./data/' + f).then(r => r.ok ? r.json() : null)
+        ));
+      })
+      .then(results => {
+        if (!results) return;
+        let prSessions = [];
+        let requests = [];
+        let devDays = [];
+        let autoConfig = { cfg_workdays_per_week: 5, cfg_labor_cost_per_hour: null, est_human_to_agent_ratio: 10, est_hrs_per_kloc: 4 };
+        for (const d of results) {
+          if (!d) continue;
+          if (Array.isArray(d.pr_sessions)) prSessions.push(...d.pr_sessions);
+          if (Array.isArray(d.requests)) requests.push(...d.requests);
+          if (Array.isArray(d.developer_day_summary)) devDays.push(...d.developer_day_summary);
+        }
+        if (!devDays.length && !prSessions.length) return;
+        const ddMap = {};
+        for (const r of devDays) ddMap[r.date + '|' + r.developer] = r;
+        devDays = Object.values(ddMap);
+        handleData({ prSessions, requests, devDays, config: autoConfig, fileNames: ['auto-loaded'] });
+      })
+      .catch(() => {}); // Silent fail — manual upload still available
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleMethodChange = useCallback((newMethod) => {
     setMethod(newMethod);
     if (data) {
