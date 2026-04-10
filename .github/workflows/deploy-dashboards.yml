@@ -5,6 +5,10 @@ on:
     - cron: '0 6 * * *' # Daily at 6 AM UTC
   workflow_dispatch:
     inputs:
+      skip_data_collection:
+        description: 'Deploy pages only (skip data collection)'
+        type: boolean
+        default: false
       enterprise:
         description: 'GitHub Enterprise slug (overrides ENTERPRISE variable)'
         required: false
@@ -35,6 +39,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Collect data
+        if: ${{ inputs.skip_data_collection != true }}
         env:
           GH_TOKEN: ${{ secrets.DASHBOARD_GH_TOKEN }}
           ENTERPRISE: ${{ inputs.enterprise || vars.ENTERPRISE || '' }}
