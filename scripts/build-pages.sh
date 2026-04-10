@@ -72,53 +72,112 @@ cat > "$SITE_DIR/index.html" << 'LANDING_EOF'
 <link rel="stylesheet" href="https://unpkg.com/@primer/css@21.3.1/dist/primer.css">
 <style>
   body { background: var(--bgColor-default); }
-  .landing { max-width: 960px; margin: 0 auto; padding: 48px 16px; }
-  .card-link { text-decoration: none; display: block; transition: transform 0.1s, box-shadow 0.1s; }
-  .card-link:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+  .landing { max-width: 720px; margin: 0 auto; padding: 48px 16px; }
+  .row-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--fgColor-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0 8px 8px;
+  }
+  .icon-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .app-icon {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-decoration: none;
+    padding: 12px 8px;
+    border-radius: 16px;
+    transition: transform 0.12s, background 0.12s;
+  }
+  .app-icon:hover {
+    transform: scale(1.05);
+    background: var(--bgColor-muted);
+  }
+  .app-icon .icon-tile {
+    width: 72px;
+    height: 72px;
+    border-radius: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    margin-bottom: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .app-icon .icon-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--fgColor-default);
+    text-align: center;
+    line-height: 1.3;
+  }
+  .app-icon.disabled { opacity: 0.35; pointer-events: none; }
+  .tile-leverage  { background: linear-gradient(135deg, #1f6feb, #388bfd); }
+  .tile-efficiency { background: linear-gradient(135deg, #238636, #3fb950); }
+  .tile-structure  { background: linear-gradient(135deg, #8b5cf6, #a78bfa); }
+  .spacer { visibility: hidden; }
 </style>
 </head>
 <body>
 <div class="landing">
-  <div class="mb-6">
+  <div class="mb-6 text-center">
     <h1 class="f00 color-fg-default">📊 BVE Dashboards</h1>
-    <p class="f3 color-fg-muted mt-2">Business Value Engineering dashboards for GitHub Copilot and SDLC metrics</p>
+    <p class="f4 color-fg-muted mt-2">Business Value Engineering dashboards for GitHub Copilot and SDLC metrics</p>
   </div>
 
-  <div class="d-grid" style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
-    <a class="card-link" href="ai-assisted-coding/efficiency/">
-      <div class="Box color-shadow-medium p-4">
-        <h3 class="f3 color-fg-default">AI Assisted Coding</h3>
-        <p class="f5 color-fg-muted mt-1">Efficiency Dashboard</p>
-        <span class="Label Label--accent mt-2">Copilot Metrics</span>
-      </div>
+  <!-- Row 1: Integrated -->
+  <p class="row-label">Integrated</p>
+  <div class="icon-grid">
+    <div class="spacer"></div>
+    <a class="app-icon" href="integrated/">
+      <div class="icon-tile tile-leverage">⚡</div>
+      <span class="icon-label">Leverage</span>
     </a>
+    <div class="spacer"></div>
+  </div>
 
-    <a class="card-link" href="ai-assisted-coding/structural/">
-      <div class="Box color-shadow-medium p-4">
-        <h3 class="f3 color-fg-default">AI Assisted Coding</h3>
-        <p class="f5 color-fg-muted mt-1">Structural Dashboard</p>
-        <span class="Label Label--accent mt-2">Copilot + PR Metrics</span>
-      </div>
+  <!-- Row 2: AI Assisted Coding -->
+  <p class="row-label">AI Assisted Coding</p>
+  <div class="icon-grid">
+    <a class="app-icon disabled" href="#">
+      <div class="icon-tile tile-leverage">⚡</div>
+      <span class="icon-label">Leverage</span>
     </a>
-
-    <a class="card-link" href="agentic-ai-coding/efficiency/">
-      <div class="Box color-shadow-medium p-4">
-        <h3 class="f3 color-fg-default">Agentic AI Coding</h3>
-        <p class="f5 color-fg-muted mt-1">Efficiency Dashboard</p>
-        <span class="Label Label--accent mt-2">Agent Metrics</span>
-      </div>
+    <a class="app-icon" href="ai-assisted-coding/efficiency/">
+      <div class="icon-tile tile-efficiency">📈</div>
+      <span class="icon-label">Efficiency</span>
     </a>
-
-    <a class="card-link" href="integrated/">
-      <div class="Box color-shadow-medium p-4">
-        <h3 class="f3 color-fg-default">Integrated Leverage</h3>
-        <p class="f5 color-fg-muted mt-1">Combined Dashboard</p>
-        <span class="Label Label--accent mt-2">All Sources</span>
-      </div>
+    <a class="app-icon" href="ai-assisted-coding/structural/">
+      <div class="icon-tile tile-structure">🏗️</div>
+      <span class="icon-label">Structure</span>
     </a>
   </div>
 
-  <div class="mt-6 color-fg-muted f6">
+  <!-- Row 3: Agentic AI Coding -->
+  <p class="row-label">Agentic AI Coding</p>
+  <div class="icon-grid">
+    <a class="app-icon disabled" href="#">
+      <div class="icon-tile tile-leverage">⚡</div>
+      <span class="icon-label">Leverage</span>
+    </a>
+    <a class="app-icon" href="agentic-ai-coding/efficiency/">
+      <div class="icon-tile tile-efficiency">📈</div>
+      <span class="icon-label">Efficiency</span>
+    </a>
+    <a class="app-icon disabled" href="#">
+      <div class="icon-tile tile-structure">🏗️</div>
+      <span class="icon-label">Structure</span>
+    </a>
+  </div>
+
+  <div class="mt-4 color-fg-muted f6 text-center">
     <p>Data is collected nightly via <code>run-query.sh --all</code>. Dashboards auto-load the latest available data.</p>
     <p>Manual file upload is still available as a fallback on each dashboard.</p>
   </div>
