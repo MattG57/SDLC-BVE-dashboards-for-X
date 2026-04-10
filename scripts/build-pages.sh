@@ -130,7 +130,7 @@ cat > "$SITE_DIR/index.html" << 'LANDING_EOF'
 <body>
 <div class="landing">
   <div class="mb-6 text-center">
-    <h1 class="f00 color-fg-default">📊 BVE Dashboards</h1>
+    <h1 class="f00 color-fg-default"><svg width="42" height="42" viewBox="0 0 42 42" style="vertical-align: middle; margin-right: 4px;" aria-hidden="true"><rect x="4" y="4" width="34" height="30" rx="2" fill="none" stroke="#3fb950" stroke-width="2" stroke-dasharray="3 2"/><rect x="16" y="4" width="22" height="30" rx="2" fill="#388bfd" fill-opacity="0.3" stroke="#388bfd" stroke-width="1.5"/><line x1="4" y1="34" x2="38" y2="4" stroke="#3fb950" stroke-width="2" stroke-dasharray="4 2"/><circle cx="4" cy="34" r="2.5" fill="#3fb950"/><circle cx="38" cy="4" r="2.5" fill="#3fb950"/></svg> BVE Dashboards</h1>
     <p class="f4 color-fg-muted mt-2">Business Value Engineering dashboards for GitHub Copilot and SDLC metrics</p>
   </div>
 
