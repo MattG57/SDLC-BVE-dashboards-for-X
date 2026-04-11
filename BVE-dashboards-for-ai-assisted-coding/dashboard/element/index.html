@@ -1324,6 +1324,48 @@ function App() {
     if (raw.config) setConfig(prev => ({ ...prev, ...raw.config }));
   }, [method, config, recompute]);
 
+  // Auto-load data from ./data/ when served via GitHub Pages
+  useEffect(() => {
+    fetch('./data/manifest.json')
+      .then(r => r.ok ? r.json() : null)
+      .then(manifest => {
+        if (!manifest?.files?.length) return null;
+        return Promise.all(manifest.files.map(f =>
+          fetch('./data/' + f).then(r => r.ok ? r.json() : null)
+        ));
+      })
+      .then(results => {
+        if (!results) return;
+        const entDays = [];
+        const userRecs = [];
+        const prRecords = [];
+        let autoConfig = { cfg_time_saved_pct_day: null, cfg_baseline_hours_per_dev_per_week: null, cfg_workdays_per_week: 5,
+          cfg_labor_cost_per_hour: null, est_interactions_per_hour: 20, est_hrs_per_kloc: 2,
+          cfg_total_developers: 100, cfg_total_dev_loc_added_day: 10000, cfg_pct_time_coding: 0.5 };
+        for (const d of results) {
+          if (!d) continue;
+          const isSource = d.enterprise_report || d.user_report;
+          const isPrData = !isSource && (Array.isArray(d) || Array.isArray(d?.prs) || Array.isArray(d?.pull_requests?.prs));
+          if (isSource) {
+            if (d.enterprise_report?.day_totals) entDays.push(...d.enterprise_report.day_totals.map(flattenDayTotal));
+            if (Array.isArray(d.user_report)) userRecs.push(...flattenUserReport(d.user_report));
+          } else if (isPrData) {
+            const raw = Array.isArray(d) ? d : (d.prs || d.pull_requests?.prs || []);
+            prRecords.push(...raw.map(flattenPrRecord));
+          }
+        }
+        if (!entDays.length) return;
+        const dayMap = {};
+        for (const r of entDays) dayMap[r.day] = r;
+        const enterprise = Object.values(dayMap).sort((a, b) => a.day.localeCompare(b.day));
+        const userMap = {};
+        for (const r of userRecs) userMap[r.day + '|' + r.user_login] = r;
+        const users = Object.values(userMap);
+        handleData({ enterprise, users, config: autoConfig, fileNames: ['auto-loaded'], prRecords: prRecords.length > 0 ? prRecords : null });
+      })
+      .catch(() => {}); // Silent fail — manual upload still available
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleMethodChange = useCallback((m) => {
     setMethod(m);
     if (data) setData(prev => recompute(prev, config, m));

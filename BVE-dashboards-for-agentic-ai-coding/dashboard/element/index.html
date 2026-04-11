@@ -1261,6 +1261,40 @@ function App() {
     if (raw.config) setConfig(prev => ({ ...prev, ...raw.config }));
   }, []);
 
+  // Auto-load data from ./data/ when served via GitHub Pages
+  useEffect(() => {
+    fetch('./data/manifest.json')
+      .then(r => r.ok ? r.json() : null)
+      .then(manifest => {
+        if (!manifest?.files?.length) return null;
+        return Promise.all(manifest.files.map(f =>
+          fetch('./data/' + f).then(r => r.ok ? r.json() : null)
+        ));
+      })
+      .then(results => {
+        if (!results) return;
+        let prSessions = [];
+        let requests = [];
+        let devDays = [];
+        let autoConfig = { cfg_workdays_per_week: 5, cfg_labor_cost_per_hour: null,
+          cfg_total_developers: 100, cfg_pct_time_reviewing: 0.2,
+          cfg_total_repos: null, est_duration_factor: 2, est_hrs_per_kloc: 2 };
+        for (const d of results) {
+          if (!d) continue;
+          if (Array.isArray(d.pr_sessions)) prSessions.push(...d.pr_sessions.map(flattenPrSession));
+          if (Array.isArray(d.requests)) requests.push(...d.requests);
+          if (Array.isArray(d.developer_day_summary)) devDays.push(...d.developer_day_summary.map(flattenDevDay));
+        }
+        if (!devDays.length && !prSessions.length) return;
+        const ddMap = {};
+        for (const r of devDays) ddMap[r.date + '|' + r.developer] = r;
+        devDays = Object.values(ddMap);
+        const days = computeDerivedDays(devDays, autoConfig);
+        handleData({ days, prSessions, devDays, requests, config: autoConfig, fileNames: ['auto-loaded'] });
+      })
+      .catch(() => {}); // Silent fail — manual upload still available
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleConfigApply = useCallback((cfg) => {
     setConfig(cfg);
     if (data) setData(prev => recompute(prev, cfg));

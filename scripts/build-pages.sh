@@ -62,37 +62,46 @@ for slug in "${!DASHBOARDS[@]}"; do
   fi
 done
 
-# ─── Aggregate data for integrated dashboard ──────────────────────────────────
-# The integrated dashboard needs data from both AI-assisted and agentic sources.
-integrated_dest="${SITE_DIR}/integrated/data"
-if [[ -d "${SITE_DIR}/integrated" ]]; then
-  mkdir -p "$integrated_dest"
-  for data_src in ai-assisted-coding/efficiency ai-assisted-coding/structural agentic-ai-coding/efficiency; do
+# ─── Aggregate data for dashboards without their own data collection ───────────
+# Element dashboards and integrated dashboard need data from other sources.
+for slug_src in \
+  "ai-assisted-coding/element:ai-assisted-coding/efficiency ai-assisted-coding/structural" \
+  "agentic-ai-coding/element:agentic-ai-coding/efficiency" \
+  "integrated:ai-assisted-coding/efficiency ai-assisted-coding/structural agentic-ai-coding/efficiency"; do
+
+  target_slug="${slug_src%%:*}"
+  sources="${slug_src#*:}"
+  target_dest="${SITE_DIR}/${target_slug}/data"
+
+  [[ ! -d "${SITE_DIR}/${target_slug}" ]] && continue
+
+  mkdir -p "$target_dest"
+  for data_src in $sources; do
     src_data="${SITE_DIR}/${data_src}/data"
     if [[ -d "$src_data" ]]; then
       for f in "$src_data"/*.json; do
         fname="$(basename "$f")"
         [[ "$fname" == "manifest.json" ]] && continue
-        [[ -f "$integrated_dest/$fname" ]] && continue
-        cp "$f" "$integrated_dest/$fname"
+        [[ -f "$target_dest/$fname" ]] && continue
+        cp "$f" "$target_dest/$fname"
       done
     fi
   done
 
-  if ls "$integrated_dest"/*.json >/dev/null 2>&1; then
+  if ls "$target_dest"/*.json >/dev/null 2>&1; then
     manifest='{"files":['
     first=true
-    for f in "$integrated_dest"/*.json; do
+    for f in "$target_dest"/*.json; do
       fname="$(basename "$f")"
       [[ "$fname" == "manifest.json" ]] && continue
       if $first; then first=false; else manifest="$manifest,"; fi
       manifest="$manifest\"$fname\""
     done
     manifest="$manifest],\"generated\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
-    echo "$manifest" > "$integrated_dest/manifest.json"
-    echo "  ✔ integrated/data/ ($(find "$integrated_dest" -name '*.json' ! -name 'manifest.json' | wc -l) data files, aggregated)"
+    echo "$manifest" > "$target_dest/manifest.json"
+    echo "  ✔ $target_slug/data/ ($(find "$target_dest" -name '*.json' ! -name 'manifest.json' | wc -l) data files, aggregated)"
   fi
-fi
+done
 
 # ─── Generate landing page ────────────────────────────────────────────────────
 
