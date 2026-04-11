@@ -62,6 +62,38 @@ for slug in "${!DASHBOARDS[@]}"; do
   fi
 done
 
+# ─── Aggregate data for integrated dashboard ──────────────────────────────────
+# The integrated dashboard needs data from both AI-assisted and agentic sources.
+integrated_dest="${SITE_DIR}/integrated/data"
+if [[ -d "${SITE_DIR}/integrated" ]]; then
+  mkdir -p "$integrated_dest"
+  for data_src in ai-assisted-coding/efficiency ai-assisted-coding/structural agentic-ai-coding/efficiency; do
+    src_data="${SITE_DIR}/${data_src}/data"
+    if [[ -d "$src_data" ]]; then
+      for f in "$src_data"/*.json; do
+        fname="$(basename "$f")"
+        [[ "$fname" == "manifest.json" ]] && continue
+        [[ -f "$integrated_dest/$fname" ]] && continue
+        cp "$f" "$integrated_dest/$fname"
+      done
+    fi
+  done
+
+  if ls "$integrated_dest"/*.json >/dev/null 2>&1; then
+    manifest='{"files":['
+    first=true
+    for f in "$integrated_dest"/*.json; do
+      fname="$(basename "$f")"
+      [[ "$fname" == "manifest.json" ]] && continue
+      if $first; then first=false; else manifest="$manifest,"; fi
+      manifest="$manifest\"$fname\""
+    done
+    manifest="$manifest],\"generated\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+    echo "$manifest" > "$integrated_dest/manifest.json"
+    echo "  ✔ integrated/data/ ($(find "$integrated_dest" -name '*.json' ! -name 'manifest.json' | wc -l) data files, aggregated)"
+  fi
+fi
+
 # ─── Generate landing page ────────────────────────────────────────────────────
 
 cat > "$SITE_DIR/index.html" << 'LANDING_EOF'
