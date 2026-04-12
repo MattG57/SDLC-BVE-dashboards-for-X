@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark" data-dark-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BVE Data Status</title>
+<link rel="stylesheet" href="https://unpkg.com/@primer/css@21.3.1/dist/primer.css">
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  body { background: var(--bgColor-default); }
+  .status-page { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+  .status-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+  .badge-success { background: #238636; color: #fff; }
+  .badge-failed  { background: #da3633; color: #fff; }
+  .badge-cached  { background: #1f6feb; color: #fff; }
+  .badge-missing { background: #6e7681; color: #fff; }
+  .badge-stale   { background: #d29922; color: #fff; }
+  .ts-muted { font-size: 12px; color: var(--fgColor-muted); }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--fgColor-muted); padding: 8px; border-bottom: 1px solid var(--borderColor-default); }
+  td { padding: 8px; border-bottom: 1px solid var(--borderColor-muted); font-size: 14px; }
+  .size-cell { font-family: monospace; font-size: 13px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+function formatBytes(bytes) {
+  if (!bytes || bytes === 0) return '—';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+function timeAgo(ts) {
+  if (!ts) return '—';
+  const diff = Date.now() - new Date(ts).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return mins + 'm ago';
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + 'h ago';
+  const days = Math.floor(hrs / 24);
+  return days + 'd ago';
+}
+
+function StatusBadge({ status }) {
+  const cls = status === 'success' ? 'badge-success'
+    : status === 'failed' ? 'badge-failed'
+    : status === 'cached' ? 'badge-cached'
+    : status === 'stale' ? 'badge-stale'
+    : 'badge-missing';
+  return <span className={`status-badge ${cls}`}>{status}</span>;
+}
+
+function QueryRunSection({ queryRun }) {
+  if (!queryRun?.run_started) {
+    return (
+      <div className="Box color-shadow-medium p-4 mb-4">
+        <h3 className="f4 mb-2">📡 Data Collection</h3>
+        <p className="color-fg-muted f5">No query-status.json found — data collection status unknown.</p>
+        <p className="f6 color-fg-muted mt-2">This usually means the cache was restored from a previous run. Trigger a full run to generate fresh status.</p>
+      </div>
+    );
+  }
+
+  const targets = queryRun.targets || [];
+  const succeeded = targets.filter(t => t.status === 'success' || t.status === 'cached').length;
+  const failed = targets.filter(t => t.status === 'failed').length;
+
+  return (
+    <div className="Box color-shadow-medium p-4 mb-4">
+      <h3 className="f4 mb-2">📡 Data Collection</h3>
+      <div className="d-flex flex-wrap mb-3" style={{ gap: '24px' }}>
+        <div>
+          <span className="f6 color-fg-muted">Started</span>
+          <div className="f5">{new Date(queryRun.run_started).toLocaleString()} <span className="ts-muted">({timeAgo(queryRun.run_started)})</span></div>
+        </div>
+        {queryRun.run_finished && (
+          <div>
+            <span className="f6 color-fg-muted">Finished</span>
+            <div className="f5">{new Date(queryRun.run_finished).toLocaleString()}</div>
+          </div>
+        )}
+        <div>
+          <span className="f6 color-fg-muted">Profile</span>
+          <div className="f5"><code>{queryRun.profile || 'default'}</code></div>
+        </div>
+        <div>
+          <span className="f6 color-fg-muted">Result</span>
+          <div className="f5">{succeeded} passed, {failed} failed</div>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr><th>Target</th><th>Status</th><th>Script</th><th>Output File</th><th>Size</th><th>Time</th><th>Error</th></tr>
+        </thead>
+        <tbody>
+          {targets.map((t, i) => (
+            <tr key={i}>
+              <td className="text-bold">{t.target}</td>
+              <td><StatusBadge status={t.status} /></td>
+              <td className="color-fg-muted f6">{t.script?.split('/').pop()}</td>
+              <td className="f6"><code>{t.output_file}</code></td>
+              <td className="size-cell">{formatBytes(t.file_size_bytes)}</td>
+              <td className="ts-muted">{timeAgo(t.timestamp)}</td>
+              <td className="color-fg-danger f6">{t.error || '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function DashboardSection({ dashboards, buildTs }) {
+  return (
+    <div className="Box color-shadow-medium p-4 mb-4">
+      <h3 className="f4 mb-2">📊 Dashboard Data Inventory</h3>
+      <p className="f6 color-fg-muted mb-3">Built at {buildTs ? new Date(buildTs).toLocaleString() : '—'} <span className="ts-muted">({timeAgo(buildTs)})</span></p>
+
+      <table>
+        <thead>
+          <tr><th>Dashboard</th><th>HTML</th><th>Data Files</th><th>Total Size</th><th>Manifest</th></tr>
+        </thead>
+        <tbody>
+          {dashboards.map((d, i) => {
+            const totalSize = (d.data_files || []).reduce((s, f) => s + (f.size_bytes || 0), 0);
+            const fileCount = (d.data_files || []).length;
+            const hasData = fileCount > 0;
+            return (
+              <tr key={i}>
+                <td>
+                  <a href={'../' + d.slug + '/'} className="color-fg-accent text-bold">{d.slug}</a>
+                </td>
+                <td>{d.has_html ? '✅' : '❌'}</td>
+                <td>
+                  {hasData ? (
+                    <details>
+                      <summary className="f6 cursor-pointer">{fileCount} file{fileCount !== 1 ? 's' : ''}</summary>
+                      <div className="mt-1">
+                        {d.data_files.map((f, j) => (
+                          <div key={j} className="f6 color-fg-muted">
+                            <code>{f.name}</code> — {formatBytes(f.size_bytes)}
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  ) : <span className="color-fg-muted f6">none</span>}
+                </td>
+                <td className="size-cell">{hasData ? formatBytes(totalSize) : '—'}</td>
+                <td className="ts-muted">{d.manifest_generated ? timeAgo(d.manifest_generated) : '—'}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ExpectedSection({ expected, queryTargets }) {
+  const targetMap = {};
+  for (const t of (queryTargets || [])) targetMap[t.target] = t;
+
+  return (
+    <div className="Box color-shadow-medium p-4 mb-4">
+      <h3 className="f4 mb-2">🎯 Expected vs Actual</h3>
+      <p className="f6 color-fg-muted mb-3">Shows whether each expected data target was collected and is available.</p>
+
+      <table>
+        <thead>
+          <tr><th>Target</th><th>Script</th><th>Output</th><th>Dashboards</th><th>Collection</th></tr>
+        </thead>
+        <tbody>
+          {expected.map((e, i) => {
+            const actual = targetMap[e.target];
+            const status = actual ? actual.status : 'missing';
+            return (
+              <tr key={i}>
+                <td className="text-bold">{e.target}</td>
+                <td className="f6 color-fg-muted">{e.script}</td>
+                <td className="f6"><code>{e.output}</code></td>
+                <td className="f6">{e.dashboards.join(', ')}</td>
+                <td><StatusBadge status={status} /></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function App() {
+  const [status, setStatus] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetch('./data/data-status.json')
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then(setStatus)
+      .catch(e => setError(e.message));
+  }, []);
+
+  if (error) {
+    return (
+      <div className="status-page">
+        <h1 className="f0 color-fg-default mb-2">🔧 Data Status</h1>
+        <div className="flash flash-error mt-3">
+          <p>Failed to load data-status.json: {error}</p>
+          <p className="f6 mt-1">Run a full deployment to generate status data.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!status) {
+    return (
+      <div className="status-page">
+        <h1 className="f0 color-fg-default mb-2">🔧 Data Status</h1>
+        <p className="color-fg-muted">Loading…</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="status-page">
+      <h1 className="f0 color-fg-default mb-1">🔧 Data Status</h1>
+      <p className="f5 color-fg-muted mb-4">Data pipeline transparency for BVE Dashboards</p>
+
+      <QueryRunSection queryRun={status.query_run} />
+      <ExpectedSection expected={status.expected_targets || []} queryTargets={status.query_run?.targets} />
+      <DashboardSection dashboards={status.dashboards || []} buildTs={status.build_timestamp} />
+
+      <div className="mt-4 color-fg-muted f6">
+        <p><a href="../">← Back to dashboards</a></p>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

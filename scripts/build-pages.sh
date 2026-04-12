@@ -23,6 +23,7 @@ declare -A DASHBOARDS=(
   ["agentic-ai-coding/element"]="BVE-dashboards-for-agentic-ai-coding/dashboard/element"
   ["agentic-ai-coding/efficiency"]="BVE-dashboards-for-agentic-ai-coding/dashboard/efficiency"
   ["integrated"]="dashboard/integrated"
+  ["data-status"]="dashboard/data-status"
 )
 
 for slug in "${!DASHBOARDS[@]}"; do
@@ -102,6 +103,78 @@ for slug_src in \
     echo "  ✔ $target_slug/data/ ($(find "$target_dest" -name '*.json' ! -name 'manifest.json' | wc -l) data files, aggregated)"
   fi
 done
+
+# ─── Generate data-status.json for the data management dashboard ──────────────
+
+STATUS_JSON="${SITE_DIR}/data-status/data/data-status.json"
+mkdir -p "$(dirname "$STATUS_JSON")"
+
+# Start with query-status.json from run-query.sh if available
+QUERY_STATUS="${REPO_ROOT}/_data-status/query-status.json"
+if [[ -f "$QUERY_STATUS" ]]; then
+  QUERY_INFO=$(cat "$QUERY_STATUS")
+else
+  QUERY_INFO='{"run_started":null,"run_finished":null,"profile":null,"targets":[]}'
+fi
+
+# Build per-dashboard inventory from manifests
+DASHBOARD_INVENTORY="["
+d_first=true
+for slug in $(echo "${!DASHBOARDS[@]}" | tr ' ' '\n' | sort); do
+  dest="${SITE_DIR}/${slug}"
+  manifest_file="$dest/data/manifest.json"
+  files_json="[]"
+  manifest_ts="null"
+  if [[ -f "$manifest_file" ]]; then
+    files_json=$(jq -c '.files // []' "$manifest_file" 2>/dev/null || echo '[]')
+    manifest_ts=$(jq -r '.generated // empty' "$manifest_file" 2>/dev/null || echo "null")
+    [[ -n "$manifest_ts" && "$manifest_ts" != "null" ]] && manifest_ts="\"$manifest_ts\"" || manifest_ts="null"
+  fi
+
+  # Collect file sizes
+  file_details="[]"
+  if [[ -d "$dest/data" ]]; then
+    file_details="["
+    fd_first=true
+    for f in "$dest/data"/*.json; do
+      [[ ! -f "$f" ]] && continue
+      fname=$(basename "$f")
+      [[ "$fname" == "manifest.json" || "$fname" == "data-status.json" ]] && continue
+      fsize=$(wc -c < "$f" | tr -d ' ')
+      if $fd_first; then fd_first=false; else file_details="$file_details,"; fi
+      file_details="$file_details{\"name\":\"$fname\",\"size_bytes\":$fsize}"
+    done
+    file_details="$file_details]"
+  fi
+
+  if $d_first; then d_first=false; else DASHBOARD_INVENTORY="$DASHBOARD_INVENTORY,"; fi
+  DASHBOARD_INVENTORY="$DASHBOARD_INVENTORY{\"slug\":\"$slug\",\"has_html\":$([ -f "$dest/index.html" ] && echo true || echo false),\"manifest_generated\":$manifest_ts,\"data_files\":$file_details}"
+done
+DASHBOARD_INVENTORY="$DASHBOARD_INVENTORY]"
+
+# Expected targets for reference
+EXPECTED_TARGETS='[
+  {"target":"ai-assisted-efficiency","script":"copilot-user-and-enterprise-metrics.sh","output":"copilot-user-and-enterprise-metrics.json","dashboards":["ai-assisted-coding/efficiency"]},
+  {"target":"ai-assisted-structural","script":"copilot-user-and-enterprise-metrics.sh","output":"copilot-user-and-enterprise-metrics.json","dashboards":["ai-assisted-coding/structural"]},
+  {"target":"pr-review-structural","script":"human-pr-metrics.sh","output":"human-pr-metrics.json","dashboards":["ai-assisted-coding/structural"]},
+  {"target":"agentic-efficiency","script":"coding-agent-pr-metrics.sh","output":"coding-agent-pr-metrics.json","dashboards":["agentic-ai-coding/efficiency"]}
+]'
+
+jq -n \
+  --argjson query "$QUERY_INFO" \
+  --argjson dashboards "$DASHBOARD_INVENTORY" \
+  --argjson expected "$EXPECTED_TARGETS" \
+  --arg build_ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  '{
+    build_timestamp: $build_ts,
+    query_run: $query,
+    expected_targets: $expected,
+    dashboards: $dashboards
+  }' > "$STATUS_JSON"
+
+# Generate manifest for data-status dashboard
+echo "{\"files\":[\"data-status.json\"],\"generated\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > "$(dirname "$STATUS_JSON")/manifest.json"
+echo "  ✔ data-status/data/data-status.json"
 
 # ─── Generate landing page ────────────────────────────────────────────────────
 
@@ -223,6 +296,7 @@ cat > "$SITE_DIR/index.html" << 'LANDING_EOF'
   <div class="mt-4 color-fg-muted f6 text-center">
     <p>Data is collected nightly via <code>run-query.sh --all</code>. Dashboards auto-load the latest available data.</p>
     <p>Manual file upload is still available as a fallback on each dashboard.</p>
+    <p class="mt-2"><a href="data-status/" class="color-fg-accent">🔧 Data Status</a> — view collection results, data inventory, and pipeline health.</p>
   </div>
 </div>
 </body>

@@ -15,6 +15,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SETTINGS_FILE="${SCRIPT_DIR}/query-settings.json"
+STATUS_DIR="${SCRIPT_DIR}/_data-status"
 
 # ─── Interactive detection ─────────────────────────────────────────────────────
 # Non-interactive when CI is set or /dev/tty is unavailable.  In non-interactive
@@ -39,6 +40,46 @@ info()  { printf '%b %s\n' "${BLUE}ℹ${NC}"  "$*" >&2; }
 ok()    { printf '%b %s\n' "${GREEN}✔${NC}"  "$*" >&2; }
 warn()  { printf '%b %s\n' "${YELLOW}⚠${NC}" "$*" >&2; }
 err()   { printf '%b %s\n' "${RED}✖${NC}"   "$*" >&2; }
+
+# ─── Status tracking ──────────────────────────────────────────────────────────
+
+init_status() {
+  mkdir -p "$STATUS_DIR"
+  cat > "$STATUS_DIR/query-status.json" <<INIT_EOF
+{
+  "run_started": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "profile": "${1:-default}",
+  "targets": []
+}
+INIT_EOF
+}
+
+record_target_status() {
+  local target="$1" status="$2" script="$3" output_file="$4"
+  local file_size="${5:-0}" error_msg="${6:-}"
+  local timestamp
+  timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+  [[ ! -f "$STATUS_DIR/query-status.json" ]] && return 0
+
+  local entry
+  entry=$(jq -n \
+    --arg t "$target" --arg s "$status" --arg sc "$script" \
+    --arg of "$output_file" --arg ts "$timestamp" \
+    --argjson fs "$file_size" --arg em "$error_msg" \
+    '{ target: $t, status: $s, script: $sc, output_file: $of, file_size_bytes: $fs, error: (if $em == "" then null else $em end), timestamp: $ts }')
+
+  local updated
+  updated=$(jq --argjson e "$entry" '.targets += [$e]' "$STATUS_DIR/query-status.json")
+  echo "$updated" > "$STATUS_DIR/query-status.json"
+}
+
+finalize_status() {
+  [[ ! -f "$STATUS_DIR/query-status.json" ]] && return 0
+  local updated
+  updated=$(jq --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '. + { run_finished: $ts }' "$STATUS_DIR/query-status.json")
+  echo "$updated" > "$STATUS_DIR/query-status.json"
+}
 
 # ─── Target Registry ──────────────────────────────────────────────────────────
 # Each target maps a dashboard to its query script, env vars, and output dir.
@@ -288,6 +329,7 @@ run_target() {
   if [[ -n "$cache_dir" && -f "${cache_dir}/${cache_key}" ]]; then
     ok "Using cached output (same script already ran for $org_or_ent)"
     tmp_output="${cache_dir}/${cache_key}"
+    record_target_status "$target" "cached" "$query_script" "$output_file" "$(wc -c < "$tmp_output" | tr -d ' ')"
   else
     tmp_output=$(mktemp)
     echo "" >&2
@@ -296,6 +338,7 @@ run_target() {
 
     if ! bash "${SCRIPT_DIR}/${query_script}" > "$tmp_output"; then
       err "Query script failed."
+      record_target_status "$target" "failed" "$query_script" "$output_file" 0 "Query script exited with non-zero status"
       rm -f "$tmp_output"
       return 1
     fi
@@ -306,6 +349,7 @@ run_target() {
       local preview
       preview=$(head -c 200 "$tmp_output")
       err "Preview: $preview"
+      record_target_status "$target" "failed" "$query_script" "$output_file" 0 "Output is not valid JSON"
       rm -f "$tmp_output"
       return 1
     fi
@@ -327,6 +371,8 @@ run_target() {
     cp "$tmp_output" "${SCRIPT_DIR}/${dir}/${output_file}"
     ok "Wrote $dir/$output_file ($file_size bytes)"
   done
+
+  record_target_status "$target" "success" "$query_script" "$output_file" "$file_size"
 
   # Clean up if not cached
   if [[ -z "$cache_dir" ]]; then
@@ -423,6 +469,7 @@ main() {
 
   if [[ "$run_all" == true ]]; then
     info "Running all targets with profile: $profile"
+    init_status "$profile"
 
     _CACHE_DIR=$(mktemp -d)
     trap 'rm -rf "$_CACHE_DIR"' EXIT
@@ -441,6 +488,7 @@ main() {
     else
       warn "$failed target(s) failed"
     fi
+    finalize_status
 
     if [[ "$dry_run" == false && $failed -lt $(echo "$TARGETS" | wc -w | tr -d ' ') ]]; then
       local all_var_names=""

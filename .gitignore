@@ -53,3 +53,4 @@ logs/
 # Verification output
 verify_output.txt
 calculation_results.txt
+_data-status/

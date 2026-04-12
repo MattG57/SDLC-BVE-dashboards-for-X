@@ -44,6 +44,7 @@ jobs:
           path: |
             BVE-dashboards-for-ai-assisted-coding/dashboard/*/data/*.json
             BVE-dashboards-for-agentic-ai-coding/dashboard/*/data/*.json
+            _data-status/query-status.json
           key: dashboard-data-${{ github.run_id }}
           restore-keys: dashboard-data-
 
@@ -63,6 +64,7 @@ jobs:
           path: |
             BVE-dashboards-for-ai-assisted-coding/dashboard/*/data/*.json
             BVE-dashboards-for-agentic-ai-coding/dashboard/*/data/*.json
+            _data-status/query-status.json
           key: dashboard-data-${{ github.run_id }}
 
       - name: Build Pages site
