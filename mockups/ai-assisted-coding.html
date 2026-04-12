@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark" data-dark-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Assisted Coding — Element Mockup</title>
+<link rel="stylesheet" href="https://unpkg.com/@primer/css@21.3.1/dist/primer.css">
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  body { background: var(--bgColor-default); }
+  .element-page { max-width: 1280px; margin: 0 auto; padding: 24px 16px; }
+  .definition-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px; }
+  @media (max-width: 768px) { .definition-row { grid-template-columns: 1fr; } }
+  .def-card { border-top: 3px solid var(--borderColor-accent-emphasis); }
+  .def-card-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; }
+  .def-card-value { font-size: 1rem; font-weight: 600; line-height: 1.4; }
+  .def-card-sub { font-size: 0.8rem; }
+  .section-row { margin-bottom: 32px; padding-top: 8px; }
+  .opportunity-card { border-left: 3px solid var(--borderColor-accent-emphasis); }
+  .editable-area {
+    width: 100%; min-height: 350px; padding: 16px; border-radius: 6px;
+    background: var(--bgColor-muted); color: var(--fgColor-default);
+    border: 1px dashed var(--borderColor-default); font-family: inherit;
+    font-size: 0.875rem; line-height: 1.6; resize: vertical;
+  }
+  .editable-area:focus { border-color: var(--fgColor-accent); outline: none; }
+  .nav-bar { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+  .nav-bar a { text-decoration: none; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState } = React;
+const __originalSource = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+
+function escapeTemplateLiteral(s) {
+  return s.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$\{/g, '\\${');
+}
+
+async function saveFile(sections) {
+  let html = __originalSource;
+  const BT = String.fromCharCode(96);
+  ['4', '5', '6'].forEach(n => {
+    const key = 's' + n;
+    const pattern = 'const SECTION_' + n + '_DEFAULT = ' + BT + '[\\s\\S]*?' + BT + ';';
+    const replacement = 'const SECTION_' + n + '_DEFAULT = ' + BT + escapeTemplateLiteral(sections[key]) + BT + ';';
+    html = html.replace(new RegExp(pattern), replacement);
+  });
+  if (window.showSaveFilePicker) {
+    try {
+      const name = location.pathname.split('/').pop() || 'mockup.html';
+      const handle = await window.showSaveFilePicker({
+        suggestedName: name,
+        types: [{ description: 'HTML', accept: { 'text/html': ['.html'] } }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(html);
+      await writable.close();
+      return true;
+    } catch (e) {
+      if (e.name === 'AbortError') return false;
+      console.error('Save failed:', e);
+    }
+  }
+  const blob = new Blob([html], { type: 'text/html' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = location.pathname.split('/').pop() || 'mockup.html';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  return true;
+}
+
+
+function DefinitionCard({ label, value, description, icon }) {
+  return (
+    <div className="Box p-3 def-card">
+      <div className="def-card-label color-fg-muted mb-1">{icon && <span className="mr-1">{icon}</span>}{label}</div>
+      <div className="def-card-value color-fg-default">{value}</div>
+      {description && <div className="def-card-sub color-fg-muted mt-2">{description}</div>}
+    </div>
+  );
+}
+
+function DefinitionRow({ config }) {
+  return (
+    <div className="definition-row">
+      <DefinitionCard icon="🎯" label="Job to Be Done" value={config.jobToBeDone} description={config.jobDescription} />
+      <DefinitionCard icon="✅" label="What Counts as a Completion" value={config.completion} description={config.completionDescription} />
+      <DefinitionCard icon="📋" label="Job Class" value={config.jobClass} description={config.jobClassDescription} />
+    </div>
+  );
+}
+
+function SectionHeader({ number, title, desc }) {
+  return (
+    <div className="mb-3 pb-2" style={{ borderBottom: '1px solid var(--borderColor-default)', borderTop: '2px solid var(--borderColor-muted)', paddingTop: '12px' }}>
+      <h2 className="f2 color-fg-accent">
+        {number && <span className="color-fg-muted f3" style={{ fontWeight: 400 }}>{number}. </span>}
+        {title}
+      </h2>
+      {desc && <p className="f6 color-fg-muted">{desc}</p>}
+    </div>
+  );
+}
+
+function EditableSection({ number, title, desc, value, onChange }) {
+  return (
+    <div className="section-row">
+      <SectionHeader number={number} title={title} desc={desc} />
+      <textarea className="editable-area" value={value} onChange={e => onChange(e.target.value)} />
+    </div>
+  );
+}
+
+function ImprovementPatternSection({ opportunities }) {
+  const priorityColor = { high: '#f85149', medium: '#d29922', low: '#3fb950', unknown: '#8b949e' };
+  return (
+    <div className="section-row">
+      <SectionHeader number="7" title="Improvement Pattern" desc="Which improvement mechanisms apply to raise leverage?" />
+      <div className="d-flex flex-column" style={{ gap: '12px' }}>
+        {opportunities.map((opp, i) => (
+          <div key={i} className={`Box p-3 opportunity-card${!opp.applicable ? ' color-fg-muted' : ''}`}
+               style={!opp.applicable ? { opacity: 0.5, borderLeftColor: 'var(--borderColor-muted)' } : { borderLeftColor: priorityColor[opp.priority] }}>
+            <div className="d-flex flex-items-center mb-1">
+              <span className="f4 mr-2">{opp.icon}</span>
+              <span className="f4 text-bold">{opp.mechanism}</span>
+              {opp.applicable && (
+                <span className="Label ml-2" style={{ color: priorityColor[opp.priority], borderColor: priorityColor[opp.priority] }}>
+                  {opp.priority} priority
+                </span>
+              )}
+            </div>
+            <p className="f6 mb-1">{opp.description}</p>
+            <p className="f6 color-fg-muted">{opp.metric}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function NavBar({ current }) {
+  const pages = [
+    { name: 'AI Assisted Coding', file: 'ai-assisted-coding.html' },
+    { name: 'Agentic AI Coding', file: 'agentic-ai-coding.html' },
+    { name: 'Vulnerability Remediation', file: 'vulnerability-remediation-existing.html' },
+    { name: 'Automation Lifecycle', file: 'automation-lifecycle.html' },
+  ];
+  return (
+    <div className="nav-bar">
+      {pages.map(p => (
+        <a key={p.file} href={p.file}
+           className={`btn btn-sm${p.name === current ? ' btn-primary' : ''}`}>
+          {p.name}
+        </a>
+      ))}
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════
+   AI ASSISTED CODING
+   ════════════════════════════════════════════════════════════════ */
+
+const ELEMENT = {
+  name: 'AI Assisted Coding',
+  jobToBeDone: 'Write and ship code faster with AI assistance',
+  jobDescription: 'Developers use GitHub Copilot to generate, complete, and iterate on code within their editor and PR workflow.',
+  completion: 'A PR merged by a Copilot-active developer',
+  completionDescription: 'Valid = PR achieved its purpose (shipped a working change). Failed/flawed = reverted PRs or PRs requiring significant rework.',
+  jobClass: 'Value-creating',
+  jobClassDescription: 'Valid completions directly produce desired output — shipped code that moves the product forward.',
+};
+
+const SECTION_4_DEFAULT = `DRIVER: Developer-days using Copilot
+
+KEY METRICS TO SHOW:
+• Active Copilot developers per day (avg, trend)
+• Dev-hours consumed by this element per day
+• % of total org capacity represented (aperture share)
+• Total developer-days in period
+
+CHARTS:
+• Area chart: dev-hours/day over time
+• Stacked bar: active devs vs total devs
+
+CONTEXT:
+100 total developers, ~38% daily active on Copilot
+= ~38 devs × 8 hrs = 304 dev-hours/day in this element
+= 304 / 800 total org hours = 38% of capacity`;
+
+const SECTION_5_DEFAULT = `EFFICIENCY LENS:
+• Leverage = valid completions / dev-hour
+• Current: ~0.65 PRs merged per dev-hour
+• Hours per completion: ~1.54 hrs
+• Trend: leverage improving ~2% per week as devs gain proficiency
+
+STRUCTURAL LENS:
+• Adoption: 38% of devs active daily (growing)
+• PRs Assisted: 72% of all PRs involve a Copilot user
+• AI-Assisted LOC: 55% of lines in assisted PRs
+• Consistency: CV 0.28 — moderate day-to-day variation
+
+CHARTS:
+• Line chart: leverage (completions/hr) over time
+• Multi-line: adoption %, PR assisted %, AI-LOC % over time
+• Scatter: adoption vs PRs/day (is more adoption → more output?)`;
+
+const SECTION_6_DEFAULT = `OPPORTUNITY 1 — Structural: Adoption (HIGH)
+• Current: 38% → Target: 63% (+25pp)
+• +25 more active devs × 8 hrs × 0.65 leverage = +130 completions/day
+• Effort: Medium (enablement, training, seat provisioning)
+• Confidence: Medium (adoption growth is observable and achievable)
+
+OPPORTUNITY 2 — Efficiency: Time per Completion (MEDIUM)
+• Current: 1.54 hrs → Target: 1.23 hrs (20% reduction)
+• Saves ~6.2 dev-hours/day across 38 active devs
+• Effort: Medium (prompt quality, workflow optimization)
+• Confidence: Medium (efficiency gains documented in literature)
+
+OPPORTUNITY 3 — Yield: Completion Quality (MEDIUM)
+• Current yield: ~85% → Target: 92%
+• Reduces reverted/reworked PRs
+• Effort: Medium (code review quality, test coverage)
+
+OPPORTUNITY 4 — Structural: Consistency (LOW)
+• Current CV: 0.28 → Target: < 0.15
+• More predictable daily output
+• Effort: Low (scheduling, habit formation)`;
+
+const OPPORTUNITIES = [
+  { mechanism: 'Structural Improvement', icon: '🏗️', applicable: true, priority: 'high',
+    description: 'Increase adoption from 38% to 63% — bring 25 more developers into daily Copilot usage.',
+    metric: 'Current adoption: 38% · Target: 63% · +130 completions/day' },
+  { mechanism: 'Efficiency Improvement', icon: '⚡', applicable: true, priority: 'medium',
+    description: 'Reduce time per completion through better prompting, workflow optimization, and IDE integration.',
+    metric: 'Current: 1.54 hrs/completion · Target: 1.23 hrs · Saves 6.2 dev-hrs/day' },
+  { mechanism: 'Yield Improvement', icon: '🎯', applicable: true, priority: 'medium',
+    description: 'Increase share of valid completions — fewer reverted PRs, less rework.',
+    metric: 'Current yield: 85% · Target: 92%' },
+  { mechanism: 'Elimination', icon: '✂️', applicable: false, priority: 'low',
+    description: 'Not applicable — this is value-creating work that should be maximized, not eliminated.',
+    metric: 'N/A for value-creating jobs' },
+];
+
+function App() {
+  const [s4, setS4] = useState(SECTION_4_DEFAULT);
+  const [s5, setS5] = useState(SECTION_5_DEFAULT);
+  const [s6, setS6] = useState(SECTION_6_DEFAULT);
+  const [saveStatus, setSaveStatus] = useState('');
+
+  const handleSave = async () => {
+    setSaveStatus('saving');
+    const ok = await saveFile({ s4, s5, s6 });
+    setSaveStatus(ok ? 'saved' : '');
+    if (ok) setTimeout(() => setSaveStatus(''), 2000);
+  };
+
+  return (
+    <div className="element-page">
+      <div className="d-flex flex-justify-between flex-items-center mb-3">
+        <div>
+          <h1 className="f0 color-fg-default mb-1">{ELEMENT.name}</h1>
+          <p className="f5 color-fg-muted">Element of Leverage — 7-Question Framework</p>
+        </div>
+        <button className={'btn ' + (saveStatus === 'saved' ? 'btn-outline color-fg-success' : 'btn-primary')}
+                onClick={handleSave} disabled={saveStatus === 'saving'}>
+          {saveStatus === 'saving' ? '⏳ Saving…' : saveStatus === 'saved' ? '✅ Saved!' : '💾 Save to File'}
+        </button>
+      </div>
+
+      <NavBar current={ELEMENT.name} />
+      <DefinitionRow config={ELEMENT} />
+
+      <EditableSection number="4" title="Dev Time"
+        desc="How much capacity does this element consume?"
+        value={s4} onChange={setS4} />
+
+      <EditableSection number="5" title="Current Leverage"
+        desc="How much valid completion is being produced from the dev time consumed?"
+        value={s5} onChange={setS5} />
+
+      <EditableSection number="6" title="Improvement Opportunities"
+        desc="What improvement opportunities exist and how much improvement is realistic?"
+        value={s6} onChange={setS6} />
+
+      <ImprovementPatternSection opportunities={OPPORTUNITIES} />
+    </div>
+  );
+}
+
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

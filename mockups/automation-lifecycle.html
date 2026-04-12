@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark" data-dark-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Automation Lifecycle — Element Mockup</title>
+<link rel="stylesheet" href="https://unpkg.com/@primer/css@21.3.1/dist/primer.css">
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  body { background: var(--bgColor-default); }
+  .element-page { max-width: 1280px; margin: 0 auto; padding: 24px 16px; }
+  .definition-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px; }
+  @media (max-width: 768px) { .definition-row { grid-template-columns: 1fr; } }
+  .def-card { border-top: 3px solid var(--borderColor-accent-emphasis); }
+  .def-card-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; }
+  .def-card-value { font-size: 1rem; font-weight: 600; line-height: 1.4; }
+  .def-card-sub { font-size: 0.8rem; }
+  .section-row { margin-bottom: 32px; padding-top: 8px; }
+  .opportunity-card { border-left: 3px solid var(--borderColor-accent-emphasis); }
+  .editable-area {
+    width: 100%; min-height: 350px; padding: 16px; border-radius: 6px;
+    background: var(--bgColor-muted); color: var(--fgColor-default);
+    border: 1px dashed var(--borderColor-default); font-family: inherit;
+    font-size: 0.875rem; line-height: 1.6; resize: vertical;
+  }
+  .editable-area:focus { border-color: var(--fgColor-accent); outline: none; }
+  .nav-bar { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+  .nav-bar a { text-decoration: none; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState } = React;
+const __originalSource = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+
+function escapeTemplateLiteral(s) {
+  return s.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$\{/g, '\\${');
+}
+
+async function saveFile(sections) {
+  let html = __originalSource;
+  const BT = String.fromCharCode(96);
+  ['4', '5', '6'].forEach(n => {
+    const key = 's' + n;
+    const pattern = 'const SECTION_' + n + '_DEFAULT = ' + BT + '[\\s\\S]*?' + BT + ';';
+    const replacement = 'const SECTION_' + n + '_DEFAULT = ' + BT + escapeTemplateLiteral(sections[key]) + BT + ';';
+    html = html.replace(new RegExp(pattern), replacement);
+  });
+  if (window.showSaveFilePicker) {
+    try {
+      const name = location.pathname.split('/').pop() || 'mockup.html';
+      const handle = await window.showSaveFilePicker({
+        suggestedName: name,
+        types: [{ description: 'HTML', accept: { 'text/html': ['.html'] } }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(html);
+      await writable.close();
+      return true;
+    } catch (e) {
+      if (e.name === 'AbortError') return false;
+      console.error('Save failed:', e);
+    }
+  }
+  const blob = new Blob([html], { type: 'text/html' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = location.pathname.split('/').pop() || 'mockup.html';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  return true;
+}
+
+
+function DefinitionCard({ label, value, description, icon }) {
+  return (
+    <div className="Box p-3 def-card">
+      <div className="def-card-label color-fg-muted mb-1">{icon && <span className="mr-1">{icon}</span>}{label}</div>
+      <div className="def-card-value color-fg-default">{value}</div>
+      {description && <div className="def-card-sub color-fg-muted mt-2">{description}</div>}
+    </div>
+  );
+}
+
+function DefinitionRow({ config }) {
+  return (
+    <div className="definition-row">
+      <DefinitionCard icon="🎯" label="Job to Be Done" value={config.jobToBeDone} description={config.jobDescription} />
+      <DefinitionCard icon="✅" label="What Counts as a Completion" value={config.completion} description={config.completionDescription} />
+      <DefinitionCard icon="📋" label="Job Class" value={config.jobClass} description={config.jobClassDescription} />
+    </div>
+  );
+}
+
+function SectionHeader({ number, title, desc }) {
+  return (
+    <div className="mb-3 pb-2" style={{ borderBottom: '1px solid var(--borderColor-default)', borderTop: '2px solid var(--borderColor-muted)', paddingTop: '12px' }}>
+      <h2 className="f2 color-fg-accent">
+        {number && <span className="color-fg-muted f3" style={{ fontWeight: 400 }}>{number}. </span>}
+        {title}
+      </h2>
+      {desc && <p className="f6 color-fg-muted">{desc}</p>}
+    </div>
+  );
+}
+
+function EditableSection({ number, title, desc, value, onChange }) {
+  return (
+    <div className="section-row">
+      <SectionHeader number={number} title={title} desc={desc} />
+      <textarea className="editable-area" value={value} onChange={e => onChange(e.target.value)} />
+    </div>
+  );
+}
+
+function ImprovementPatternSection({ opportunities }) {
+  const priorityColor = { high: '#f85149', medium: '#d29922', low: '#3fb950', unknown: '#8b949e' };
+  return (
+    <div className="section-row">
+      <SectionHeader number="7" title="Improvement Pattern" desc="Which improvement mechanisms apply to raise leverage?" />
+      <div className="d-flex flex-column" style={{ gap: '12px' }}>
+        {opportunities.map((opp, i) => (
+          <div key={i} className={`Box p-3 opportunity-card${!opp.applicable ? ' color-fg-muted' : ''}`}
+               style={!opp.applicable ? { opacity: 0.5, borderLeftColor: 'var(--borderColor-muted)' } : { borderLeftColor: priorityColor[opp.priority] }}>
+            <div className="d-flex flex-items-center mb-1">
+              <span className="f4 mr-2">{opp.icon}</span>
+              <span className="f4 text-bold">{opp.mechanism}</span>
+              {opp.applicable && (
+                <span className="Label ml-2" style={{ color: priorityColor[opp.priority], borderColor: priorityColor[opp.priority] }}>
+                  {opp.priority} priority
+                </span>
+              )}
+            </div>
+            <p className="f6 mb-1">{opp.description}</p>
+            <p className="f6 color-fg-muted">{opp.metric}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function NavBar({ current }) {
+  const pages = [
+    { name: 'AI Assisted Coding', file: 'ai-assisted-coding.html' },
+    { name: 'Agentic AI Coding', file: 'agentic-ai-coding.html' },
+    { name: 'Vulnerability Remediation', file: 'vulnerability-remediation-existing.html' },
+    { name: 'Automation Lifecycle', file: 'automation-lifecycle.html' },
+  ];
+  return (
+    <div className="nav-bar">
+      {pages.map(p => (
+        <a key={p.file} href={p.file}
+           className={`btn btn-sm${p.name === current ? ' btn-primary' : ''}`}>
+          {p.name}
+        </a>
+      ))}
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════
+   AUTOMATION LIFECYCLE
+   ════════════════════════════════════════════════════════════════ */
+
+const ELEMENT = {
+  name: 'Automation Lifecycle',
+  jobToBeDone: 'Build, test, deploy, and validate code changes through CI/CD pipelines',
+  jobDescription: 'Every code change flows through automated build, test, and deployment pipelines. Dev time is consumed waiting for pipelines, investigating failures, maintaining pipeline configurations, and handling flaky tests.',
+  completion: 'A pipeline run that successfully validates and deploys a change',
+  completionDescription: 'Valid = pipeline passes and change reaches production (or target environment). Failed = legitimate failure caught by CI (a feature, not a bug). False = pipeline fails due to flaky test, infra issue, or misconfiguration — wasted dev time. Missed = change deployed without adequate validation.',
+  jobClass: 'Non-value-creating (necessary infrastructure)',
+  jobClassDescription: 'CI/CD is necessary infrastructure — it does not directly create product value, but its absence or weakness causes significant losses (broken deploys, regressions, slow iteration). The goal is to minimize dev time consumed while maintaining validation quality.',
+};
+
+const SECTION_4_DEFAULT = `DRIVER: Pipeline runs triggered per day
+
+KEY METRICS TO SHOW:
+• Pipeline runs per day (total, per repo)
+• Dev-hours waiting for pipelines per day
+• Dev-hours investigating pipeline failures per day
+• Dev-hours maintaining pipeline config per week
+• % of total org capacity consumed by CI/CD overhead
+
+CHARTS:
+• Area chart: pipeline runs/day over time
+• Stacked bar: dev-time breakdown (waiting, investigating, maintaining)
+• Histogram: pipeline duration distribution
+
+CONTEXT:
+• 850 pipeline runs/day across 450 repos
+• Avg pipeline duration: 12 minutes
+• Dev wait time: estimated 45 min/dev/day (context switch cost)
+• 100 devs × 0.75 hrs/day = 75 dev-hrs/day on CI/CD overhead
+• 75 / 800 total org hours = 9.4% of capacity — large for non-value-creating work
+• Pipeline failure rate: 28% (high)
+• Of failures: 40% are legitimate catches, 60% are flaky/infra/config issues`;
+
+const SECTION_5_DEFAULT = `EFFICIENCY LENS:
+• Leverage = successful deployments / dev-hour of CI/CD overhead
+• Current: 2.8 successful deploys per dev-hour of overhead
+• Pipeline duration: 12 min median, 35 min p95
+• Developer wait cost: 45 min/dev/day average (includes context switching)
+
+STRUCTURAL LENS:
+• Pipeline coverage: 92% of repos have CI configured
+• Test coverage in pipelines: varies wildly (10% to 90% across repos)
+• Flaky test rate: 18% of test failures are non-deterministic
+• Auto-deploy rate: 35% of repos have CD (auto-deploy on green)
+• Pipeline-as-code: 78% use reusable workflow templates
+
+YIELD LENS:
+• Overall pipeline success rate: 72%
+• Of the 28% failures:
+  - 40% are legitimate catches (good — the pipeline did its job)
+  - 35% are flaky tests (false failures — wasted dev time)
+  - 15% are infra/config issues (false failures — wasted dev time)
+  - 10% are timeout/resource issues (false failures)
+• Effective yield: 72% + (28% × 40%) = 83.2% of runs are "useful"
+• False failure rate: 28% × 60% = 16.8% of runs waste dev time
+
+CHARTS:
+• Waterfall: pipeline time breakdown (build, test, deploy, wait)
+• Trend: flaky test rate over time
+• Scatter: pipeline duration vs repo size`;
+
+const SECTION_6_DEFAULT = `OPPORTUNITY 1 — Yield: Flaky Test Elimination (HIGH)
+• Current false failure rate: 16.8% → Target: < 5%
+• Flaky tests waste ~12.5 dev-hrs/day in investigation + re-runs
+• Quarantine, fix, or remove flaky tests systematically
+• Effort: Medium (flaky test detection tooling, team discipline)
+• Confidence: High (directly measurable, well-understood problem)
+
+OPPORTUNITY 2 — Efficiency: Pipeline Duration (HIGH)
+• Current median: 12 min → Target: 6 min
+• Faster pipelines = less context switching, more flow state
+• Parallelization, caching, selective test execution
+• Saves ~22 min/dev/day in wait time
+• Effort: Medium (build engineering investment)
+• Confidence: High (technical optimization)
+
+OPPORTUNITY 3 — Structural: Reusable Workflows (MEDIUM)
+• Current: 78% using templates → Target: 95%
+• Standardize pipeline configs, reduce per-repo maintenance burden
+• Effort: Low (template adoption, migration tooling)
+• Confidence: High
+
+OPPORTUNITY 4 — Structural: Auto-Deploy Coverage (MEDIUM)
+• Current: 35% of repos with CD → Target: 60%
+• Reduce manual deployment steps and associated dev time
+• Effort: Medium (trust building, rollback automation, feature flags)
+• Confidence: Medium
+
+OPPORTUNITY 5 — Elimination: Unnecessary Pipeline Runs (MEDIUM)
+• Skip CI on doc-only changes, limit re-runs on draft PRs
+• Reduce total runs by ~15% → saves compute + reduces queue wait
+• Effort: Low (path filters, skip conditions)
+• Confidence: High`;
+
+const OPPORTUNITIES = [
+  { mechanism: 'Yield Improvement', icon: '🎯', applicable: true, priority: 'high',
+    description: 'Eliminate flaky tests — the #1 source of wasted dev time. Quarantine, fix, or remove non-deterministic tests.',
+    metric: 'False failure rate: 16.8% → < 5% · Saves ~12.5 dev-hrs/day' },
+  { mechanism: 'Efficiency Improvement', icon: '⚡', applicable: true, priority: 'high',
+    description: 'Cut pipeline duration in half through parallelization, caching, and selective test execution.',
+    metric: 'Median duration: 12 min → 6 min · Saves ~22 min/dev/day' },
+  { mechanism: 'Structural Improvement', icon: '🏗️', applicable: true, priority: 'medium',
+    description: 'Standardize on reusable workflow templates and expand auto-deploy coverage.',
+    metric: 'Templates: 78% → 95% · Auto-deploy: 35% → 60%' },
+  { mechanism: 'Elimination', icon: '✂️', applicable: true, priority: 'medium',
+    description: 'Skip unnecessary pipeline runs (doc-only changes, draft PRs). This is non-value-creating work — less is better.',
+    metric: 'Reduce total runs by ~15%' },
+];
+
+function App() {
+  const [s4, setS4] = useState(SECTION_4_DEFAULT);
+  const [s5, setS5] = useState(SECTION_5_DEFAULT);
+  const [s6, setS6] = useState(SECTION_6_DEFAULT);
+  const [saveStatus, setSaveStatus] = useState('');
+
+  const handleSave = async () => {
+    setSaveStatus('saving');
+    const ok = await saveFile({ s4, s5, s6 });
+    setSaveStatus(ok ? 'saved' : '');
+    if (ok) setTimeout(() => setSaveStatus(''), 2000);
+  };
+
+  return (
+    <div className="element-page">
+      <div className="d-flex flex-justify-between flex-items-center mb-3">
+        <div>
+          <h1 className="f0 color-fg-default mb-1">{ELEMENT.name}</h1>
+          <p className="f5 color-fg-muted">Element of Leverage — 7-Question Framework</p>
+        </div>
+        <button className={'btn ' + (saveStatus === 'saved' ? 'btn-outline color-fg-success' : 'btn-primary')}
+                onClick={handleSave} disabled={saveStatus === 'saving'}>
+          {saveStatus === 'saving' ? '⏳ Saving…' : saveStatus === 'saved' ? '✅ Saved!' : '💾 Save to File'}
+        </button>
+      </div>
+
+      <NavBar current={ELEMENT.name} />
+      <DefinitionRow config={ELEMENT} />
+
+      <EditableSection number="4" title="Dev Time"
+        desc="How much capacity does this element consume?"
+        value={s4} onChange={setS4} />
+
+      <EditableSection number="5" title="Current Leverage"
+        desc="How much valid completion is being produced from the dev time consumed?"
+        value={s5} onChange={setS5} />
+
+      <EditableSection number="6" title="Improvement Opportunities"
+        desc="What improvement opportunities exist and how much improvement is realistic?"
+        value={s6} onChange={setS6} />
+
+      <ImprovementPatternSection opportunities={OPPORTUNITIES} />
+    </div>
+  );
+}
+
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

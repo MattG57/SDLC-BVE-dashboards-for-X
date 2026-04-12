@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark" data-dark-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agentic AI Coding — Element Mockup</title>
+<link rel="stylesheet" href="https://unpkg.com/@primer/css@21.3.1/dist/primer.css">
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  body { background: var(--bgColor-default); }
+  .element-page { max-width: 1280px; margin: 0 auto; padding: 24px 16px; }
+  .definition-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px; }
+  @media (max-width: 768px) { .definition-row { grid-template-columns: 1fr; } }
+  .def-card { border-top: 3px solid var(--borderColor-accent-emphasis); }
+  .def-card-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; }
+  .def-card-value { font-size: 1rem; font-weight: 600; line-height: 1.4; }
+  .def-card-sub { font-size: 0.8rem; }
+  .section-row { margin-bottom: 32px; padding-top: 8px; }
+  .opportunity-card { border-left: 3px solid var(--borderColor-accent-emphasis); }
+  .editable-area {
+    width: 100%; min-height: 350px; padding: 16px; border-radius: 6px;
+    background: var(--bgColor-muted); color: var(--fgColor-default);
+    border: 1px dashed var(--borderColor-default); font-family: inherit;
+    font-size: 0.875rem; line-height: 1.6; resize: vertical;
+  }
+  .editable-area:focus { border-color: var(--fgColor-accent); outline: none; }
+  .nav-bar { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+  .nav-bar a { text-decoration: none; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState } = React;
+const __originalSource = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+
+function escapeTemplateLiteral(s) {
+  return s.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$\{/g, '\\${');
+}
+
+async function saveFile(sections) {
+  let html = __originalSource;
+  const BT = String.fromCharCode(96);
+  ['4', '5', '6'].forEach(n => {
+    const key = 's' + n;
+    const pattern = 'const SECTION_' + n + '_DEFAULT = ' + BT + '[\\s\\S]*?' + BT + ';';
+    const replacement = 'const SECTION_' + n + '_DEFAULT = ' + BT + escapeTemplateLiteral(sections[key]) + BT + ';';
+    html = html.replace(new RegExp(pattern), replacement);
+  });
+  if (window.showSaveFilePicker) {
+    try {
+      const name = location.pathname.split('/').pop() || 'mockup.html';
+      const handle = await window.showSaveFilePicker({
+        suggestedName: name,
+        types: [{ description: 'HTML', accept: { 'text/html': ['.html'] } }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(html);
+      await writable.close();
+      return true;
+    } catch (e) {
+      if (e.name === 'AbortError') return false;
+      console.error('Save failed:', e);
+    }
+  }
+  const blob = new Blob([html], { type: 'text/html' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = location.pathname.split('/').pop() || 'mockup.html';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  return true;
+}
+
+
+function DefinitionCard({ label, value, description, icon }) {
+  return (
+    <div className="Box p-3 def-card">
+      <div className="def-card-label color-fg-muted mb-1">{icon && <span className="mr-1">{icon}</span>}{label}</div>
+      <div className="def-card-value color-fg-default">{value}</div>
+      {description && <div className="def-card-sub color-fg-muted mt-2">{description}</div>}
+    </div>
+  );
+}
+
+function DefinitionRow({ config }) {
+  return (
+    <div className="definition-row">
+      <DefinitionCard icon="🎯" label="Job to Be Done" value={config.jobToBeDone} description={config.jobDescription} />
+      <DefinitionCard icon="✅" label="What Counts as a Completion" value={config.completion} description={config.completionDescription} />
+      <DefinitionCard icon="📋" label="Job Class" value={config.jobClass} description={config.jobClassDescription} />
+    </div>
+  );
+}
+
+function SectionHeader({ number, title, desc }) {
+  return (
+    <div className="mb-3 pb-2" style={{ borderBottom: '1px solid var(--borderColor-default)', borderTop: '2px solid var(--borderColor-muted)', paddingTop: '12px' }}>
+      <h2 className="f2 color-fg-accent">
+        {number && <span className="color-fg-muted f3" style={{ fontWeight: 400 }}>{number}. </span>}
+        {title}
+      </h2>
+      {desc && <p className="f6 color-fg-muted">{desc}</p>}
+    </div>
+  );
+}
+
+function EditableSection({ number, title, desc, value, onChange }) {
+  return (
+    <div className="section-row">
+      <SectionHeader number={number} title={title} desc={desc} />
+      <textarea className="editable-area" value={value} onChange={e => onChange(e.target.value)} />
+    </div>
+  );
+}
+
+function ImprovementPatternSection({ opportunities }) {
+  const priorityColor = { high: '#f85149', medium: '#d29922', low: '#3fb950', unknown: '#8b949e' };
+  return (
+    <div className="section-row">
+      <SectionHeader number="7" title="Improvement Pattern" desc="Which improvement mechanisms apply to raise leverage?" />
+      <div className="d-flex flex-column" style={{ gap: '12px' }}>
+        {opportunities.map((opp, i) => (
+          <div key={i} className={`Box p-3 opportunity-card${!opp.applicable ? ' color-fg-muted' : ''}`}
+               style={!opp.applicable ? { opacity: 0.5, borderLeftColor: 'var(--borderColor-muted)' } : { borderLeftColor: priorityColor[opp.priority] }}>
+            <div className="d-flex flex-items-center mb-1">
+              <span className="f4 mr-2">{opp.icon}</span>
+              <span className="f4 text-bold">{opp.mechanism}</span>
+              {opp.applicable && (
+                <span className="Label ml-2" style={{ color: priorityColor[opp.priority], borderColor: priorityColor[opp.priority] }}>
+                  {opp.priority} priority
+                </span>
+              )}
+            </div>
+            <p className="f6 mb-1">{opp.description}</p>
+            <p className="f6 color-fg-muted">{opp.metric}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function NavBar({ current }) {
+  const pages = [
+    { name: 'AI Assisted Coding', file: 'ai-assisted-coding.html' },
+    { name: 'Agentic AI Coding', file: 'agentic-ai-coding.html' },
+    { name: 'Vulnerability Remediation', file: 'vulnerability-remediation-existing.html' },
+    { name: 'Automation Lifecycle', file: 'automation-lifecycle.html' },
+  ];
+  return (
+    <div className="nav-bar">
+      {pages.map(p => (
+        <a key={p.file} href={p.file}
+           className={`btn btn-sm${p.name === current ? ' btn-primary' : ''}`}>
+          {p.name}
+        </a>
+      ))}
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════
+   AGENTIC AI CODING
+   ════════════════════════════════════════════════════════════════ */
+
+const ELEMENT = {
+  name: 'Agentic AI Coding',
+  jobToBeDone: 'Delegate entire coding tasks to AI agents',
+  jobDescription: 'AI agents (Copilot Workspace, coding agents) autonomously plan, implement, test, and submit PRs from issue descriptions with minimal human steering.',
+  completion: 'An agent-authored PR merged to the target branch',
+  completionDescription: 'Valid = agent PR merged without significant human rewrite. Failed = PR rejected or required >50% rewrite. False = PR merged but later reverted. Missed = issue assigned to agent but no PR produced.',
+  jobClass: 'Value-creating',
+  jobClassDescription: 'Agentic completions directly produce shipped code, but the leverage model differs — dev time is primarily review time, not authoring time.',
+};
+
+const SECTION_4_DEFAULT = `DRIVER: Agent sessions (issues assigned to agents)
+
+KEY METRICS TO SHOW:
+• Agent sessions per day (requests initiated)
+• Dev-hours consumed: primarily REVIEW time, not authoring time
+• Ratio of agent review hours to human authoring hours for equivalent work
+• % of total org capacity represented
+
+CHARTS:
+• Area chart: agent sessions/day over time
+• Stacked bar: dev time breakdown (agent review vs human authoring for same scope)
+
+CONTEXT:
+This element has a fundamentally different dev-time profile than human coding.
+The "dev time" is weighted toward review, iteration, and prompt refinement.
+• 15 agent sessions/day avg
+• ~0.5 hrs review per session = 7.5 dev-hrs/day
+• vs equivalent human authoring: ~2.5 hrs/task = 37.5 dev-hrs saved
+• 7.5 / 800 total org hours = <1% of capacity consumed, but displaces ~4.7% of capacity`;
+
+const SECTION_5_DEFAULT = `EFFICIENCY LENS:
+• Leverage = merged agent PRs / dev-hour of review
+• Current: ~1.2 merged PRs per dev-hour of review
+• Compare: human-authored equivalent is ~0.4 PRs per dev-hour
+• 3x leverage multiplier vs human authoring for eligible tasks
+
+STRUCTURAL LENS:
+• Adoption: 12% of devs have used agents (early adopter phase)
+• Eligible issues: ~25% of backlog issues are agent-suitable
+• Success rate: 68% of agent sessions produce a mergeable PR
+• Coverage: agents used in 8% of all PRs (growing)
+
+CHARTS:
+• Line chart: agent leverage vs human leverage over time
+• Bar chart: agent session outcomes (merged, revised, rejected, abandoned)
+• Trend: % of PRs that are agent-authored`;
+
+const SECTION_6_DEFAULT = `OPPORTUNITY 1 — Structural: Adoption (HIGH)
+• Current: 12% of devs → Target: 35%
+• More developers delegating suitable tasks to agents
+• +23 more devs using agents × 1.5 sessions/week = +34.5 sessions/week
+• Effort: High (training, trust-building, workflow change)
+• Confidence: Medium (requires cultural shift)
+
+OPPORTUNITY 2 — Yield: Success Rate (HIGH)
+• Current: 68% session success → Target: 82%
+• Reduce failed/abandoned sessions through better issue scoping, prompt templates
+• Effort: Medium (issue template improvements, agent tuning)
+• Confidence: High (controllable via issue quality)
+
+OPPORTUNITY 3 — Structural: Eligible Issue Coverage (MEDIUM)
+• Current: 25% of issues eligible → Target: 40%
+• Expand agent-suitable work through better decomposition, modular architecture
+• Effort: High (architectural investment)
+• Confidence: Medium (depends on codebase characteristics)
+
+OPPORTUNITY 4 — Efficiency: Review Time (LOW)
+• Current: 0.5 hrs/session → Target: 0.35 hrs/session
+• Faster review through better agent output quality, automated checks
+• Effort: Low (agent improvements are upstream)`;
+
+const OPPORTUNITIES = [
+  { mechanism: 'Structural Improvement', icon: '🏗️', applicable: true, priority: 'high',
+    description: 'Grow adoption from 12% to 35% of developers. Expand eligible issue coverage from 25% to 40%.',
+    metric: 'Adoption: 12% → 35% · Eligible issues: 25% → 40%' },
+  { mechanism: 'Yield Improvement', icon: '🎯', applicable: true, priority: 'high',
+    description: 'Increase agent session success rate — fewer abandoned or heavily-rewritten sessions.',
+    metric: 'Success rate: 68% → 82% · Reduce wasted review time' },
+  { mechanism: 'Efficiency Improvement', icon: '⚡', applicable: true, priority: 'low',
+    description: 'Reduce human review time per agent session through better agent output quality.',
+    metric: 'Review time: 0.5 hrs → 0.35 hrs/session' },
+  { mechanism: 'Elimination', icon: '✂️', applicable: false, priority: 'low',
+    description: 'Not applicable — agentic coding is value-creating work.',
+    metric: 'N/A' },
+];
+
+function App() {
+  const [s4, setS4] = useState(SECTION_4_DEFAULT);
+  const [s5, setS5] = useState(SECTION_5_DEFAULT);
+  const [s6, setS6] = useState(SECTION_6_DEFAULT);
+  const [saveStatus, setSaveStatus] = useState('');
+
+  const handleSave = async () => {
+    setSaveStatus('saving');
+    const ok = await saveFile({ s4, s5, s6 });
+    setSaveStatus(ok ? 'saved' : '');
+    if (ok) setTimeout(() => setSaveStatus(''), 2000);
+  };
+
+  return (
+    <div className="element-page">
+      <div className="d-flex flex-justify-between flex-items-center mb-3">
+        <div>
+          <h1 className="f0 color-fg-default mb-1">{ELEMENT.name}</h1>
+          <p className="f5 color-fg-muted">Element of Leverage — 7-Question Framework</p>
+        </div>
+        <button className={'btn ' + (saveStatus === 'saved' ? 'btn-outline color-fg-success' : 'btn-primary')}
+                onClick={handleSave} disabled={saveStatus === 'saving'}>
+          {saveStatus === 'saving' ? '⏳ Saving…' : saveStatus === 'saved' ? '✅ Saved!' : '💾 Save to File'}
+        </button>
+      </div>
+
+      <NavBar current={ELEMENT.name} />
+      <DefinitionRow config={ELEMENT} />
+
+      <EditableSection number="4" title="Dev Time"
+        desc="How much capacity does this element consume?"
+        value={s4} onChange={setS4} />
+
+      <EditableSection number="5" title="Current Leverage"
+        desc="How much valid completion is being produced from the dev time consumed?"
+        value={s5} onChange={setS5} />
+
+      <EditableSection number="6" title="Improvement Opportunities"
+        desc="What improvement opportunities exist and how much improvement is realistic?"
+        value={s6} onChange={setS6} />
+
+      <ImprovementPatternSection opportunities={OPPORTUNITIES} />
+    </div>
+  );
+}
+
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

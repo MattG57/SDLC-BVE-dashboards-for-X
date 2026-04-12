@@ -1102,7 +1102,7 @@ function App() {
           const agDays = computeDerivedDays(agDevDays, autoConfig);
           agenticData = { days: agDays, prSessions: agPrSessions, devDays: agDevDays, requests: agRequests };
         }
-        handleData({ aiData, agenticData, config: autoConfig, fileNames: ['auto-loaded'] });
+        handleData({ aiData, agenticData, config: autoConfig, fileNames: manifest.files });
       })
       .catch(() => {}); // Silent fail — manual upload still available
   }, []); // eslint-disable-line react-hooks/exhaustive-deps

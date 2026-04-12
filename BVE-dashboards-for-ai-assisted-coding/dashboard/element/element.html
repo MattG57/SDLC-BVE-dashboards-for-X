@@ -1,0 +1,1204 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark" data-dark-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Assisted Coding — Element Dashboard</title>
+<link rel="stylesheet" href="https://unpkg.com/@primer/css@21.3.1/dist/primer.css">
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/highcharts.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/modules/accessibility.js"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  body { background: var(--bgColor-default); }
+  .element-page { max-width: 1280px; margin: 0 auto; padding: 24px 16px; }
+
+  .definition-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px; }
+  @media (max-width: 768px) { .definition-row { grid-template-columns: 1fr; } }
+  .def-card { border-top: 3px solid var(--borderColor-accent-emphasis); }
+  .def-card-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; }
+  .def-card-value { font-size: 1rem; font-weight: 600; line-height: 1.4; }
+  .def-card-sub { font-size: 0.8rem; }
+
+  .kpi-card { text-align: center; }
+  .kpi-value { font-size: 2rem; font-weight: 600; line-height: 1.2; }
+  .kpi-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; }
+  .kpi-sub { font-size: 0.75rem; }
+  .kpi-unit { font-size: 1.1rem; font-weight: 400; opacity: 0.65; margin-left: 2px; }
+  .kpi-hero .kpi-value { font-size: 3rem; }
+  .kpi-hero .kpi-label { font-size: 0.85rem; }
+  .kpi-hero .kpi-sub { font-size: 0.85rem; }
+  .kpi-hero { border-top: 3px solid var(--borderColor-accent-emphasis); }
+
+  .section-row { margin-bottom: 32px; padding-top: 8px; }
+  .chart-container { min-height: 320px; }
+  .chart-container-sm { min-height: 240px; }
+  .donut-container { min-height: 200px; }
+
+  .driver-toggles { display: flex; flex-wrap: wrap; gap: 8px; }
+  .driver-toggles label { font-size: 0.8rem; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+
+  .opportunity-card { border-left: 3px solid var(--borderColor-accent-emphasis); }
+
+  .factor-table { width: 100%; border-collapse: collapse; }
+  .factor-table th, .factor-table td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--borderColor-default); font-size: 0.875rem; }
+  .factor-table th { color: var(--fgColor-muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; }
+  .factor-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .upload-area { border: 2px dashed var(--borderColor-default); border-radius: 6px; padding: 24px; text-align: center; transition: border-color 0.15s; }
+  .upload-area:hover { border-color: var(--fgColor-accent); }
+
+  /* ── Expandable panels ── */
+  .panel-toggle { cursor: pointer; user-select: none; }
+  .panel-toggle:hover { background: var(--bgColor-muted); }
+  .panel-chevron { transition: transform 0.15s; display: inline-block; font-size: 0.75rem; color: var(--fgColor-muted); }
+  .panel-chevron.open { transform: rotate(90deg); }
+  .panel-detail { overflow: hidden; transition: max-height 0.3s ease; }
+
+  .highcharts-background { fill: transparent !important; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+Highcharts.setOptions({
+  chart: { backgroundColor: 'transparent', style: { fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif' } },
+  colors: ['#58a6ff', '#3fb950', '#d29922', '#f85149', '#bc8cff', '#f778ba', '#79c0ff', '#56d364'],
+  title: { style: { color: '#e6edf3', fontSize: '14px', fontWeight: '600' } },
+  subtitle: { style: { color: '#8b949e', fontSize: '12px' } },
+  xAxis: { labels: { style: { color: '#8b949e' } }, gridLineColor: '#30363d', lineColor: '#30363d', tickColor: '#30363d' },
+  yAxis: { labels: { style: { color: '#8b949e' } }, gridLineColor: '#30363d', title: { style: { color: '#8b949e' } } },
+  legend: { itemStyle: { color: '#e6edf3' }, itemHoverStyle: { color: '#58a6ff' } },
+  tooltip: { backgroundColor: '#161b22', borderColor: '#30363d', style: { color: '#e6edf3' } },
+  plotOptions: { series: { animation: { duration: 400 } } },
+  credits: { enabled: false },
+});
+</script>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useMemo, useCallback } = React;
+
+/* ════════════════════════════════════════════════════════════════════════════
+   UTILITIES
+   ════════════════════════════════════════════════════════════════════════════ */
+
+function safeDiv(a, b) { return b > 0 ? a / b : null; }
+function fmtDec(v, d = 1) { return v != null ? v.toFixed(d) : '—'; }
+function fmtPct(v) { return v != null ? (v * 100).toFixed(1) + '%' : '—'; }
+function fmtPct0(v) { return v != null ? Math.round(v * 100) + '%' : '—'; }
+function fmt(v) { return v != null ? v.toLocaleString() : '—'; }
+function fmtCompact(v) {
+  if (v == null) return '—';
+  if (Math.abs(v) >= 1e6) return (v / 1e6).toFixed(1) + 'M';
+  if (Math.abs(v) >= 1e3) return (v / 1e3).toFixed(1) + 'k';
+  return v.toFixed(0);
+}
+function fmtCurrency(v) {
+  if (v == null) return '—';
+  if (Math.abs(v) >= 1e6) return '$' + (v / 1e6).toFixed(1) + 'M';
+  if (Math.abs(v) >= 1e3) return '$' + (v / 1e3).toFixed(1) + 'k';
+  return '$' + v.toFixed(0);
+}
+function mean(arr) { const v = arr.filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; }
+
+function linearRegression(points) {
+  const n = points.length;
+  if (n < 3) return null;
+  let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+  for (const [x, y] of points) { sumX += x; sumY += y; sumXY += x * y; sumX2 += x * x; }
+  const denom = n * sumX2 - sumX * sumX;
+  if (Math.abs(denom) < 1e-10) return null;
+  const slope = (n * sumXY - sumX * sumY) / denom;
+  const intercept = (sumY - slope * sumX) / n;
+  const xMin = Math.min(...points.map(p => p[0]));
+  const xMax = Math.max(...points.map(p => p[0]));
+  return { slope, intercept, line: [[xMin, slope * xMin + intercept], [xMax, slope * xMax + intercept]] };
+}
+
+function dayOffset(dayStr, offset) {
+  const d = new Date(dayStr + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() + offset);
+  return d.toISOString().slice(0, 10);
+}
+
+function isWeekend(dayStr) {
+  const d = new Date(dayStr + 'T12:00:00Z');
+  const dow = d.getUTCDay();
+  return dow === 0 || dow === 6;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   ESTIMATION METHODS (from efficiency dashboard)
+   ════════════════════════════════════════════════════════════════════════════ */
+
+const ESTIMATION_METHODS = [
+  { key: 'interactions', label: 'Interactions-Based',
+    descFn: (cfg) => `1 hour saved per ${cfg.est_interactions_per_hour || 20} interactions`,
+    calc: (d, cfg) => (d.user_initiated_interaction_count || 0) / (cfg.est_interactions_per_hour || 20) },
+  { key: 'loc', label: 'LoC-Based',
+    descFn: (cfg) => `${cfg.est_hrs_per_kloc || 2} hours saved per 1,000 LoC added`,
+    calc: (d, cfg) => ((d.loc_added_sum || 0) / 1000) * (cfg.est_hrs_per_kloc || 2) },
+  { key: 'manual_daily_pct', label: 'Manual Daily %',
+    descFn: () => 'Configured daily time-saved percentage',
+    calc: (d, cfg) => {
+      const p = cfg.cfg_time_saved_pct_day, b = cfg.cfg_baseline_hours_per_dev_per_week, w = cfg.cfg_workdays_per_week || 5;
+      return (p != null && b != null) ? (p * b / w) * (d.daily_active_users || 0) : null;
+    }},
+];
+
+const DRIVER_SERIES = [
+  { key: 'user_initiated_interaction_count', perDev: 'interactions_per_active_dev', label: 'Interactions', color: '#58a6ff', scale: 1 },
+  { key: 'code_generation_activity_count', perDev: 'generations_per_active_dev', label: 'Suggestions', color: '#3fb950', scale: 1 },
+  { key: 'code_acceptance_activity_count', perDev: 'acceptances_per_active_dev', label: 'Accepts', color: '#d29922', scale: 1 },
+  { key: 'loc_added_sum', perDev: 'loc10_added_per_active_dev', label: 'LoC/10 Added', color: '#bc8cff', scale: 10 },
+  { key: 'agent_mode_interaction_count', perDev: 'agent_mode_per_active_dev', label: 'Agent Mode', color: '#f778ba', scale: 1 },
+  { key: 'cli_prompt_count', perDev: 'cli_prompts_per_active_dev', label: 'CLI Prompts', color: '#79c0ff', scale: 1 },
+];
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   DATA PROCESSING
+   ════════════════════════════════════════════════════════════════════════════ */
+
+function flattenDayTotal(dt) {
+  const d = { day: dt.date || dt.day };
+  for (const [key, val] of Object.entries(dt)) {
+    if (key === 'date' || key === 'day') continue;
+    if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
+      for (const [k2, v2] of Object.entries(val)) d[key + '_' + k2] = v2;
+    } else if (!Array.isArray(val)) {
+      d[key] = val;
+    }
+  }
+  return d;
+}
+
+function flattenUserReport(userReport) {
+  const records = [];
+  for (const user of userReport) {
+    if (user.day_totals) {
+      // Nested format: user object with day_totals array
+      for (const dt of user.day_totals)
+        records.push({ ...flattenDayTotal(dt), user_login: user.login || user.github_login || user.user_login });
+    } else if (user.day || user.date) {
+      // Flat format: each record is already a single user-day
+      const login = user.user_login || user.login || user.github_login;
+      if (login) records.push({ ...user, day: user.day || user.date, user_login: login });
+    }
+  }
+  return records;
+}
+
+function flattenPrRecord(pr) {
+  return {
+    user: typeof pr.user === 'string' ? pr.user : (pr.user?.login || pr.author || pr.user),
+    day: pr.merged_at?.slice(0, 10) || pr.created_at?.slice(0, 10) || pr.day,
+    additions: pr.additions || 0,
+    deletions: pr.deletions || 0,
+    state: pr.state || 'unknown',
+    merged: pr.merged || pr.state === 'merged' || !!pr.merged_at,
+    repo: typeof pr.repository === 'string' ? pr.repository : (pr.repository?.nameWithOwner || pr.repo || ''),
+  };
+}
+
+function computeDerived(days, config, selectedMethod) {
+  const method = ESTIMATION_METHODS.find(m => m.key === selectedMethod) || ESTIMATION_METHODS[0];
+  return days.map(d => {
+    const dau = d.daily_active_users || 0;
+    const estimates = {};
+    for (const m of ESTIMATION_METHODS) {
+      const raw = m.calc(d, config);
+      estimates['est_' + m.key + '_hrs_day'] = raw;
+      estimates['est_' + m.key + '_hrs_per_dev_day'] = safeDiv(raw, dau);
+    }
+    const selectedHrsDay = method.calc(d, config);
+    return {
+      ...d, ...estimates,
+      interactions_per_active_dev: safeDiv(d.user_initiated_interaction_count, dau),
+      generations_per_active_dev: safeDiv(d.code_generation_activity_count, dau),
+      acceptances_per_active_dev: safeDiv(d.code_acceptance_activity_count, dau),
+      loc10_added_per_active_dev: safeDiv((d.loc_added_sum || 0) / 10, dau),
+      agent_mode_per_active_dev: safeDiv(d.agent_mode_interaction_count, dau),
+      cli_prompts_per_active_dev: safeDiv(d.cli_prompt_count, dau),
+      acceptance_rate: safeDiv(d.code_acceptance_activity_count, d.code_generation_activity_count),
+      time_saved_hours_total_day: selectedHrsDay,
+      time_saved_hours_per_dev_per_day: safeDiv(selectedHrsDay, dau),
+    };
+  });
+}
+
+function groupPrsByDay(prRecords, copilotUsersByDay) {
+  const byDay = {};
+  const period = { total_prs: 0, assisted_prs: 0, total_loc: 0, assisted_loc: 0 };
+  for (const pr of prRecords) {
+    if (!pr.day || !pr.merged) continue;
+    if (!byDay[pr.day]) byDay[pr.day] = { total_prs: 0, assisted_prs: 0, total_loc: 0, assisted_loc: 0 };
+    const loc = (pr.additions || 0) + (pr.deletions || 0);
+    byDay[pr.day].total_prs++;
+    byDay[pr.day].total_loc += loc;
+    period.total_prs++;
+    period.total_loc += loc;
+    let assisted = false;
+    for (let i = 0; i <= 2; i++) {
+      const checkDay = dayOffset(pr.day, -i);
+      const users = copilotUsersByDay[checkDay];
+      if (users && users.has(pr.user)) { assisted = true; break; }
+    }
+    if (assisted) {
+      byDay[pr.day].assisted_prs++;
+      byDay[pr.day].assisted_loc += loc;
+      period.assisted_prs++;
+      period.assisted_loc += loc;
+    }
+  }
+  return { byDay, period };
+}
+
+function computeStructuralMetrics(entDays, userDays, config, prRecords) {
+  const totalDevs = config.cfg_total_developers || 100;
+  const usersByDay = {};
+  const copilotUsersByDay = {};
+  for (const u of userDays) {
+    (usersByDay[u.day] = usersByDay[u.day] || []).push(u);
+    if ((u.code_generation_activity_count || 0) > 0 || (u.user_initiated_interaction_count || 0) > 0)
+      (copilotUsersByDay[u.day] = copilotUsersByDay[u.day] || new Set()).add(u.user_login);
+  }
+  const prGrouped = prRecords ? groupPrsByDay(prRecords, copilotUsersByDay) : { byDay: {}, period: { total_prs: 0, assisted_prs: 0, total_loc: 0, assisted_loc: 0 } };
+  const hasPrData = prRecords && prRecords.length > 0;
+
+  const days = entDays.map(d => {
+    const dayUsers = usersByDay[d.day] || [];
+    const uniqueActiveUsers = dayUsers.length > 0
+      ? new Set(dayUsers.filter(u => (u.code_generation_activity_count || 0) > 0 || (u.user_initiated_interaction_count || 0) > 0).map(u => u.user_login)).size
+      : (d.daily_active_users || 0);
+    const adoptedUsers = new Set();
+    for (let i = 0; i <= 3; i++) {
+      const checkUsers = copilotUsersByDay[dayOffset(d.day, -i)];
+      if (checkUsers) checkUsers.forEach(login => adoptedUsers.add(login));
+    }
+    const adoptedCount = adoptedUsers.size > 0 ? adoptedUsers.size : (d.daily_active_users || 0);
+    const prDay = prGrouped.byDay[d.day] || { total_prs: 0, assisted_prs: 0, total_loc: 0, assisted_loc: 0 };
+    const adopted_individuals_pct = safeDiv(adoptedCount, totalDevs);
+    const prs_assisted_pct = hasPrData
+      ? (prDay.total_prs > 0 ? safeDiv(prDay.assisted_prs, prDay.total_prs) : null)
+      : null;
+    const ai_assisted_loc_pct = hasPrData
+      ? (prDay.total_loc > 0 ? safeDiv(prDay.assisted_loc, prDay.total_loc) : null)
+      : null;
+    const total_prs = hasPrData ? prDay.total_prs : (d.pr_total_created || 0);
+    const total_loc = hasPrData ? prDay.total_loc : ((d.loc_added_sum || 0) + (d.loc_deleted_sum || 0));
+
+    return {
+      ...d, adopted_individuals_pct, prs_assisted_pct, ai_assisted_loc_pct,
+      prs_per_day: total_prs, loc_per_day: total_loc, total_prs, total_loc,
+      assisted_prs: hasPrData ? prDay.assisted_prs : 0,
+      assisted_loc: hasPrData ? prDay.assisted_loc : (d.loc_added_sum || 0),
+      unique_active_users: uniqueActiveUsers, has_pr_data: hasPrData,
+    };
+  });
+  days._prPeriod = prGrouped.period;
+  days._periodPrsAssistedPct = hasPrData ? safeDiv(prGrouped.period.assisted_prs, prGrouped.period.total_prs) : null;
+  days._periodLocAssistedPct = hasPrData ? safeDiv(prGrouped.period.assisted_loc, prGrouped.period.total_loc) : null;
+  return days;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   SHARED COMPONENTS
+   ════════════════════════════════════════════════════════════════════════════ */
+
+function Chart({ options, className = 'chart-container' }) {
+  const ref = useRef(null);
+  const chartRef = useRef(null);
+  useEffect(() => {
+    if (ref.current) chartRef.current = Highcharts.chart(ref.current, options);
+    return () => { if (chartRef.current) chartRef.current.destroy(); };
+  }, [JSON.stringify(options)]);
+  return <div ref={ref} className={className} />;
+}
+
+function KpiCard({ label, value, unit, sub, color, hero }) {
+  return (
+    <div className={`Box p-3 kpi-card${hero ? ' kpi-hero' : ''}`}>
+      <div className="kpi-label color-fg-muted mb-1">{label}</div>
+      <div className="kpi-value" style={color ? { color } : {}}>
+        {value}{unit && <span className="kpi-unit">{unit}</span>}
+      </div>
+      {sub && <div className="kpi-sub color-fg-muted mt-1">{sub}</div>}
+    </div>
+  );
+}
+
+function SectionHeader({ number, title, desc, children }) {
+  return (
+    <div className="mb-3 pb-2 d-flex flex-items-end flex-justify-between" style={{ borderBottom: '1px solid var(--borderColor-default)', borderTop: '2px solid var(--borderColor-muted)', paddingTop: '12px' }}>
+      <div>
+        <h2 className="f2 color-fg-accent">
+          {number && <span className="color-fg-muted f3" style={{ fontWeight: 400 }}>{number}. </span>}
+          {title}
+        </h2>
+        {desc && <p className="f6 color-fg-muted">{desc}</p>}
+      </div>
+      {children && <div className="d-flex flex-items-center" style={{ gap: '8px' }}>{children}</div>}
+    </div>
+  );
+}
+
+function DefinitionCard({ label, value, description, icon }) {
+  return (
+    <div className="Box p-3 def-card">
+      <div className="def-card-label color-fg-muted mb-1">{icon && <span className="mr-1">{icon}</span>}{label}</div>
+      <div className="def-card-value color-fg-default">{value}</div>
+      {description && <div className="def-card-sub color-fg-muted mt-2">{description}</div>}
+    </div>
+  );
+}
+
+function SourceSummary({ data }) {
+  const n = data.days.length;
+  const range = n > 0 ? `${data.days[0].day} → ${data.days[n - 1].day}` : 'none';
+  const prCount = data.prRecords ? data.prRecords.length : 0;
+  return (
+    <div className="flash flash-success f6 mb-3">
+      ✅ Data loaded · <strong>{n} enterprise days</strong> ({range}) · {data.users.length} user-day records
+      {prCount > 0 && <> · {fmtCompact(prCount)} PR records</>}
+      <span className="color-fg-muted"> · {data.fileNames.length} file{data.fileNames.length !== 1 ? 's' : ''}: {data.fileNames.join(', ')}</span>
+    </div>
+  );
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   UPLOAD PANEL
+   ════════════════════════════════════════════════════════════════════════════ */
+
+function UploadPanel({ onData }) {
+  const [processing, setProcessing] = useState(false);
+  const [fileStatuses, setFileStatuses] = useState(null);
+  const filesRef = useRef(null);
+
+  const handleProcess = useCallback(async () => {
+    const files = filesRef.current?.files;
+    if (!files || !files.length) { alert('Select at least one JSON file.'); return; }
+    setProcessing(true);
+    try {
+      const entDays = [], userRecs = [], prRecords = [], names = [], statuses = [];
+      let config = { cfg_time_saved_pct_day: null, cfg_baseline_hours_per_dev_per_week: null, cfg_workdays_per_week: 5,
+        cfg_labor_cost_per_hour: null, est_interactions_per_hour: 20, est_hrs_per_kloc: 2,
+        cfg_total_developers: 100, cfg_total_dev_loc_added_day: 10000, cfg_pct_time_coding: 0.5 };
+
+      for (const f of files) {
+        let d;
+        try { d = JSON.parse(await f.text()); }
+        catch (e) { statuses.push({ name: f.name, type: 'Unknown', status: 'error', error: 'Invalid JSON' }); continue; }
+        names.push(f.name);
+
+        const isConfig = Object.keys(d).some(k => k.startsWith('cfg_') || k.startsWith('est_'));
+        const isSource = d.enterprise_report || d.user_report;
+        const isPrData = !isSource && !isConfig && (Array.isArray(d) || Array.isArray(d?.prs) || Array.isArray(d?.pull_requests?.prs));
+
+        if (isConfig && !isSource) {
+          Object.assign(config, d);
+          statuses.push({ name: f.name, type: 'Configuration', status: 'ok' });
+        } else if (isSource) {
+          if (d.enterprise_report?.day_totals) entDays.push(...d.enterprise_report.day_totals.map(flattenDayTotal));
+          if (Array.isArray(d.user_report)) userRecs.push(...flattenUserReport(d.user_report));
+          statuses.push({ name: f.name, type: 'Source Data (Copilot Metrics)', status: 'ok' });
+        } else if (isPrData) {
+          const raw = Array.isArray(d) ? d : (d.prs || d.pull_requests?.prs || []);
+          prRecords.push(...raw.map(flattenPrRecord));
+          statuses.push({ name: f.name, type: 'PR Review Data', status: 'ok' });
+        } else {
+          statuses.push({ name: f.name, type: 'Unknown', status: 'warn' });
+        }
+      }
+      setFileStatuses(statuses);
+      if (!entDays.length) { alert('No source data found.'); setProcessing(false); return; }
+
+      const dayMap = {};
+      for (const r of entDays) dayMap[r.day] = r;
+      const enterprise = Object.values(dayMap).sort((a, b) => a.day.localeCompare(b.day));
+      const userMap = {};
+      for (const r of userRecs) userMap[r.day + '|' + r.user_login] = r;
+      const users = Object.values(userMap);
+
+      onData({ enterprise, users, config, fileNames: names, prRecords: prRecords.length > 0 ? prRecords : null });
+    } catch (e) { console.error(e); alert('Error: ' + e.message); }
+    setProcessing(false);
+  }, [onData]);
+
+  return (
+    <div className="Box color-shadow-medium p-4 mb-4">
+      <h3 className="f4 mb-2">Source Data</h3>
+      <p className="f6 color-fg-muted mb-3">Upload Copilot metrics, PR review, and/or configuration JSON files.</p>
+      <div className="d-flex flex-wrap" style={{ gap: '16px', alignItems: 'flex-end' }}>
+        <div style={{ flex: '1 1 300px' }}>
+          <input type="file" ref={filesRef} accept=".json" multiple className="form-control" />
+        </div>
+        <button className="btn btn-primary" onClick={handleProcess} disabled={processing}>
+          {processing ? 'Processing…' : 'Process & Build'}
+        </button>
+      </div>
+      {fileStatuses && (
+        <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--borderColor-default)' }}>
+          <div className="f6 text-bold color-fg-muted mb-2">File Status</div>
+          {fileStatuses.map((s, i) => (
+            <div key={i} className="f6 mb-1">
+              {s.status === 'ok' ? '✅' : s.status === 'warn' ? '⚠️' : '❌'} {s.name} — <span className="color-fg-muted">{s.type}{s.error ? ': ' + s.error : ''}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   SECTION 4 — DEV TIME
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Expandable Panel wrapper ── */
+function Panel({ title, desc, children, detailChildren }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="section-row">
+      <div className="mb-3 pb-2" style={{ borderBottom: '1px solid var(--borderColor-default)', borderTop: '2px solid var(--borderColor-muted)', paddingTop: '12px' }}>
+        <h2 className="f2 color-fg-accent">{title}</h2>
+        {desc && <p className="f6 color-fg-muted">{desc}</p>}
+      </div>
+      {children}
+      {detailChildren && (
+        <>
+          <div className="panel-toggle d-flex flex-items-center mt-3 px-2 py-2 rounded-2" onClick={() => setOpen(!open)}
+               style={{ gap: '6px', border: '1px solid var(--borderColor-default)', display: 'inline-flex' }}>
+            <span className={`panel-chevron${open ? ' open' : ''}`}>▶</span>
+            <span className="f6 text-bold color-fg-muted">{open ? 'Hide' : 'Show'} Daily Trends & Factors</span>
+          </div>
+          {open && <div className="mt-3">{detailChildren}</div>}
+        </>
+      )}
+    </div>
+  );
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   PANEL 1 — DEV TIME
+   ════════════════════════════════════════════════════════════════════════════ */
+
+function DevTimeSection({ days, config, method, onMethodChange }) {
+  const [structuralFactor, setStructuralFactor] = useState('adoption');
+  const n = days.length;
+  const nonWeekendDays = days.filter(d => !isWeekend(d.day)).length;
+  const avgDau = mean(days.map(d => d.daily_active_users));
+  const totalDevs = config.cfg_total_developers || 100;
+  const pctTimeCoding = config.cfg_pct_time_coding || 0.5;
+  const adoptionPct = safeDiv(avgDau, totalDevs);
+  const maxHours = totalDevs * nonWeekendDays * pctTimeCoding * 8;
+  const improvableHours = days.reduce((s, d) => s + (d.daily_active_users || 0) * pctTimeCoding * 8, 0);
+
+  const avgEstimates = {};
+  for (const m of ESTIMATION_METHODS) {
+    avgEstimates[m.key] = days.reduce((s, d) => s + (d['est_' + m.key + '_hrs_day'] || 0), 0);
+  }
+  const timeSaved = days.reduce((s, d) => s + (d.time_saved_hours_total_day || 0), 0);
+
+  const hasPrData = days.some(d => d.has_pr_data);
+  const prPeriod = days._prPeriod || {};
+  const avgAdopted = mean(days.map(d => d.adopted_individuals_pct));
+  const avgPrsAssisted = hasPrData ? (days._periodPrsAssistedPct ?? 0) : mean(days.map(d => d.prs_assisted_pct));
+  const avgLocPct = hasPrData ? (days._periodLocAssistedPct ?? mean(days.map(d => d.ai_assisted_loc_pct))) : mean(days.map(d => d.ai_assisted_loc_pct));
+
+  /* ── Structural factor options ── */
+  const STRUCTURAL_FACTORS = [
+    { key: 'adoption', label: 'Adoption', current: adoptionPct, color: '#58a6ff',
+      detail: `${fmtDec(avgDau, 0)} of ${totalDevs} devs using Copilot` },
+    { key: 'prs_assisted', label: '% PRs Assisted', current: avgPrsAssisted, color: '#3fb950',
+      detail: hasPrData ? (prPeriod.assisted_prs != null ? `${fmtCompact(prPeriod.assisted_prs)} of ${fmtCompact(prPeriod.total_prs)} PRs` : 'from PR data') : 'Requires PR review data' },
+    { key: 'loc_assisted', label: '% AI-Assisted LOC', current: avgLocPct, color: '#bc8cff',
+      detail: hasPrData ? (prPeriod.assisted_loc != null ? `${fmtCompact(prPeriod.assisted_loc)} of ${fmtCompact(prPeriod.total_loc)} LOC` : 'from PR data') : 'Requires PR review data' },
+  ];
+
+  const selectedFactor = STRUCTURAL_FACTORS.find(f => f.key === structuralFactor) || STRUCTURAL_FACTORS[0];
+  const currentLevel = selectedFactor.current || 0;
+  const potentialAdditional = currentLevel > 0 ? timeSaved * ((1 / currentLevel) - 1) : 0;
+  const remaining = Math.max(maxHours - timeSaved - potentialAdditional, 0);
+
+  /* ── 3-slice donut ── */
+  const mainDonutOpts = {
+    chart: { type: 'pie', height: 360, margin: [10, 0, 10, 0] },
+    title: { text: fmtCompact(maxHours) + ' hrs', verticalAlign: 'middle', y: -15,
+      style: { fontSize: '28px', fontWeight: '700', color: '#e6edf3' } },
+    subtitle: { text: 'Total Dev Hours', verticalAlign: 'middle', y: 15,
+      style: { fontSize: '12px', color: '#8b949e' } },
+    tooltip: { pointFormat: '<b>{point.y:,.0f} hrs</b> ({point.percentage:.1f}%)<br/>{point.desc}' },
+    plotOptions: { pie: { innerSize: '65%', borderWidth: 2, borderColor: '#0d1117',
+      dataLabels: { enabled: true, format: '<b>{point.name}</b><br/>{point.y:,.0f} hrs',
+        style: { color: '#e6edf3', textOutline: 'none', fontSize: '11px' }, distance: 20 } } },
+    series: [{ data: [
+      { name: 'Current Time Saved', y: timeSaved, color: '#3fb950',
+        desc: 'Hours already recovered through AI assistance' },
+      { name: 'Potential Additional Savings', y: potentialAdditional, color: selectedFactor.color,
+        desc: `If ${selectedFactor.label} improved from ${fmtPct(currentLevel)} to 100%` },
+      { name: 'Remaining Dev Time', y: remaining, color: '#30363d',
+        desc: 'Hours not addressed by this structural factor' },
+    ] }],
+  };
+
+  function completenessDonutOpts(title, pct, color, isSelected) {
+    const val = pct != null ? Math.min(pct * 100, 100) : 0;
+    return {
+      chart: { type: 'pie', height: 160, margin: [0, 0, 30, 0] },
+      title: { text: fmtPct0(pct), verticalAlign: 'middle', y: -8, style: { fontSize: '22px', fontWeight: '700', color: '#e6edf3' } },
+      subtitle: { text: title, align: 'center', verticalAlign: 'bottom', y: -5, style: { fontSize: '10px' } },
+      tooltip: { pointFormat: '<b>{point.percentage:.1f}%</b>' },
+      plotOptions: { pie: { innerSize: '70%', borderWidth: isSelected ? 3 : 0,
+        borderColor: isSelected ? color : 'transparent', dataLabels: { enabled: false } } },
+      series: [{ data: [{ name: title, y: val, color }, { name: 'Gap', y: Math.max(100 - val, 0), color: '#30363d' }] }],
+    };
+  }
+
+  /* ── Time-Boxed Bar Chart ── */
+  const totalPossibleSavings = timeSaved + potentialAdditional;
+  const defaultGain = totalPossibleSavings;
+
+  const barChartOpts = {
+    chart: { type: 'bar', height: 260, marginLeft: 140 },
+    title: { text: 'AI Makes Tasks More Efficient', align: 'left', style: { fontSize: '16px', fontStyle: 'italic' } },
+    subtitle: { text: `Dev Task Analysis: ${fmtCompact(maxHours)} total task hours in period`, align: 'left' },
+    xAxis: {
+      categories: ['Productive Time', 'Delay (AI-reducible)'],
+      labels: { style: { color: '#e6edf3', fontSize: '13px', fontWeight: '600' } },
+    },
+    yAxis: {
+      min: 0, max: maxHours,
+      title: { text: 'Hours' },
+      labels: { formatter: function() { return fmtCompact(this.value); } },
+      plotLines: [{ value: maxHours, color: '#484f58', dashStyle: 'Dash', width: 1,
+        label: { text: 'Total Task Hours: ' + fmtCompact(maxHours), align: 'right', style: { color: '#8b949e', fontSize: '11px' } } }],
+    },
+    tooltip: { pointFormat: '<b>{point.y:,.0f} hrs</b><br/>{point.desc}' },
+    legend: { enabled: true, reversed: true },
+    plotOptions: { bar: { stacking: 'normal', borderRadius: 3, borderWidth: 0, groupPadding: 0.15,
+      dataLabels: { enabled: true, format: '{point.y:,.0f} hrs', style: { color: '#e6edf3', textOutline: 'none', fontSize: '11px' } } } },
+    series: [
+      // Productive Time bar — total minus delay
+      { name: 'Productive Time', data: [
+        { y: Math.max(maxHours - totalPossibleSavings, 0), color: '#58a6ff', desc: 'Task hours after removing AI-reducible delay' },
+        { y: 0, color: 'transparent' },
+      ], color: '#58a6ff' },
+      // Delay bar — current savings (dashed feel via lighter color)
+      { name: 'Current Time Saved', data: [
+        { y: 0, color: 'transparent' },
+        { y: timeSaved, color: 'rgba(63,185,80,0.5)', desc: 'Already recovered through AI assistance', borderColor: '#3fb950', borderWidth: 2, dashStyle: 'Dash' },
+      ], color: 'rgba(63,185,80,0.5)' },
+      // Delay bar — remaining potential (solid)
+      { name: 'Remaining Potential', data: [
+        { y: 0, color: 'transparent' },
+        { y: potentialAdditional, color: '#3fb950', desc: 'Additional savings if ' + selectedFactor.label + ' improved to 100%' },
+      ], color: '#3fb950' },
+    ],
+  };
+
+  /* ── Aggregate view ── */
+  const aggregate = (
+    <>
+      {/* Summary KPIs */}
+      <div className="d-flex flex-wrap mb-3" style={{ gap: '12px' }}>
+        <div style={{ flex: '1 1 140px' }}><KpiCard label="Total Task Hours" value={fmtCompact(maxHours)} sub={`${totalDevs} devs × ${nonWeekendDays} workdays × ${(pctTimeCoding * 100).toFixed(0)}% × 8h`} /></div>
+        <div style={{ flex: '1 1 140px' }}><KpiCard label="Current Time Saved" value={fmtCompact(timeSaved)} unit="hrs" sub={fmtPct(safeDiv(timeSaved, maxHours)) + ' of total'} color="rgba(63,185,80,0.7)" /></div>
+        <div style={{ flex: '1 1 140px' }}><KpiCard label="Remaining Potential" value={fmtCompact(potentialAdditional)} unit="hrs" sub={`if ${selectedFactor.label} → 100%`} color="#3fb950" /></div>
+        <div style={{ flex: '1 1 140px' }}><KpiCard label="Adoption" value={fmtPct(adoptionPct)} sub={`${fmtDec(avgDau, 0)} of ${totalDevs} devs`} color={adoptionPct != null && adoptionPct > 0.5 ? '#3fb950' : '#d29922'} /></div>
+      </div>
+
+      {/* Time-boxed bar chart with projection badge */}
+      <div className="Box p-3 mb-3">
+        <div className="d-flex flex-items-center flex-justify-between mb-2">
+          <div />
+          <span className="Label d-flex flex-items-center" style={{ color: selectedFactor.color, borderColor: selectedFactor.color, gap: '4px', fontSize: '12px', padding: '4px 10px' }}>
+            Projection driver: <strong>{selectedFactor.label}</strong> ({fmtPct(currentLevel)})
+          </span>
+        </div>
+        <Chart options={barChartOpts} />
+      </div>
+
+      {/* Structural factors — click to change the "Potential" projection */}
+      <h3 className="f5 color-fg-default mb-2">Structural Factors <span className="f6 color-fg-muted">(click to change projection)</span></h3>
+      <div className="d-flex flex-wrap mb-3" style={{ gap: '12px', alignItems: 'stretch' }}>
+        {STRUCTURAL_FACTORS.map(f => {
+          const isSelected = f.key === structuralFactor;
+          return (
+            <div key={f.key} className="Box p-3" onClick={() => setStructuralFactor(f.key)}
+              style={{ flex: '1 1 180px', cursor: 'pointer', borderColor: isSelected ? f.color : undefined,
+                borderWidth: isSelected ? '2px' : undefined, transition: 'border-color 0.15s' }}>
+              <Chart options={completenessDonutOpts(f.label, f.current, f.color, isSelected)} className="donut-container" />
+              <div className="text-center f6 color-fg-muted mt-1">{f.detail}</div>
+              {isSelected && <div className="text-center f6 mt-1" style={{ color: f.color }}>▲ Projecting from this factor</div>}
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+
+  /* ── Detail view (hidden by default) ── */
+  const hoursChartOpts = {
+    chart: { type: 'areaspline', height: 320 },
+    title: { text: 'Estimated Hours Saved per Day by Method' },
+    xAxis: { categories: days.map(d => d.day), labels: { rotation: -45, style: { fontSize: '10px' } } },
+    yAxis: { title: { text: 'Hours Saved' }, min: 0 },
+    tooltip: { shared: true, valueDecimals: 1 },
+    series: ESTIMATION_METHODS.map((m, i) => ({
+      name: m.label,
+      data: days.map(d => d['est_' + m.key + '_hrs_day']),
+      color: ['#58a6ff', '#3fb950', '#d29922'][i],
+      fillOpacity: 0.05,
+    })),
+  };
+
+  const completenessTrendOpts = {
+    chart: { type: 'spline', height: 280 },
+    title: { text: 'Completeness Over Time' },
+    xAxis: { categories: days.map(d => d.day), labels: { rotation: -45, style: { fontSize: '10px' } } },
+    yAxis: { title: { text: '%' }, min: 0, labels: { format: '{value}%' } },
+    tooltip: { shared: true, valueSuffix: '%', valueDecimals: 1 },
+    series: [
+      { name: 'Adopted %', data: days.map(d => d.adopted_individuals_pct != null ? +(d.adopted_individuals_pct * 100).toFixed(1) : null), color: '#58a6ff' },
+      { name: 'PRs Assisted %', data: days.map(d => d.prs_assisted_pct != null ? +(d.prs_assisted_pct * 100).toFixed(1) : null), color: '#3fb950' },
+      { name: 'AI-LOC %', data: days.map(d => d.ai_assisted_loc_pct != null ? +(d.ai_assisted_loc_pct * 100).toFixed(1) : null), color: '#bc8cff' },
+    ],
+  };
+
+  const detail = (
+    <>
+      <div className="Box p-3 mb-3">
+        <Chart options={hoursChartOpts} />
+      </div>
+      <div className="Box p-3">
+        <Chart options={completenessTrendOpts} />
+      </div>
+    </>
+  );
+
+  return (
+    <Panel title="Dev Task" desc="Developer Hours spent doing coding and coding-adjacent work to complete Dev Tasks (PRs)"
+      detailChildren={detail}>
+      {aggregate}
+    </Panel>
+  );
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   PANEL 2 — TIME SAVED
+   ════════════════════════════════════════════════════════════════════════════ */
+
+function TimeSavedSection({ days, config, method, onMethodChange }) {
+  const n = days.length;
+  const avgEstimates = {};
+  for (const m of ESTIMATION_METHODS) {
+    avgEstimates[m.key] = days.reduce((s, d) => s + (d['est_' + m.key + '_hrs_day'] || 0), 0);
+  }
+  const laborCost = config.cfg_labor_cost_per_hour;
+  const validEstimates = Object.values(avgEstimates).filter(v => v > 0);
+  const primaryEstimate = validEstimates.length > 0 ? validEstimates.reduce((a, b) => a + b, 0) / validEstimates.length : 0;
+  const minEstimate = validEstimates.length > 0 ? Math.min(...validEstimates) : 0;
+  const maxEstimate = validEstimates.length > 0 ? Math.max(...validEstimates) : 0;
+  const avgDau = mean(days.map(d => d.daily_active_users));
+  const primaryPerDev = safeDiv(primaryEstimate, avgDau * n);
+
+  /* ── Aggregate view ── */
+  const aggregate = (
+    <>
+      {/* Primary estimate — the anchor */}
+      <div className="d-flex flex-wrap mb-3" style={{ gap: '12px' }}>
+        <div style={{ flex: '0 0 220px' }}>
+          <KpiCard hero label="Estimated Time Saved" value={fmtCompact(primaryEstimate)} unit="hrs"
+            sub={`Average of ${validEstimates.length} methods · ${fmtDec(safeDiv(primaryEstimate, n), 0)} hrs/day`} color="#3fb950" />
+        </div>
+        <div style={{ flex: '1 1 0', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
+          <KpiCard label="Per Dev Per Day" value={fmtDec(primaryPerDev, 2)} unit="hrs"
+            sub={`across ${fmtDec(avgDau, 0)} active devs`} />
+          <KpiCard label="Estimate Range" value={fmtCompact(minEstimate) + ' – ' + fmtCompact(maxEstimate)} unit="hrs"
+            sub="low to high across methods" />
+          {laborCost != null && <KpiCard label="Economic Value" value={fmtCurrency(primaryEstimate * laborCost)}
+            sub={`at $${laborCost}/hr`} color="#3fb950" />}
+        </div>
+      </div>
+
+      {/* Triangulation — individual methods */}
+      <h3 className="f6 color-fg-muted text-bold mb-2">Triangulation — by estimation method</h3>
+      <div className="d-flex flex-wrap mb-3" style={{ gap: '12px' }}>
+        {ESTIMATION_METHODS.map((m, i) => {
+          const total = avgEstimates[m.key];
+          const color = ['#58a6ff', '#3fb950', '#d29922'][i];
+          const deviation = primaryEstimate > 0 ? ((total - primaryEstimate) / primaryEstimate) : 0;
+          const deviationLabel = deviation > 0 ? '+' + fmtPct(deviation) : fmtPct(deviation);
+          return (
+            <div key={m.key} style={{ flex: '1 1 200px' }}>
+              <KpiCard label={m.label} value={fmtCompact(total)} unit="hrs"
+                sub={m.descFn(config) + (total > 0 ? ` · ${deviationLabel} vs avg` : '')} color={color} />
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+
+  /* ── Detail view ── */
+  const methodDef = ESTIMATION_METHODS.find(m => m.key === method) || ESTIMATION_METHODS[0];
+
+  const byMethodOpts = {
+    chart: { type: 'areaspline', height: 320 },
+    title: { text: 'Hours Saved per Day by Method' },
+    xAxis: { categories: days.map(d => d.day), labels: { rotation: -45, style: { fontSize: '10px' } } },
+    yAxis: { title: { text: 'Hours Saved' }, min: 0 },
+    tooltip: { shared: true, valueDecimals: 1 },
+    series: ESTIMATION_METHODS.map((m, i) => ({
+      name: m.label,
+      data: days.map(d => d['est_' + m.key + '_hrs_day']),
+      color: ['#58a6ff', '#3fb950', '#d29922'][i],
+      fillOpacity: 0.05,
+    })),
+  };
+
+  const perDevOpts = {
+    chart: { type: 'areaspline', height: 300 },
+    title: { text: 'Per-Developer Time Saved — ' + methodDef.label },
+    subtitle: { text: methodDef.descFn(config) },
+    xAxis: { categories: days.map(d => d.day), labels: { rotation: -45, style: { fontSize: '10px' } } },
+    yAxis: [
+      { title: { text: 'Hrs / Dev / Day' }, min: 0 },
+      { title: { text: 'Total Hours' }, opposite: true, min: 0 },
+    ],
+    tooltip: { shared: true, valueDecimals: 1 },
+    series: [
+      { name: 'Hrs / Dev / Day', data: days.map(d => d.time_saved_hours_per_dev_per_day), yAxis: 0, color: '#58a6ff', fillOpacity: 0.08 },
+      { name: 'Org Total Hrs', data: days.map(d => d.time_saved_hours_total_day != null ? Math.round(d.time_saved_hours_total_day * 10) / 10 : null), type: 'column', yAxis: 1, color: '#3fb950', opacity: 0.7 },
+    ],
+  };
+
+  const detail = (
+    <>
+      <div className="Box p-3 mb-3">
+        <Chart options={byMethodOpts} />
+      </div>
+      <h4 className="f6 color-fg-muted mb-2 d-flex flex-items-center" style={{ gap: '8px' }}>
+        Per-Developer Breakdown:
+        <select className="form-select form-select-sm" value={method} onChange={e => onMethodChange(e.target.value)}
+          style={{ width: 'auto', background: 'var(--bgColor-muted)', color: 'var(--fgColor-default)', border: '1px solid var(--borderColor-default)' }}>
+          {ESTIMATION_METHODS.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
+        </select>
+      </h4>
+      <div className="Box p-3">
+        <Chart options={perDevOpts} />
+      </div>
+    </>
+  );
+
+  return (
+    <Panel title="Time Saved" desc="Estimated efficiency impact across estimation methods"
+      detailChildren={detail}>
+      {aggregate}
+    </Panel>
+  );
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   PANEL 3 — CURRENT LEVERAGE
+   ════════════════════════════════════════════════════════════════════════════ */
+
+function CurrentLeverageSection({ days, config, method }) {
+  const n = days.length;
+  const totalPrs = days.reduce((s, d) => s + (d.total_prs || d.pr_total_created || 0), 0);
+  const mergedPrs = totalPrs;
+  const avgDau = mean(days.map(d => d.daily_active_users));
+  const prsPerDev = safeDiv(mergedPrs, avgDau * n);
+  const pctTimeCoding = config.cfg_pct_time_coding || 0.5;
+  const totalHoursWorked = days.reduce((s, d) => s + (d.daily_active_users || 0) * pctTimeCoding * 8, 0);
+  const leverage = safeDiv(mergedPrs, totalHoursWorked);
+  const hoursPerCompletion = safeDiv(totalHoursWorked, mergedPrs);
+
+  const estHours = {};
+  for (const m of ESTIMATION_METHODS) {
+    estHours[m.key] = days.reduce((s, d) => s + (d['est_' + m.key + '_hrs_day'] || 0), 0);
+  }
+  const methodHours = ESTIMATION_METHODS.map(m => estHours[m.key]);
+  const avgHours = totalHoursWorked;
+
+  /* ── Aggregate view ── */
+  const aggregate = (
+    <div className="d-flex flex-wrap mb-3" style={{ gap: '12px' }}>
+      <div style={{ flex: '0 0 200px' }}><KpiCard hero label="Leverage" value={fmtDec(leverage, 3)} sub="valid completions / dev-hour" color="#3fb950" /></div>
+      <div style={{ flex: '1 1 0', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
+        <KpiCard label="Merged PRs" value={fmtCompact(mergedPrs)} sub={`${n} day period`} />
+        <KpiCard label="PRs / Dev" value={fmtDec(prsPerDev, 1)} sub="per active dev across period" />
+        <KpiCard label="Hours / Completion" value={fmtDec(hoursPerCompletion, 2)} unit="hrs" sub="inverse leverage" />
+        <KpiCard label="Hours Worked" value={fmtCompact(totalHoursWorked)} sub={`${fmtDec(avgDau, 0)} devs × ${(pctTimeCoding * 100).toFixed(0)}% × 8h`} />
+      </div>
+    </div>
+  );
+
+  /* ── Detail view ── */
+  const rectOpts = {
+    chart: { type: 'scatter', height: 380 },
+    title: { text: 'Leverage Rectangle' },
+    subtitle: { text: `Slope = leverage (${fmtDec(leverage, 3)} completions/hr). Steeper slope = higher leverage.` },
+    xAxis: { title: { text: 'Dev Hours Worked (estimated)' }, min: 0, max: avgHours * 1.2 },
+    yAxis: { title: { text: 'Valid Completions (Merged PRs)' }, min: 0, max: mergedPrs * 1.2 },
+    series: [
+      { type: 'area', name: 'Leverage Area', data: [[0, 0], [avgHours, mergedPrs]], color: '#58a6ff', fillOpacity: 0.1,
+        marker: { enabled: false }, enableMouseTracking: false, lineWidth: 0 },
+      { type: 'line', name: `Leverage = ${fmtDec(leverage, 3)}`, data: [[0, 0], [avgHours, mergedPrs]], color: '#3fb950',
+        dashStyle: 'Dash', lineWidth: 2, marker: { enabled: true, radius: 6, symbol: 'circle' } },
+      ...ESTIMATION_METHODS.filter((m, i) => methodHours[i] > 0).map((m, i) => ({
+        type: 'scatter', name: m.label + ' est.',
+        data: [[methodHours[i], mergedPrs * (methodHours[i] / avgHours)]],
+        color: ['#58a6ff', '#d29922', '#bc8cff'][i],
+        marker: { radius: 8, symbol: 'diamond' },
+        tooltip: { pointFormat: `${m.label}: <b>{point.x:.0f}</b> hrs → <b>{point.y:.0f}</b> PRs` },
+      })),
+    ],
+  };
+
+  const dailyLeverage = days.map(d => {
+    const hrs = (d.daily_active_users || 0) * pctTimeCoding * 8;
+    const prs = d.total_prs || d.pr_total_created || 0;
+    return hrs > 0 ? Math.round((prs / hrs) * 1000) / 1000 : null;
+  });
+  const leveragePoints = dailyLeverage.map((v, i) => v != null ? [i, v] : null).filter(Boolean);
+  const reg = linearRegression(leveragePoints);
+
+  const trendOpts = {
+    chart: { type: 'spline', height: 280 },
+    title: { text: 'Daily Leverage Trend' },
+    subtitle: { text: 'If leverage is improving, progress is happening even if completions are flat or trending down.' },
+    xAxis: { categories: days.map(d => d.day), labels: { rotation: -45, style: { fontSize: '10px' } } },
+    yAxis: { title: { text: 'PRs / Dev-Hour' }, min: 0 },
+    tooltip: { valueDecimals: 3 },
+    series: [
+      { name: 'Daily Leverage', data: dailyLeverage, color: '#3fb950', marker: { radius: 3 } },
+      ...(reg ? [{ name: 'Trend', data: days.map((_, i) => Math.round((reg.slope * i + reg.intercept) * 1000) / 1000),
+        color: '#d29922', dashStyle: 'Dash', lineWidth: 2, marker: { enabled: false }, enableMouseTracking: false }] : []),
+    ],
+  };
+
+  const detail = (
+    <>
+      <div className="Box p-3 mb-3">
+        <Chart options={rectOpts} />
+      </div>
+      <div className="Box p-3">
+        <Chart options={trendOpts} />
+      </div>
+    </>
+  );
+
+  return (
+    <Panel title="Current Leverage" desc="The relationship between dev time consumed and valid completions produced"
+      detailChildren={detail}>
+      {aggregate}
+    </Panel>
+  );
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   PANEL 4 — IMPROVEMENT OPPORTUNITIES
+   ════════════════════════════════════════════════════════════════════════════ */
+
+function ImprovementOpportunitiesSection({ days, config, method }) {
+  const totalTimeSaved = days.reduce((s, d) => s + (d.time_saved_hours_total_day || 0), 0);
+  const avgAdoption = mean(days.map(d => d.adopted_individuals_pct)) || 0;
+  const avgPrsAssisted = days._periodPrsAssistedPct || mean(days.map(d => d.prs_assisted_pct)) || 0;
+  const avgLocPct = days._periodLocAssistedPct || mean(days.map(d => d.ai_assisted_loc_pct)) || 0;
+
+  const contingencyFactors = [
+    { name: 'Adoption %', current: avgAdoption, icon: '👥',
+      impactAtCurrent: totalTimeSaved,
+      impactAtMax: avgAdoption > 0 ? totalTimeSaved / avgAdoption : totalTimeSaved },
+    { name: 'PRs Assisted %', current: avgPrsAssisted, icon: '🔗',
+      impactAtCurrent: totalTimeSaved * avgPrsAssisted,
+      impactAtMax: totalTimeSaved },
+    { name: 'AI-Assisted LOC %', current: avgLocPct, icon: '📝',
+      impactAtCurrent: totalTimeSaved * avgLocPct,
+      impactAtMax: totalTimeSaved },
+  ];
+
+  const driverFactors = DRIVER_SERIES.map(ds => {
+    const total = days.reduce((s, d) => s + (d[ds.key] || 0), 0);
+    const perDev = mean(days.map(d => d[ds.perDev]).filter(v => v != null));
+    const maxPerDev = Math.max(...days.map(d => d[ds.perDev] || 0));
+    let contribution = 0;
+    if (ds.key === 'user_initiated_interaction_count') contribution = total / (config.est_interactions_per_hour || 20);
+    else if (ds.key === 'loc_added_sum') contribution = (total / 1000) * (config.est_hrs_per_kloc || 2);
+    return { ...ds, total, perDev, maxPerDev, contribution,
+      maxContribution: perDev > 0 && maxPerDev > 0 ? contribution * (maxPerDev / perDev) : contribution };
+  });
+
+  const avgAdoptionVal = mean(days.map(d => d.adopted_individuals_pct));
+  const mechanisms = [
+    { mechanism: 'Structural Improvement', icon: '🏗️', applicable: true,
+      priority: avgAdoptionVal != null && avgAdoptionVal < 0.5 ? 'high' : 'medium',
+      description: 'Increase adoption, coverage, and availability so more dev time benefits from AI assistance.',
+      metric: `Current adoption: ${fmtPct(avgAdoptionVal)}` },
+    { mechanism: 'Efficiency Improvement', icon: '⚡', applicable: true, priority: 'medium',
+      description: 'Reduce dev time per completion through better prompting, workflow optimization, and IDE integration.',
+      metric: 'Focus on driver activity levels per developer' },
+    { mechanism: 'Yield Improvement', icon: '🎯', applicable: true, priority: 'medium',
+      description: 'Increase the share of valid completions — fewer reverted PRs, less rework.',
+      metric: 'Requires completion quality data (PR revert rate, rework rate)' },
+    { mechanism: 'Elimination', icon: '✂️', applicable: false, priority: 'low',
+      description: 'Not applicable — this is value-creating work that should be maximized, not eliminated.',
+      metric: 'N/A for value-creating jobs' },
+  ];
+  const priorityColor = { high: '#f85149', medium: '#d29922', low: '#3fb950' };
+
+  /* ── Aggregate view: factor tables + mechanism cards ── */
+  const aggregate = (
+    <>
+      {/* Contingency factors */}
+      <div className="Box p-3 mb-3" style={{ borderLeft: '3px solid #f85149' }}>
+        <h3 className="f5 text-bold color-fg-default mb-2">🏗️ Contingency Factors — Apply AI to more dev work</h3>
+        <table className="factor-table">
+          <thead><tr><th>Factor</th><th>Current</th><th className="num">Impact at Zero</th><th className="num">At Current</th><th className="num">At Max (100%)</th></tr></thead>
+          <tbody>
+            {contingencyFactors.map((f, i) => (
+              <tr key={i}>
+                <td>{f.icon} {f.name}</td>
+                <td><strong style={{ color: '#58a6ff' }}>{fmtPct(f.current)}</strong></td>
+                <td className="num color-fg-muted">0 hrs</td>
+                <td className="num"><strong>{fmtCompact(f.impactAtCurrent)} hrs</strong></td>
+                <td className="num" style={{ color: '#3fb950' }}><strong>{fmtCompact(f.impactAtMax)} hrs</strong></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Driver factors */}
+      <div className="Box p-3 mb-3" style={{ borderLeft: '3px solid #d29922' }}>
+        <h3 className="f5 text-bold color-fg-default mb-2">⚡ Driver Factors — Reduce time per completion</h3>
+        <table className="factor-table">
+          <thead><tr><th>Driver</th><th className="num">Total</th><th className="num">Avg/Dev/Day</th><th className="num">Max/Dev/Day</th><th className="num">At Current</th><th className="num">At Max</th></tr></thead>
+          <tbody>
+            {driverFactors.filter(f => f.total > 0).map((f, i) => (
+              <tr key={i}>
+                <td><span style={{ color: f.color }}>●</span> {f.label}</td>
+                <td className="num">{fmtCompact(f.total)}</td>
+                <td className="num">{fmtDec(f.perDev, 1)}</td>
+                <td className="num" style={{ color: '#d29922' }}>{fmtDec(f.maxPerDev, 1)}</td>
+                <td className="num">{f.contribution > 0 ? fmtCompact(f.contribution) + ' hrs' : '—'}</td>
+                <td className="num" style={{ color: '#3fb950' }}>{f.maxContribution > 0 ? fmtCompact(f.maxContribution) + ' hrs' : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mechanism cards */}
+      <div className="d-flex flex-column" style={{ gap: '8px' }}>
+        {mechanisms.map((opp, i) => (
+          <div key={i} className={`Box p-3 opportunity-card${!opp.applicable ? ' color-fg-muted' : ''}`}
+               style={!opp.applicable ? { opacity: 0.5, borderLeftColor: 'var(--borderColor-muted)' } : { borderLeftColor: priorityColor[opp.priority] }}>
+            <div className="d-flex flex-items-center mb-1">
+              <span className="f4 mr-2">{opp.icon}</span>
+              <span className="f4 text-bold">{opp.mechanism}</span>
+              {opp.applicable && (
+                <span className="Label ml-2" style={{ color: priorityColor[opp.priority], borderColor: priorityColor[opp.priority] }}>{opp.priority}</span>
+              )}
+            </div>
+            <p className="f6 color-fg-muted mb-0">{opp.description}</p>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+
+  /* ── Detail view: driver activity trend ── */
+  const driverTrendOpts = {
+    chart: { type: 'spline', height: 320 },
+    title: { text: 'Daily Driver Activity — Per Active Developer' },
+    xAxis: { categories: days.map(d => d.day), labels: { rotation: -45, style: { fontSize: '10px' } } },
+    yAxis: { title: { text: 'Per Active Dev' }, min: 0 },
+    tooltip: { shared: true, valueDecimals: 2 },
+    series: DRIVER_SERIES.filter(ds => days.reduce((s, d) => s + (d[ds.key] || 0), 0) > 0).map(ds => ({
+      name: ds.label + ' / Dev',
+      data: days.map(d => d[ds.perDev] != null ? Math.round(d[ds.perDev] * 100) / 100 : null),
+      color: ds.color,
+    })),
+  };
+
+  const detail = (
+    <div className="Box p-3">
+      <Chart options={driverTrendOpts} />
+    </div>
+  );
+
+  return (
+    <Panel title="Improvement Opportunities" desc="What improvement opportunities exist and how much improvement is realistic?"
+      detailChildren={detail}>
+      {aggregate}
+    </Panel>
+  );
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   CONFIG PANEL
+   ════════════════════════════════════════════════════════════════════════════ */
+
+function ConfigPanel({ config, onApply, isOpen, onToggle }) {
+  const [cfg, setCfg] = useState(config);
+  useEffect(() => setCfg(config), [config]);
+  const set = (k, v) => setCfg(prev => ({ ...prev, [k]: v }));
+  const apply = () => onApply(cfg);
+
+  const fields = [
+    { section: 'Organization', items: [
+      { key: 'cfg_total_developers', label: 'Total Developers', type: 'number' },
+      { key: 'cfg_pct_time_coding', label: '% Time Coding (0–1)', type: 'number', step: '0.05' },
+      { key: 'cfg_labor_cost_per_hour', label: 'Labor Cost $/hr', type: 'number' },
+      { key: 'cfg_workdays_per_week', label: 'Workdays / Week', type: 'number' },
+    ]},
+    { section: 'Estimation Constants', items: [
+      { key: 'est_interactions_per_hour', label: 'Interactions per Hour Saved', type: 'number' },
+      { key: 'est_hrs_per_kloc', label: 'Hrs Saved per 1K LoC', type: 'number', step: '0.5' },
+    ]},
+    { section: 'Manual Daily % Parameters', items: [
+      { key: 'cfg_time_saved_pct_day', label: 'Time Saved % (0–1)', type: 'number', step: '0.01' },
+      { key: 'cfg_baseline_hours_per_dev_per_week', label: 'Baseline Hrs / Dev / Week', type: 'number' },
+    ]},
+  ];
+
+  return (
+    <div className="Box mt-4" style={{ borderColor: isOpen ? 'var(--borderColor-accent-emphasis)' : undefined }}>
+      <div className="Box-header d-flex flex-items-center flex-justify-between" style={{ cursor: 'pointer' }} onClick={onToggle}>
+        <div className="d-flex flex-items-center" style={{ gap: '8px' }}>
+          <span style={{ transition: 'transform 0.15s', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', display: 'inline-block' }}>▶</span>
+          <h4 className="f5 mb-0">Configuration</h4>
+        </div>
+        <span className="f6 color-fg-muted">{cfg.cfg_total_developers} devs · {(cfg.cfg_pct_time_coding * 100).toFixed(0)}% coding · {cfg.est_interactions_per_hour} int/hr</span>
+      </div>
+      {isOpen && (
+        <div className="Box-body">
+          {fields.map(section => (
+            <div key={section.section} className="mb-3">
+              <h5 className="f6 color-fg-muted text-bold mb-2">{section.section}</h5>
+              <div className="d-flex flex-wrap" style={{ gap: '12px', alignItems: 'flex-end' }}>
+                {section.items.map(f => (
+                  <div key={f.key} className="form-group mb-0" style={{ flex: '1 1 160px' }}>
+                    <label className="f6 color-fg-muted">{f.label}</label>
+                    <input type={f.type} className="form-control input-sm" step={f.step || '1'}
+                      value={cfg[f.key] ?? ''} onChange={e => set(f.key, e.target.value === '' ? null : parseFloat(e.target.value))} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+          <div className="d-flex flex-items-center mt-3" style={{ gap: '8px' }}>
+            <button className="btn btn-sm btn-primary" onClick={apply}>Apply & Recalculate</button>
+            <button className="btn btn-sm btn-outline" onClick={() => {
+              const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: 'application/json' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a'); a.href = url; a.download = 'config.json'; a.click();
+              URL.revokeObjectURL(url);
+            }}>💾 Save config.json</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   APP
+   ════════════════════════════════════════════════════════════════════════════ */
+
+function App() {
+  const [data, setData] = useState(null);
+  const [config, setConfig] = useState({
+    cfg_total_developers: 100, cfg_pct_time_coding: 0.5, cfg_labor_cost_per_hour: 75,
+    cfg_workdays_per_week: 5, cfg_time_saved_pct_day: null, cfg_baseline_hours_per_dev_per_week: null,
+    est_interactions_per_hour: 20, est_hrs_per_kloc: 2,
+    cfg_total_dev_loc_added_day: 10000,
+  });
+  const [method, setMethod] = useState('interactions');
+  const [configOpen, setConfigOpen] = useState(false);
+
+  const recompute = useCallback((raw, cfg, m) => {
+    const enriched = computeDerived(raw.enterprise, cfg, m);
+    const structural = computeStructuralMetrics(enriched, raw.users, cfg, raw.prRecords);
+    return { ...raw, days: structural, enterprise: enriched };
+  }, []);
+
+  const handleData = useCallback((raw) => {
+    const merged = recompute(raw, raw.config || config, method);
+    setData(merged);
+    if (raw.config) setConfig(prev => ({ ...prev, ...raw.config }));
+  }, [method, config, recompute]);
+
+  const handleMethodChange = useCallback((m) => {
+    setMethod(m);
+    if (data) setData(prev => recompute(prev, config, m));
+  }, [data, config, recompute]);
+
+  const handleConfigApply = useCallback((cfg) => {
+    setConfig(cfg);
+    if (data) setData(prev => recompute(prev, cfg, method));
+  }, [data, method, recompute]);
+
+  return (
+    <div className="element-page">
+      <h1 className="f0 color-fg-default mb-1">AI Assisted Coding</h1>
+      <p className="f5 color-fg-muted mb-4">Element of Leverage — 7-Question Framework</p>
+
+      <UploadPanel onData={handleData} />
+
+      {data && data.days && (
+        <>
+          <SourceSummary data={data} />
+
+          {/* Questions 1-3: Definition Cards */}
+          <div className="definition-row">
+            <DefinitionCard icon="🎯" label="Job to Be Done"
+              value="Write and ship code faster with AI assistance"
+              description="Developers use GitHub Copilot to generate, complete, and iterate on code within their editor and PR workflow." />
+            <DefinitionCard icon="✅" label="What Counts as a Completion"
+              value="A PR merged by a Copilot-active developer"
+              description="Valid = PR achieved its purpose (shipped a working change). Failed/flawed = reverted PRs or PRs requiring significant rework." />
+            <DefinitionCard icon="📋" label="Job Class"
+              value="Value-creating"
+              description="Valid completions directly produce desired output — shipped code that moves the product forward." />
+          </div>
+
+          {/* Panel 1: Dev Task */}
+          <DevTimeSection days={data.days} config={config} method={method} onMethodChange={handleMethodChange} />
+
+          {/* Panel 2: Time Saved */}
+          <TimeSavedSection days={data.days} config={config} method={method} onMethodChange={handleMethodChange} />
+
+          {/* Panel 3: Current Leverage */}
+          <CurrentLeverageSection days={data.days} config={config} method={method} />
+
+          {/* Panel 4: Improvement Opportunities */}
+          <ImprovementOpportunitiesSection days={data.days} config={config} method={method} />
+
+          {/* Configuration */}
+          <ConfigPanel config={config} onApply={handleConfigApply} isOpen={configOpen} onToggle={() => setConfigOpen(!configOpen)} />
+        </>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

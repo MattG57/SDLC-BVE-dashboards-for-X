@@ -1056,7 +1056,7 @@ function App() {
         const ddMap = {};
         for (const r of devDays) ddMap[r.date + '|' + r.developer] = r;
         devDays = Object.values(ddMap);
-        handleData({ prSessions, requests, devDays, config: autoConfig, fileNames: ['auto-loaded'] });
+        handleData({ prSessions, requests, devDays, config: autoConfig, fileNames: manifest.files });
       })
       .catch(() => {}); // Silent fail — manual upload still available
   }, []); // eslint-disable-line react-hooks/exhaustive-deps

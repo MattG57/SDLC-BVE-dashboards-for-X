@@ -1074,7 +1074,7 @@ function App() {
         for (const r of userRecs) userMap[r.day + '|' + r.user_login] = r;
         const users = Object.values(userMap);
         const recon = buildReconciliation(enterprise, users);
-        handleData({ enterprise, users, recon, config: autoConfig, fileNames: ['auto-loaded'] });
+        handleData({ enterprise, users, recon, config: autoConfig, fileNames: manifest.files });
       })
       .catch(() => {}); // Silent fail — manual upload still available
   }, []); // eslint-disable-line react-hooks/exhaustive-deps

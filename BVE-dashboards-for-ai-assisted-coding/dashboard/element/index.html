@@ -1362,7 +1362,7 @@ function App() {
         const userMap = {};
         for (const r of userRecs) userMap[r.day + '|' + r.user_login] = r;
         const users = Object.values(userMap);
-        handleData({ enterprise, users, config: autoConfig, fileNames: ['auto-loaded'], prRecords: prRecords.length > 0 ? prRecords : null });
+        handleData({ enterprise, users, config: autoConfig, fileNames: manifest.files, prRecords: prRecords.length > 0 ? prRecords : null });
       })
       .catch(() => {}); // Silent fail — manual upload still available
   }, []); // eslint-disable-line react-hooks/exhaustive-deps

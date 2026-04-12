@@ -1291,7 +1291,7 @@ function App() {
         for (const r of devDays) ddMap[r.date + '|' + r.developer] = r;
         devDays = Object.values(ddMap);
         const days = computeDerivedDays(devDays, autoConfig);
-        handleData({ days, prSessions, devDays, requests, config: autoConfig, fileNames: ['auto-loaded'] });
+        handleData({ days, prSessions, devDays, requests, config: autoConfig, fileNames: manifest.files });
       })
       .catch(() => {}); // Silent fail — manual upload still available
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
