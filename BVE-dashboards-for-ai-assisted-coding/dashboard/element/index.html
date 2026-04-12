@@ -1346,6 +1346,7 @@ function App() {
           if (!d) continue;
           const isSource = d.enterprise_report || d.user_report;
           const isPrData = !isSource && (Array.isArray(d) || Array.isArray(d?.prs) || Array.isArray(d?.pull_requests?.prs));
+          if (!isSource && !isPrData && Object.keys(d).some(k => k.startsWith('cfg_') || k.startsWith('est_'))) { Object.assign(autoConfig, d); continue; }
           if (isSource) {
             if (d.enterprise_report?.day_totals) entDays.push(...d.enterprise_report.day_totals.map(flattenDayTotal));
             if (Array.isArray(d.user_report)) userRecs.push(...flattenUserReport(d.user_report));

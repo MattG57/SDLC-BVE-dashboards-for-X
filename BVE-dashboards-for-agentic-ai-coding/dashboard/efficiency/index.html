@@ -1047,6 +1047,7 @@ function App() {
         let autoConfig = { cfg_workdays_per_week: 5, cfg_labor_cost_per_hour: null, est_human_to_agent_ratio: 10, est_hrs_per_kloc: 4 };
         for (const d of results) {
           if (!d) continue;
+          if (!d.pr_sessions && !d.requests && !d.developer_day_summary && Object.keys(d).some(k => k.startsWith('cfg_') || k.startsWith('est_'))) { Object.assign(autoConfig, d); continue; }
           if (Array.isArray(d.pr_sessions)) prSessions.push(...d.pr_sessions);
           if (Array.isArray(d.requests)) requests.push(...d.requests);
           if (Array.isArray(d.developer_day_summary)) devDays.push(...d.developer_day_summary);

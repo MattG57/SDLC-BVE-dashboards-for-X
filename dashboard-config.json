@@ -1,0 +1,15 @@
+{
+  "cfg_total_developers": 1100,
+  "cfg_pct_time_coding": 0.5,
+  "cfg_pct_time_reviewing": 0.2,
+  "cfg_labor_cost_per_hour": 100,
+  "cfg_workdays_per_week": 5,
+  "cfg_total_repos": 200,
+  "cfg_total_dev_loc_added_day": 10000,
+  "cfg_time_saved_pct_day": 0.11,
+  "cfg_baseline_hours_per_dev_per_week": 40,
+  "est_interactions_per_hour": 20,
+  "est_hrs_per_kloc": 4,
+  "est_duration_factor": 0.5,
+  "est_human_to_agent_ratio": 10
+}

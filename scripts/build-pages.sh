@@ -63,6 +63,17 @@ for slug in "${!DASHBOARDS[@]}"; do
   fi
 done
 
+# ─── Copy shared dashboard config into every dashboard's data/ ─────────────────
+CONFIG_SRC="${REPO_ROOT}/dashboard-config.json"
+if [[ -f "$CONFIG_SRC" ]]; then
+  for slug in "${!DASHBOARDS[@]}"; do
+    dest="${SITE_DIR}/${slug}/data"
+    mkdir -p "$dest"
+    cp "$CONFIG_SRC" "$dest/config.json"
+  done
+  echo "  ✔ dashboard-config.json → all dashboards"
+fi
+
 # ─── Aggregate data for dashboards without their own data collection ───────────
 # Element dashboards and integrated dashboard need data from other sources.
 for slug_src in \

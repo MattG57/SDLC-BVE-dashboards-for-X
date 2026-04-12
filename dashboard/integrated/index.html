@@ -1076,6 +1076,7 @@ function App() {
           if (!d) continue;
           const isAiSource = d.enterprise_report || d.user_report;
           const isAgenticSource = d.pr_sessions || d.requests || d.developer_day_summary;
+          if (!isAiSource && !isAgenticSource && Object.keys(d).some(k => k.startsWith('cfg_') || k.startsWith('est_'))) { Object.assign(autoConfig, d); continue; }
           if (isAiSource) {
             if (d.enterprise_report?.day_totals) aiEntDays.push(...d.enterprise_report.day_totals.map(flattenDayTotal));
             if (Array.isArray(d.user_report)) aiUserRecs.push(...flattenUserReport(d.user_report));

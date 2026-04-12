@@ -1654,6 +1654,7 @@ function App() {
           if (!d) continue;
           const isSource = d.enterprise_report || d.user_report;
           const isPrReview = !isSource && (Array.isArray(d) || Array.isArray(d?.prs) || Array.isArray(d?.pull_requests?.prs));
+          if (!isSource && !isPrReview && Object.keys(d).some(k => k.startsWith('cfg_') || k.startsWith('est_'))) { Object.assign(autoConfig, d); continue; }
           if (isPrReview) {
             const { all, filtered } = flattenPrReview(d);
             rawPrRecords.push(...all);

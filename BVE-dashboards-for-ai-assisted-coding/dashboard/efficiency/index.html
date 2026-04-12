@@ -1062,6 +1062,7 @@ function App() {
         let autoConfig = { cfg_time_saved_pct_day: null, cfg_baseline_hours_per_dev_per_week: null, cfg_workdays_per_week: 5, cfg_labor_cost_per_hour: null, est_interactions_per_hour: 20, est_hrs_per_kloc: 2 };
         for (const d of results) {
           if (!d) continue;
+          if (!d.enterprise_report && !d.user_report && Object.keys(d).some(k => k.startsWith('cfg_') || k.startsWith('est_'))) { Object.assign(autoConfig, d); continue; }
           if (d.enterprise_report?.day_totals) entDays.push(...d.enterprise_report.day_totals.map(flattenDayTotal));
           if (Array.isArray(d.user_report)) userRecs.push(...flattenUserReport(d.user_report));
         }
