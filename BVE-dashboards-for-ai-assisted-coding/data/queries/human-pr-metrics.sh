@@ -312,7 +312,7 @@ if [[ -s "$TMPDIR_WORK/prs_raw.ndjson" ]]; then
       prs: [.[] | {
         number,
         title,
-        state: (.state | ascii_downcase),
+        state: ((.state // "UNKNOWN") | ascii_downcase),
         created_at: .createdAt,
         updated_at: .updatedAt,
         closed_at: .closedAt,
