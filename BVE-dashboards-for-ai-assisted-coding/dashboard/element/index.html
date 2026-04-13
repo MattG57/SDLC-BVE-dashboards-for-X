@@ -205,13 +205,14 @@ function flattenUserReport(userReport) {
 
 function flattenPrRecord(pr) {
   return {
+    number: pr.number,
     user: typeof pr.user === 'string' ? pr.user : (pr.user?.login || pr.author || pr.user),
     day: pr.merged_at?.slice(0, 10) || pr.created_at?.slice(0, 10) || pr.day,
     additions: pr.additions || 0,
     deletions: pr.deletions || 0,
     state: pr.state || 'unknown',
     merged: pr.merged || pr.state === 'merged' || !!pr.merged_at,
-    repo: typeof pr.repository === 'string' ? pr.repository : (pr.repository?.nameWithOwner || pr.repo || ''),
+    repository: typeof pr.repository === 'string' ? pr.repository : (pr.repository?.nameWithOwner || pr.repo || ''),
     closed_at: pr.closed_at || null,
     merged_at: pr.merged_at || null,
   };
