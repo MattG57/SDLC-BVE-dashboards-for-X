@@ -1037,9 +1037,9 @@ function App() {
         if (!manifest?.files?.length) return null;
         return Promise.all(manifest.files.map(f =>
           fetch('./data/' + f).then(r => r.ok ? r.json() : null)
-        ));
+        )).then(r => ({ manifest, results: r }));
       })
-      .then(results => {
+      .then(({ manifest, results } = {}) => {
         if (!results) return;
         let prSessions = [];
         let requests = [];
