@@ -1121,7 +1121,8 @@ function App() {
           if (!d) continue;
           const isAiSource = d.enterprise_report || d.user_report;
           const isAgenticSource = d.pr_sessions || d.requests || d.developer_day_summary;
-          if (!isAiSource && !isAgenticSource && Object.keys(d).some(k => k.startsWith('cfg_') || k.startsWith('est_'))) { Object.assign(autoConfig, d); continue; }
+          const isPrData = !isAiSource && !isAgenticSource && (Array.isArray(d) || Array.isArray(d?.prs) || Array.isArray(d?.pull_requests?.prs));
+          if (!isAiSource && !isAgenticSource && !isPrData && Object.keys(d).some(k => k.startsWith('cfg_') || k.startsWith('est_'))) { Object.assign(autoConfig, d); continue; }
           if (isAiSource) {
             if (d.enterprise_report?.day_totals) aiEntDays.push(...d.enterprise_report.day_totals.map(flattenDayTotal));
             if (Array.isArray(d.user_report)) aiUserRecs.push(...flattenUserReport(d.user_report));
@@ -1129,6 +1130,9 @@ function App() {
             if (Array.isArray(d.pr_sessions)) agPrSessions.push(...d.pr_sessions.map(flattenPrSession));
             if (Array.isArray(d.developer_day_summary)) agDevDays.push(...d.developer_day_summary.map(flattenDevDay));
             if (Array.isArray(d.requests)) agRequests.push(...d.requests);
+          } else if (isPrData) {
+            const raw = Array.isArray(d) ? d : (d.prs || d.pull_requests?.prs || []);
+            aiPrRecords.push(...raw.map(flattenPrRecord));
           }
         }
         if (!aiEntDays.length && !agPrSessions.length && !agDevDays.length) return;
