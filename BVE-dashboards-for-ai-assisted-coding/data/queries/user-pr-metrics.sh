@@ -1,6 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
+# DEPRECATED: This script is not used in the automated pipeline.
+# Per-user overlays use user_report data from copilot-user-and-enterprise-metrics.sh.
+# Org-wide PR data comes from human-pr-metrics.sh.
+# Kept for reference only — may be removed in a future cleanup.
+#
 # User-Centric PR Metrics Query (GraphQL + Adaptive Windowing)
 #
 # Collects pull request data for each Copilot-active user found in a
