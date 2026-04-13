@@ -142,7 +142,7 @@ for slug in $(echo "${!DASHBOARDS[@]}" | tr ' ' '\n' | sort); do
     [[ -n "$manifest_ts" && "$manifest_ts" != "null" ]] && manifest_ts="\"$manifest_ts\"" || manifest_ts="null"
   fi
 
-  # Collect file sizes
+  # Collect file sizes and embedded metadata
   file_details="[]"
   if [[ -d "$dest/data" ]]; then
     file_details="["
@@ -152,8 +152,10 @@ for slug in $(echo "${!DASHBOARDS[@]}" | tr ' ' '\n' | sort); do
       fname=$(basename "$f")
       [[ "$fname" == "manifest.json" || "$fname" == "data-status.json" ]] && continue
       fsize=$(wc -c < "$f" | tr -d ' ')
+      # Extract embedded metadata block if present
+      fmeta=$(jq -c '.metadata // null' "$f" 2>/dev/null || echo 'null')
       if $fd_first; then fd_first=false; else file_details="$file_details,"; fi
-      file_details="$file_details{\"name\":\"$fname\",\"size_bytes\":$fsize}"
+      file_details="$file_details{\"name\":\"$fname\",\"size_bytes\":$fsize,\"metadata\":$fmeta}"
     done
     file_details="$file_details]"
   fi

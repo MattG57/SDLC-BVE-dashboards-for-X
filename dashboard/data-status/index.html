@@ -144,11 +144,37 @@ function DashboardSection({ dashboards, buildTs }) {
                     <details>
                       <summary className="f6 cursor-pointer">{fileCount} file{fileCount !== 1 ? 's' : ''}</summary>
                       <div className="mt-1">
-                        {d.data_files.map((f, j) => (
-                          <div key={j} className="f6 color-fg-muted">
-                            <code>{f.name}</code> — {formatBytes(f.size_bytes)}
-                          </div>
-                        ))}
+                        {d.data_files.map((f, j) => {
+                          const m = f.metadata;
+                          return (
+                            <div key={j} className="f6 color-fg-muted mb-2 pl-2" style={{borderLeft: '2px solid var(--borderColor-default)'}}>
+                              <div><code>{f.name}</code> — {formatBytes(f.size_bytes)}</div>
+                              {m && (
+                                <>
+                                  <div className="mt-1">
+                                    <span className="color-fg-default">Collected:</span> {m.collected_at ? new Date(m.collected_at).toLocaleString() : '—'}
+                                    <span className="ml-2 ts-muted">({timeAgo(m.collected_at)})</span>
+                                  </div>
+                                  {m.date_range && (
+                                    <div><span className="color-fg-default">Window:</span> {m.date_range.since || '?'} → {m.date_range.until || m.date_range.days + 'd' || '?'}</div>
+                                  )}
+                                  {m.counts && (
+                                    <div>
+                                      <span className="color-fg-default">Counts:</span>{' '}
+                                      {Object.entries(m.counts).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`).join(' · ')}
+                                    </div>
+                                  )}
+                                  {m.completeness && m.completeness !== 'complete' && (
+                                    <div className="color-fg-attention">⚠ {m.completeness}</div>
+                                  )}
+                                  {m.completeness === 'complete' && (
+                                    <div className="color-fg-success">✓ complete</div>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </details>
                   ) : <span className="color-fg-muted f6">none</span>}
