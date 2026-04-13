@@ -716,20 +716,26 @@ function UploadPanel({ onData }) {
 
 function SourceSummary({ aiData, agenticData, fileNames }) {
   const parts = [];
+  const missing = [];
   if (aiData) {
     const n = aiData.days.length;
     const range = n > 0 ? `${aiData.days[0].day} → ${aiData.days[n - 1].day}` : 'none';
     parts.push(`AI-Assisted: ${n} days (${range})`);
+  } else {
+    missing.push('AI-Assisted metrics');
   }
   if (agenticData) {
     const n = agenticData.days.length;
     const range = n > 0 ? `${agenticData.days[0].day} → ${agenticData.days[n - 1].day}` : 'none';
     const prCount = agenticData.prSessions ? agenticData.prSessions.length : 0;
     parts.push(`Agentic: ${n} days, ${fmtCompact(prCount)} PR sessions`);
+  } else {
+    missing.push('Agentic metrics');
   }
   return (
-    <div className="flash flash-success f6 mb-3">
-      ✅ Data loaded · {parts.join(' · ')}
+    <div className={`flash ${missing.length ? 'flash-warn' : 'flash-success'} f6 mb-3`}>
+      {missing.length === 0 ? '✅' : '⚠️'} Data loaded · {parts.join(' · ')}
+      {missing.length > 0 && <span className="color-fg-attention"> · Missing: {missing.join(', ')}</span>}
       <span className="color-fg-muted"> · {fileNames.length} file{fileNames.length !== 1 ? 's' : ''}: {fileNames.join(', ')}</span>
     </div>
   );

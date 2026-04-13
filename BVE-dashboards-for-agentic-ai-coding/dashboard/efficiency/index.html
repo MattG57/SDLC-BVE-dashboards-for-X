@@ -566,13 +566,15 @@ function SourceSummary({ data }) {
   const n = dayRows.length;
   const range = n > 0 ? `${dayRows[0].date} → ${dayRows[n-1].date}` : 'none';
   const devCount = new Set(devDays.map(r => r.developer)).size;
+  const hasSessions = prSessions && prSessions.length > 0;
+  const hasRequests = requests && requests.length > 0;
   return (
     <div className="flash flash-success f6 mb-3">
       ✅ Data loaded · <strong>{n} days</strong> ({range})
       · {devCount} developer{devCount !== 1 ? 's' : ''}
       · {devDays.length} dev-day records
-      · {prSessions.length} PR sessions
-      · {requests.length} request events
+      {hasSessions ? <span> · {prSessions.length} PR sessions</span> : <span className="color-fg-attention"> · ⚠ No PR sessions</span>}
+      {hasRequests ? <span> · {requests.length} request events</span> : <span className="color-fg-attention"> · ⚠ No request events</span>}
       <span className="color-fg-muted"> · {fileNames.length} file{fileNames.length !== 1 ? 's' : ''}: {fileNames.join(', ')}</span>
     </div>
   );

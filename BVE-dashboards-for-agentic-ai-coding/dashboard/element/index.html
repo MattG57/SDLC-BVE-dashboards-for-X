@@ -340,9 +340,9 @@ function SourceSummary({ data }) {
   return (
     <div className="flash flash-success f6 mb-3">
       ✅ Data loaded · <strong>{n} days</strong> ({range})
-      {prCount > 0 && <> · {fmtCompact(prCount)} PR sessions</>}
-      {devDayCount > 0 && <> · {fmtCompact(devDayCount)} dev-day records</>}
-      {reqCount > 0 && <> · {fmtCompact(reqCount)} requests</>}
+      {prCount > 0 ? <span> · {fmtCompact(prCount)} PR sessions</span> : <span className="color-fg-attention"> · ⚠ No PR sessions</span>}
+      {devDayCount > 0 ? <span> · {fmtCompact(devDayCount)} dev-day records</span> : <span className="color-fg-attention"> · ⚠ No dev-day records</span>}
+      {reqCount > 0 ? <span> · {fmtCompact(reqCount)} requests</span> : <span className="color-fg-attention"> · ⚠ No request events</span>}
       <span className="color-fg-muted"> · {data.fileNames.length} file{data.fileNames.length !== 1 ? 's' : ''}: {data.fileNames.join(', ')}</span>
     </div>
   );

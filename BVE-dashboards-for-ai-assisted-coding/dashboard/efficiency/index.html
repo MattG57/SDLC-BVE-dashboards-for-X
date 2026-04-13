@@ -972,9 +972,12 @@ function SourceSummary({ data }) {
   const { enterprise, users, recon, fileNames } = data;
   const n = enterprise.length;
   const range = n > 0 ? `${enterprise[0].day} → ${enterprise[n-1].day}` : 'none';
+  const hasUserData = users && users.length > 0;
   return (
     <div className="flash flash-success f6 mb-3">
-      ✅ Data loaded · <strong>{n} enterprise days</strong> ({range}) · {users.length} user-day records · {recon.length} reconciliation checks
+      ✅ Data loaded · <strong>{n} enterprise days</strong> ({range})
+      {hasUserData ? <span> · {users.length} user-day records</span> : <span className="color-fg-attention"> · ⚠ No user-level data</span>}
+      · {recon.length} reconciliation checks
       <span className="color-fg-muted"> · {fileNames.length} file{fileNames.length !== 1 ? 's' : ''}: {fileNames.join(', ')}</span>
     </div>
   );

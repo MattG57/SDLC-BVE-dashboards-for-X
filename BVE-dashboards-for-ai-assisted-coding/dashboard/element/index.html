@@ -385,7 +385,7 @@ function SourceSummary({ data }) {
   return (
     <div className="flash flash-success f6 mb-3">
       ✅ Data loaded · <strong>{n} enterprise days</strong> ({range}) · {data.users.length} user-day records
-      {prCount > 0 && <> · {fmtCompact(prCount)} PR records</>}
+      {prCount > 0 ? <span> · {fmtCompact(prCount)} PR records</span> : <span className="color-fg-attention"> · ⚠ No PR review data — leverage estimates use Copilot metrics only</span>}
       <span className="color-fg-muted"> · {data.fileNames.length} file{data.fileNames.length !== 1 ? 's' : ''}: {data.fileNames.join(', ')}</span>
     </div>
   );
