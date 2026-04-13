@@ -187,7 +187,7 @@ fetch_window() {
     local args=(-f query="$GRAPHQL_SEARCH" -f q="$q")
     [[ -n "$cursor" ]] && args+=(-f cursor="$cursor")
 
-    # Call GraphQL with retry for rate limits
+    # Call GraphQL with retry for rate limits and empty responses
     local resp="" retries=0
     while true; do
       resp=$(gh api graphql "${args[@]}" 2>/dev/null) || resp=""
@@ -207,6 +207,27 @@ fetch_window() {
         API_CALLS=$((API_CALLS + 1))
       elif [[ -n "$err_type" ]]; then
         echo "      !! GraphQL error: $(echo "$resp" | jq -r '.errors[0].message' 2>/dev/null)" >&2
+        # Retry on errors (search index can be temporarily inconsistent)
+        retries=$((retries + 1))
+        if (( retries <= 3 )); then
+          local wait=$((10 * retries))
+          echo "      ⟳ Retrying in ${wait}s (attempt $retries/3)" >&2
+          sleep "$wait"
+          API_CALLS=$((API_CALLS + 1))
+          continue
+        fi
+        break
+      elif [[ $page -eq 1 ]] && [[ -z "$resp" || "$(echo "$resp" | jq '.data.search.nodes | length' 2>/dev/null)" == "0" ]]; then
+        # Page 1 returned empty but count said >0 — search index may be lagging
+        retries=$((retries + 1))
+        if (( retries <= 3 )); then
+          local wait=$((10 * retries))
+          echo "      ⟳ Empty first page, retrying in ${wait}s (attempt $retries/3)" >&2
+          sleep "$wait"
+          API_CALLS=$((API_CALLS + 1))
+          continue
+        fi
+        echo "      ⚠ Window returned 0 results after 3 retries" >&2
         break
       else
         break
