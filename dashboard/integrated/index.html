@@ -432,13 +432,16 @@ function computeAiAssistedMetrics(aiData, config, aiMethod) {
   const avgDau = mean(days.map(d => d.daily_active_users));
 
   const activeDevHours = days.reduce((s, d) => s + (d.daily_active_users || 0) * pctTimeCoding * 8, 0);
-  const totalCompletions = days.reduce((s, d) => s + (d.total_prs || d.pr_total_created || 0), 0);
+  const hasPrData = days.some(d => d.has_pr_data);
+  const prPeriod = days._prPeriod || {};
+  // Use period aggregate — PR merge dates may not align exactly with enterprise day range
+  const totalCompletions = hasPrData && prPeriod.total_prs ? prPeriod.total_prs
+    : days.reduce((s, d) => s + (d.total_prs || d.pr_total_created || 0), 0);
 
   const method = AI_ESTIMATION_METHODS.find(m => m.key === aiMethod) || AI_ESTIMATION_METHODS[0];
   const timeSaved = days.reduce((s, d) => s + (d['est_' + (method.key) + '_hrs_day'] || 0), 0);
 
   // Structural factors
-  const hasPrData = days.some(d => d.has_pr_data);
   const adoptionPct = safeDiv(avgDau, totalDevs);
   const avgPrsAssisted = hasPrData ? (days._periodPrsAssistedPct ?? 0) : mean(days.map(d => d.prs_assisted_pct));
   const avgLocPct = hasPrData ? (days._periodLocAssistedPct ?? mean(days.map(d => d.ai_assisted_loc_pct))) : mean(days.map(d => d.ai_assisted_loc_pct));

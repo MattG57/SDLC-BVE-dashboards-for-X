@@ -569,7 +569,11 @@ function LeverageRectangleSection({ days, config, selectedEstimate, onEstimateCh
   // Core leverage metrics
   const totalTaskHours = totalDevs * nonWeekendDays * pctTimeCoding * 8;
   const activeDevHours = days.reduce((s, d) => s + (d.daily_active_users || 0) * pctTimeCoding * 8, 0);
-  const totalCompletions = days.reduce((s, d) => s + (d.total_prs || d.pr_total_created || 0), 0);
+  const hasPrData = days.some(d => d.has_pr_data);
+  const prPeriod = days._prPeriod || {};
+  // Use period aggregate for completions — PR merge dates may not align exactly with enterprise day range
+  const totalCompletions = hasPrData && prPeriod.total_prs ? prPeriod.total_prs
+    : days.reduce((s, d) => s + (d.total_prs || d.pr_total_created || 0), 0);
   const currentLeverage = safeDiv(totalCompletions, activeDevHours);
   const hoursPerCompletion = safeDiv(activeDevHours, totalCompletions);
 
@@ -582,8 +586,6 @@ function LeverageRectangleSection({ days, config, selectedEstimate, onEstimateCh
   const timeSaved = estByMethod[method] || 0;
 
   // Structural factors
-  const hasPrData = days.some(d => d.has_pr_data);
-  const prPeriod = days._prPeriod || {};
   const avgAdopted = mean(days.map(d => d.adopted_individuals_pct));
   const adoptionPct = safeDiv(avgDau, totalDevs);
   const avgPrsAssisted = hasPrData ? (days._periodPrsAssistedPct ?? 0) : mean(days.map(d => d.prs_assisted_pct));
@@ -992,7 +994,10 @@ function LeverageInsightsSection({ days, config, users, prRecords, selectedUser,
 
   // Diagnostic leverage rectangle — normalized per developer
   const activeDevHours = days.reduce((s, d) => s + (d.daily_active_users || 0) * pctTimeCoding * 8, 0);
-  const totalCompletions = days.reduce((s, d) => s + (d.total_prs || d.pr_total_created || 0), 0);
+  const hasPrData2 = days.some(d => d.has_pr_data);
+  const prPeriod2 = days._prPeriod || {};
+  const totalCompletions = hasPrData2 && prPeriod2.total_prs ? prPeriod2.total_prs
+    : days.reduce((s, d) => s + (d.total_prs || d.pr_total_created || 0), 0);
 
   // Unique developers in the period
   const uniqueDevs = useMemo(() => {
