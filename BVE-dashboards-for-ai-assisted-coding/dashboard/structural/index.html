@@ -197,6 +197,17 @@ function flattenPrReview(prData) {
   return { all, filtered };
 }
 
+
+function dedupPrs(prs) {
+  const seen = {};
+  return prs.filter(p => {
+    const key = (p.repository || '') + '#' + (p.number || '');
+    if (seen[key]) return false;
+    seen[key] = true;
+    return true;
+  });
+}
+
 function dayOffset(dateStr, offset) {
   const d = new Date(dateStr + 'T00:00:00Z');
   d.setUTCDate(d.getUTCDate() + offset);
@@ -530,7 +541,7 @@ function UploadPanel({ onData }) {
         config.cfg_total_dev_loc_added_day = avgLoc > 0 ? Math.round(avgLoc * 2.5) : 100000;
       }
 
-      onData({ enterprise, users, config, fileNames: names, prRecords: prRecords.length > 0 ? prRecords : null, rawPrRecords: rawPrRecords.length > 0 ? rawPrRecords : null });
+      onData({ enterprise, users, config, fileNames: names, prRecords: prRecords.length > 0 ? dedupPrs(prRecords) : null, rawPrRecords: rawPrRecords.length > 0 ? dedupPrs(rawPrRecords) : null });
     } catch (e) { console.error(e); alert('Error: ' + e.message); }
     setProcessing(false);
   }, [onData]);
@@ -1679,7 +1690,7 @@ function App() {
           const avgLoc = enterprise.reduce((s, d) => s + d.loc_added_sum, 0) / enterprise.length;
           autoConfig.cfg_total_dev_loc_added_day = avgLoc > 0 ? Math.round(avgLoc * 2.5) : 100000;
         }
-        handleData({ enterprise, users, config: autoConfig, fileNames: manifest.files, prRecords: prRecords.length > 0 ? prRecords : null, rawPrRecords: rawPrRecords.length > 0 ? rawPrRecords : null });
+        handleData({ enterprise, users, config: autoConfig, fileNames: manifest.files, prRecords: prRecords.length > 0 ? dedupPrs(prRecords) : null, rawPrRecords: rawPrRecords.length > 0 ? dedupPrs(rawPrRecords) : null });
       })
       .catch(() => {}); // Silent fail — manual upload still available
   }, []); // eslint-disable-line react-hooks/exhaustive-deps

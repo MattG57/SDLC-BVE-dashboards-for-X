@@ -148,6 +148,7 @@ query($q: String!, $cursor: String) {
 GRAPHQL
 
 API_CALLS=0
+TOTAL_ISSUE_COUNT=0
 
 # ── Date helpers (macOS + Linux) ─────────────────────────────────────────────
 epoch_of() { date -jf "%Y-%m-%d" "$1" +%s 2>/dev/null || date -d "$1" +%s; }
@@ -242,6 +243,7 @@ collect_prs() {
   if (( count == 0 )); then
     return
   elif (( count <= 1000 )); then
+    TOTAL_ISSUE_COUNT=$((TOTAL_ISSUE_COUNT + count))
     fetch_window "$q" "$outfile"
   else
     local mid nd
@@ -251,6 +253,7 @@ collect_prs() {
     # Guard: can't bisect a single day
     if [[ "$mid" == "$since" || "$nd" > "$until" ]]; then
       echo "  ${pad}!! Single-day window with $count PRs — fetching first 1000" >&2
+      TOTAL_ISSUE_COUNT=$((TOTAL_ISSUE_COUNT + count))
       fetch_window "$q" "$outfile"
       return
     fi
@@ -378,9 +381,20 @@ fi
 # ── Summary ──────────────────────────────────────────────────────────────────
 END_TIME=$(date +%s)
 ELAPSED=$((END_TIME - START_TIME))
+
+# Completeness check
+COMPLETENESS="complete"
+if [[ "$RAW_LINES" -lt "$TOTAL_ISSUE_COUNT" ]]; then
+  echo "  ⚠ Possible incomplete results: search reported $TOTAL_ISSUE_COUNT PRs but only $RAW_LINES were fetched" >&2
+  COMPLETENESS="partial"
+fi
+
 echo "" >&2
 echo "=== Done ===" >&2
-echo "  PRs:       $PR_COUNT" >&2
+echo "  Available (issueCount sum): $TOTAL_ISSUE_COUNT" >&2
+echo "  Attempted (raw fetched):    $RAW_LINES" >&2
+echo "  Succeeded (unique w/ LOC):  $PR_COUNT" >&2
+echo "  Completeness:               $COMPLETENESS" >&2
 echo "  API calls: $API_CALLS" >&2
 echo "  Time:      ${ELAPSED}s" >&2
 echo "" >&2
@@ -389,4 +403,34 @@ echo "" >&2
 jq -n \
   --slurpfile prs "$TMPDIR_WORK/prs_enriched.json" \
   --slurpfile details "$TMPDIR_WORK/details.json" \
-  '{ pull_requests: $prs[0], detailed_pr_events: $details[0] }'
+  --arg source "human-pr-metrics" \
+  --arg org "$ORG" \
+  --arg repo "${REPO:-}" \
+  --arg since "$SINCE_DATE" \
+  --arg until "$UNTIL_DATE" \
+  --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  --arg completeness "$COMPLETENESS" \
+  --argjson available "$TOTAL_ISSUE_COUNT" \
+  --argjson attempted "$RAW_LINES" \
+  --argjson succeeded "$PR_COUNT" \
+  --argjson api_calls "$API_CALLS" \
+  --argjson elapsed "$ELAPSED" \
+  '{
+    metadata: {
+      source: $source,
+      org: $org,
+      repo: (if $repo == "" then null else $repo end),
+      date_range: { since: $since, until: $until },
+      collected_at: $ts,
+      elapsed_seconds: $elapsed,
+      api_calls: $api_calls,
+      completeness: $completeness,
+      counts: {
+        available: $available,
+        attempted: $attempted,
+        succeeded: $succeeded
+      }
+    },
+    pull_requests: $prs[0],
+    detailed_pr_events: $details[0]
+  }'

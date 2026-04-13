@@ -237,6 +237,26 @@ const ESTIMATION_METHODS = [
     calc: (d, cfg) => ((d.merged_loc_added || 0) / 1000) * (cfg.est_hrs_per_kloc || 4) },
 ];
 
+function dedupSessions(sessions) {
+  const seen = {};
+  return sessions.filter(s => {
+    const key = (s.repo || '') + '#' + (s.pr_number || '');
+    if (seen[key]) return false;
+    seen[key] = true;
+    return true;
+  });
+}
+
+function dedupRequests(requests) {
+  const seen = {};
+  return requests.filter(r => {
+    const key = (r.request_type || '') + '|' + (r.repo || '') + '|' + (r.issue_number || '') + '|' + (r.pr_number || '') + '|' + (r.requested_at || '');
+    if (seen[key]) return false;
+    seen[key] = true;
+    return true;
+  });
+}
+
 function computeDerived(dayRows, config, selectedMethod) {
   const method = ESTIMATION_METHODS.find(m => m.key === selectedMethod) || ESTIMATION_METHODS[0];
   return dayRows.map(d => {
@@ -397,7 +417,7 @@ function UploadPanel({ onData }) {
       for (const r of devDays) ddMap[r.date + '|' + r.developer] = r;
       devDays = Object.values(ddMap);
 
-      onData({ prSessions, requests, devDays, config, fileNames: names });
+      onData({ prSessions: dedupSessions(prSessions), requests: dedupRequests(requests), devDays, config, fileNames: names });
     } catch (e) { console.error(e); alert('Error: ' + e.message); }
     setProcessing(false);
   }, [onData]);
@@ -1056,7 +1076,7 @@ function App() {
         const ddMap = {};
         for (const r of devDays) ddMap[r.date + '|' + r.developer] = r;
         devDays = Object.values(ddMap);
-        handleData({ prSessions, requests, devDays, config: autoConfig, fileNames: manifest.files });
+        handleData({ prSessions: dedupSessions(prSessions), requests: dedupRequests(requests), devDays, config: autoConfig, fileNames: manifest.files });
       })
       .catch(() => {}); // Silent fail — manual upload still available
   }, []); // eslint-disable-line react-hooks/exhaustive-deps

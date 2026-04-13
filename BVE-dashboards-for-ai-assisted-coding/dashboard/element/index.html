@@ -217,6 +217,17 @@ function flattenPrRecord(pr) {
   };
 }
 
+
+function dedupPrs(prs) {
+  const seen = {};
+  return prs.filter(p => {
+    const key = (p.repository || '') + '#' + (p.number || '');
+    if (seen[key]) return false;
+    seen[key] = true;
+    return true;
+  });
+}
+
 function computeDerived(days, config, selectedMethod) {
   const method = ESTIMATION_METHODS.find(m => m.key === selectedMethod) || ESTIMATION_METHODS[0];
   return days.map(d => {
@@ -458,7 +469,7 @@ function UploadPanel({ onData }) {
       for (const r of userRecs) userMap[r.day + '|' + r.user_login] = r;
       const users = Object.values(userMap);
 
-      onData({ enterprise, users, config, fileNames: names, prRecords: prRecords.length > 0 ? prRecords : null });
+      onData({ enterprise, users, config, fileNames: names, prRecords: prRecords.length > 0 ? dedupPrs(prRecords) : null });
     } catch (e) { console.error(e); alert('Error: ' + e.message); }
     setProcessing(false);
   }, [onData]);
@@ -1362,7 +1373,7 @@ function App() {
         const userMap = {};
         for (const r of userRecs) userMap[r.day + '|' + r.user_login] = r;
         const users = Object.values(userMap);
-        handleData({ enterprise, users, config: autoConfig, fileNames: manifest.files, prRecords: prRecords.length > 0 ? prRecords : null });
+        handleData({ enterprise, users, config: autoConfig, fileNames: manifest.files, prRecords: prRecords.length > 0 ? dedupPrs(prRecords) : null });
       })
       .catch(() => {}); // Silent fail — manual upload still available
   }, []); // eslint-disable-line react-hooks/exhaustive-deps

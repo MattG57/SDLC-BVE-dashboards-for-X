@@ -189,6 +189,17 @@ function flattenPrRecord(pr) {
   };
 }
 
+
+function dedupPrs(prs) {
+  const seen = {};
+  return prs.filter(p => {
+    const key = (p.repository || '') + '#' + (p.number || '');
+    if (seen[key]) return false;
+    seen[key] = true;
+    return true;
+  });
+}
+
 function computeDerived(days, config, selectedMethod) {
   const method = AI_ESTIMATION_METHODS.find(m => m.key === selectedMethod) || AI_ESTIMATION_METHODS[0];
   return days.map(d => {
@@ -315,6 +326,27 @@ function flattenPrSession(pr) {
     origin_requested_by: pr.origin_requested_by || null,
     origin_requested_at: pr.origin_requested_at || null,
   };
+}
+
+
+function dedupSessions(sessions) {
+  const seen = {};
+  return sessions.filter(s => {
+    const key = (s.repo || '') + '#' + (s.pr_number || '');
+    if (seen[key]) return false;
+    seen[key] = true;
+    return true;
+  });
+}
+
+function dedupRequests(requests) {
+  const seen = {};
+  return requests.filter(r => {
+    const key = (r.request_type || '') + '|' + (r.repo || '') + '|' + (r.issue_number || '') + '|' + (r.pr_number || '') + '|' + (r.requested_at || '');
+    if (seen[key]) return false;
+    seen[key] = true;
+    return true;
+  });
 }
 
 function flattenDevDay(dd) {
@@ -637,13 +669,13 @@ function UploadPanel({ onData }) {
         const userMap = {};
         for (const r of aiUserRecs) userMap[r.day + '|' + r.user_login] = r;
         const users = Object.values(userMap);
-        aiData = { enterprise, users, prRecords: aiPrRecords.length > 0 ? aiPrRecords : null };
+        aiData = { enterprise, users, prRecords: aiPrRecords.length > 0 ? dedupPrs(aiPrRecords) : null };
       }
 
       let agenticData = null;
       if (agPrSessions.length > 0 || agDevDays.length > 0) {
         const agDays = computeDerivedDays(agDevDays, config);
-        agenticData = { days: agDays, prSessions: agPrSessions, devDays: agDevDays, requests: agRequests };
+        agenticData = { days: agDays, prSessions: dedupSessions(agPrSessions), devDays: agDevDays, requests: dedupRequests(agRequests) };
       }
 
       onData({ aiData, agenticData, config, fileNames: names });
@@ -1095,12 +1127,12 @@ function App() {
           const userMap = {};
           for (const r of aiUserRecs) userMap[r.day + '|' + r.user_login] = r;
           const users = Object.values(userMap);
-          aiData = { enterprise, users, prRecords: aiPrRecords.length > 0 ? aiPrRecords : null };
+          aiData = { enterprise, users, prRecords: aiPrRecords.length > 0 ? dedupPrs(aiPrRecords) : null };
         }
         let agenticData = null;
         if (agPrSessions.length > 0 || agDevDays.length > 0) {
           const agDays = computeDerivedDays(agDevDays, autoConfig);
-          agenticData = { days: agDays, prSessions: agPrSessions, devDays: agDevDays, requests: agRequests };
+          agenticData = { days: agDays, prSessions: dedupSessions(agPrSessions), devDays: agDevDays, requests: dedupRequests(agRequests) };
         }
         handleData({ aiData, agenticData, config: autoConfig, fileNames: manifest.files });
       })

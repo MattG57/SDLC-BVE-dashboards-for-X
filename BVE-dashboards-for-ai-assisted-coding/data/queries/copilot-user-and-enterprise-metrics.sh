@@ -61,6 +61,18 @@ SINCE_DATE=$(date -u -v-${DAYS}d +"%Y-%m-%d" 2>/dev/null || date -u -d "${DAYS} 
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
 
+START_TIME=$(date +%s)
+
+# Validate that a downloaded file is JSON, not an HTML error page
+validate_json() {
+  local file="$1" label="$2"
+  if ! jq empty "$file" 2>/dev/null; then
+    echo "Error: $label is not valid JSON" >&2
+    echo "  Preview: $(head -c 200 "$file")" >&2
+    exit 1
+  fi
+}
+
 if [[ -n "$ENTERPRISE" ]]; then
   echo "Fetching Copilot enterprise metrics for: $ENTERPRISE (28-day report)" >&2
   ENTERPRISE_URL=$(gh api \
@@ -69,6 +81,7 @@ if [[ -n "$ENTERPRISE" ]]; then
     "/enterprises/$ENTERPRISE/copilot/metrics/reports/enterprise-28-day/latest" | jq -r '.download_links[0]')
 
   curl -sL "$ENTERPRISE_URL" > "$TMP_DIR/enterprise_report.json"
+  validate_json "$TMP_DIR/enterprise_report.json" "Enterprise report download"
 
   echo "" >&2
   echo "Fetching Copilot user metrics for: $ENTERPRISE (28-day report)" >&2
@@ -78,11 +91,44 @@ if [[ -n "$ENTERPRISE" ]]; then
     "/enterprises/$ENTERPRISE/copilot/metrics/reports/users-28-day/latest" | jq -r '.download_links[0]')
 
   curl -sL "$USER_URL" | jq -s '.' > "$TMP_DIR/user_report.json"
+  validate_json "$TMP_DIR/user_report.json" "User report download"
+
+  # Validate expected fields
+  DAY_COUNT=$(jq '.day_totals | length // 0' "$TMP_DIR/enterprise_report.json" 2>/dev/null || echo 0)
+  USER_COUNT=$(jq '.[0] | length // 0' "$TMP_DIR/user_report.json" 2>/dev/null || echo 0)
+
+  if [[ "$DAY_COUNT" -eq 0 ]]; then
+    echo "Warning: enterprise_report has no day_totals — report may be empty or wrong format" >&2
+  fi
+
+  echo "  Enterprise days: $DAY_COUNT | User records: $USER_COUNT" >&2
+
+  ELAPSED=$(( $(date +%s) - START_TIME ))
 
   jq -n \
     --slurpfile er "$TMP_DIR/enterprise_report.json" \
     --slurpfile ur "$TMP_DIR/user_report.json" \
-    '{ enterprise_report: $er[0], user_report: $ur[0] }'
+    --arg scope "enterprise" \
+    --arg name "$ENTERPRISE" \
+    --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --argjson days "$DAY_COUNT" \
+    --argjson users "$USER_COUNT" \
+    --argjson elapsed "$ELAPSED" \
+    '{
+      metadata: {
+        source: "copilot-user-and-enterprise-metrics",
+        scope: $scope,
+        scope_name: $name,
+        collected_at: $ts,
+        elapsed_seconds: $elapsed,
+        counts: {
+          enterprise_days: $days,
+          user_records: $users
+        }
+      },
+      enterprise_report: $er[0],
+      user_report: $ur[0]
+    }'
 
 elif [[ -n "$ORG" ]]; then
   echo "Fetching Copilot metrics for organization: $ORG (last $DAYS days since $SINCE_DATE)" >&2
@@ -91,10 +137,35 @@ elif [[ -n "$ORG" ]]; then
     "/orgs/$ORG/copilot/metrics/reports/enterprise-28-day/latest" | jq -r '.download_links[0]')
 
   curl -sL "$ORG_URL" | jq --arg since "$SINCE_DATE" '[.[] | select(.day >= $since)]' > "$TMP_DIR/org_report.json"
+  validate_json "$TMP_DIR/org_report.json" "Organization report download"
+
+  ORG_DAY_COUNT=$(jq 'length // 0' "$TMP_DIR/org_report.json" 2>/dev/null || echo 0)
+  echo "  Organization days: $ORG_DAY_COUNT" >&2
+
+  ELAPSED=$(( $(date +%s) - START_TIME ))
 
   jq -n \
     --slurpfile or "$TMP_DIR/org_report.json" \
-    '{ organization_report: $or[0] }'
+    --arg scope "organization" \
+    --arg name "$ORG" \
+    --arg since "$SINCE_DATE" \
+    --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --argjson days "$ORG_DAY_COUNT" \
+    --argjson elapsed "$ELAPSED" \
+    '{
+      metadata: {
+        source: "copilot-user-and-enterprise-metrics",
+        scope: $scope,
+        scope_name: $name,
+        since: $since,
+        collected_at: $ts,
+        elapsed_seconds: $elapsed,
+        counts: {
+          organization_days: $days
+        }
+      },
+      organization_report: $or[0]
+    }'
 
 else
   echo "Error: Either ENTERPRISE or ORG environment variable is required" >&2

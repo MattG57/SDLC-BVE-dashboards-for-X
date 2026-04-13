@@ -84,6 +84,7 @@ if ! gh auth status >/dev/null 2>&1; then
 fi
 
 SINCE_DATE=$(date -u -v-${DAYS}d +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u -d "${DAYS} days ago" +"%Y-%m-%dT%H:%M:%SZ")
+START_TIME=$(date +%s)
 
 # ── Helper functions ──────────────────────────────────────────────────────────
 
@@ -770,10 +771,18 @@ done
 
 # ── Main Loop: collect data for each repo ────────────────────────────────────
 
+REPOS_ATTEMPTED=0
+REPOS_SUCCEEDED=0
+REPOS_SKIPPED=0
+
 for _repo_name in "${REPO_LIST[@]}"; do
-  collect_repo_data "$_repo_name" || {
+  REPOS_ATTEMPTED=$((REPOS_ATTEMPTED + 1))
+  if collect_repo_data "$_repo_name"; then
+    REPOS_SUCCEEDED=$((REPOS_SUCCEEDED + 1))
+  else
     echo "  ⚠ Skipped $ORG/$_repo_name (API error or permission denied)" >&2
-  }
+    REPOS_SKIPPED=$((REPOS_SKIPPED + 1))
+  fi
 done
 
 # ── Aggregate from temp files ────────────────────────────────────────────────
@@ -922,6 +931,21 @@ jq -n \
   echo '[]' > "$TMP_DEV_DAY"
 }
 echo "  Summary rows: $(jq 'length' "$TMP_DEV_DAY" 2>/dev/null || echo 0)" >&2
+
+END_TIME=$(date +%s)
+ELAPSED=$((END_TIME - START_TIME))
+
+PR_SESSION_COUNT=$(jq 'length' "$TMP_PR_SESSIONS_JSON" 2>/dev/null || echo 0)
+REQUEST_COUNT=$(jq 'length' "$TMP_LINKED_REQUESTS" 2>/dev/null || echo 0)
+DEV_DAY_COUNT=$(jq 'length' "$TMP_DEV_DAY" 2>/dev/null || echo 0)
+
+echo "" >&2
+echo "=== Done ===" >&2
+echo "  Repos: ${TOTAL_REPO_COUNT:-0} available, $REPOS_ATTEMPTED attempted, $REPOS_SUCCEEDED succeeded, $REPOS_SKIPPED skipped" >&2
+echo "  PR sessions:   $PR_SESSION_COUNT" >&2
+echo "  Requests:      $REQUEST_COUNT" >&2
+echo "  Dev-day rows:  $DEV_DAY_COUNT" >&2
+echo "  Time:          ${ELAPSED}s" >&2
 echo "" >&2
 
 # ── Output: combined JSON to stdout ──────────────────────────────────────────
@@ -930,7 +954,38 @@ jq -n \
   --slurpfile pr_sessions "$TMP_PR_SESSIONS_JSON" \
   --slurpfile requests "$TMP_LINKED_REQUESTS" \
   --slurpfile dev_day "$TMP_DEV_DAY" \
+  --arg source "coding-agent-pr-metrics" \
+  --arg org "$ORG" \
+  --arg repo "${REPO:-}" \
+  --arg since "$SINCE_DATE" \
+  --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  --argjson days "$DAYS" \
+  --argjson repos_available "${TOTAL_REPO_COUNT:-0}" \
+  --argjson repos_attempted "$REPOS_ATTEMPTED" \
+  --argjson repos_succeeded "$REPOS_SUCCEEDED" \
+  --argjson repos_skipped "$REPOS_SKIPPED" \
+  --argjson pr_sessions_count "$PR_SESSION_COUNT" \
+  --argjson request_count "$REQUEST_COUNT" \
+  --argjson dev_day_count "$DEV_DAY_COUNT" \
+  --argjson elapsed "$ELAPSED" \
   '{
+    metadata: {
+      source: $source,
+      org: $org,
+      repo: (if $repo == "" then null else $repo end),
+      date_range: { since: $since, days: $days },
+      collected_at: $ts,
+      elapsed_seconds: $elapsed,
+      counts: {
+        repos_available: $repos_available,
+        repos_attempted: $repos_attempted,
+        repos_succeeded: $repos_succeeded,
+        repos_skipped: $repos_skipped,
+        pr_sessions: $pr_sessions_count,
+        requests: $request_count,
+        developer_day_rows: $dev_day_count
+      }
+    },
     pr_sessions: ($pr_sessions[0] // []),
     requests: ($requests[0] // []),
     developer_day_summary: ($dev_day[0] // [])

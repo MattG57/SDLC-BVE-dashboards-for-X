@@ -208,6 +208,27 @@ function flattenPrSession(pr) {
   };
 }
 
+
+function dedupSessions(sessions) {
+  const seen = {};
+  return sessions.filter(s => {
+    const key = (s.repo || '') + '#' + (s.pr_number || '');
+    if (seen[key]) return false;
+    seen[key] = true;
+    return true;
+  });
+}
+
+function dedupRequests(requests) {
+  const seen = {};
+  return requests.filter(r => {
+    const key = (r.request_type || '') + '|' + (r.repo || '') + '|' + (r.issue_number || '') + '|' + (r.pr_number || '') + '|' + (r.requested_at || '');
+    if (seen[key]) return false;
+    seen[key] = true;
+    return true;
+  });
+}
+
 function flattenDevDay(dd) {
   return {
     day: dd.date || dd.day,
@@ -401,7 +422,7 @@ function UploadPanel({ onData }) {
       }
 
       const days = computeDerivedDays(devDays, config);
-      onData({ days, prSessions, devDays, requests, config, fileNames: names });
+      onData({ days, prSessions: dedupSessions(prSessions), requests: dedupRequests(requests), devDays, config, fileNames: names });
     } catch (e) { console.error(e); alert('Error: ' + e.message); }
     setProcessing(false);
   }, [onData]);
@@ -1291,7 +1312,7 @@ function App() {
         for (const r of devDays) ddMap[r.date + '|' + r.developer] = r;
         devDays = Object.values(ddMap);
         const days = computeDerivedDays(devDays, autoConfig);
-        handleData({ days, prSessions, devDays, requests, config: autoConfig, fileNames: manifest.files });
+        handleData({ days, prSessions: dedupSessions(prSessions), requests: dedupRequests(requests), devDays, config: autoConfig, fileNames: manifest.files });
       })
       .catch(() => {}); // Silent fail — manual upload still available
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
