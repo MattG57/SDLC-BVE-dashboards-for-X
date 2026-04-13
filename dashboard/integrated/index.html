@@ -190,6 +190,9 @@ function flattenPrRecord(pr) {
 }
 
 
+const BOT_PATTERNS = [/\[bot\]$/i, /-bot$/i, /-agent$/i, /^dependabot$/i, /^github-actions$/i, /^renovate$/i, /^od-octodemo-/i];
+function isBot(login) { return BOT_PATTERNS.some(p => p.test(login)); }
+
 function dedupPrs(prs) {
   const seen = {};
   return prs.filter(p => {
@@ -197,7 +200,7 @@ function dedupPrs(prs) {
     if (seen[key]) return false;
     seen[key] = true;
     return true;
-  });
+  }).filter(p => !isBot(p.user));
 }
 
 function computeDerived(days, config, selectedMethod) {
