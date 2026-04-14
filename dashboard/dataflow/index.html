@@ -458,8 +458,10 @@ function App() {
     async function load() {
       try {
         // Load manifest
-        const mRes = await fetch('../../_data/pipeline-manifest.json');
-        if (!mRes.ok) throw new Error(`Manifest: HTTP ${mRes.status}`);
+        // Try deployed path first (_data/ at site root), fall back to dev path
+        let mRes = await fetch('../_data/pipeline-manifest.json');
+        if (!mRes.ok) mRes = await fetch('../../_data/pipeline-manifest.json');
+        if (!mRes.ok) throw new Error(`Manifest not found (tried ../_data/ and ../../_data/)`);
         const m = await mRes.json();
         setManifest(m);
 
@@ -467,7 +469,8 @@ function App() {
         const meta = {};
         for (const name of m.artifacts) {
           try {
-            const res = await fetch(`../../_data/${name}`);
+            let res = await fetch(`../_data/${name}`);
+            if (!res.ok) res = await fetch(`../../_data/${name}`);
             if (res.ok) {
               const full = await res.json();
               const key = name.replace('.json', '');

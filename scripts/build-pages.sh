@@ -24,6 +24,7 @@ declare -A DASHBOARDS=(
   ["agentic-ai-coding/efficiency"]="BVE-dashboards-for-agentic-ai-coding/dashboard/efficiency"
   ["integrated"]="dashboard/integrated"
   ["data-status"]="dashboard/data-status"
+  ["dataflow"]="dashboard/dataflow"
 )
 
 for slug in "${!DASHBOARDS[@]}"; do
@@ -114,6 +115,19 @@ for slug_src in \
     echo "  ✔ $target_slug/data/ ($(find "$target_dest" -name '*.json' ! -name 'manifest.json' | wc -l) data files, aggregated)"
   fi
 done
+
+# ─── Materialize pipeline artifacts for the dataflow dashboard ─────────────────
+# Run the materializer if raw data exists, then copy _data/ into the site
+if command -v node >/dev/null 2>&1; then
+  echo ""
+  echo "Materializing pipeline artifacts..."
+  node "${REPO_ROOT}/scripts/materialize.js" 2>/dev/null || echo "  ⚠ materialize.js skipped (no data or error)"
+  if [[ -d "${REPO_ROOT}/_data" ]]; then
+    mkdir -p "${SITE_DIR}/_data"
+    cp "${REPO_ROOT}/_data"/*.json "${SITE_DIR}/_data/" 2>/dev/null || true
+    echo "  ✔ _data/ → _site/_data/ ($(ls "${SITE_DIR}/_data"/*.json 2>/dev/null | wc -l) files)"
+  fi
+fi
 
 # ─── Generate data-status.json for the data management dashboard ──────────────
 
@@ -309,7 +323,7 @@ cat > "$SITE_DIR/index.html" << 'LANDING_EOF'
   <div class="mt-4 color-fg-muted f6 text-center">
     <p>Data is collected nightly via <code>run-query.sh --all</code>. Dashboards auto-load the latest available data.</p>
     <p>Manual file upload is still available as a fallback on each dashboard.</p>
-    <p class="mt-2"><a href="data-status/" class="color-fg-accent">🔧 Data Status</a> — view collection results, data inventory, and pipeline health.</p>
+    <p class="mt-2"><a href="data-status/" class="color-fg-accent">🔧 Data Status</a> · <a href="dataflow/" class="color-fg-accent">🔀 Dataflow</a> — view collection results, data inventory, and pipeline health.</p>
   </div>
 </div>
 </body>
