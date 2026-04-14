@@ -101,13 +101,13 @@ export function dedupUserDays(flatUsers) {
 export function computeDayRatios(d) {
   const dau = d.daily_active_users || 0;
   return {
-    interactions_per_active_dev: safeDiv(d.user_initiated_interaction_count, dau),
-    generations_per_active_dev: safeDiv(d.code_generation_activity_count, dau),
-    acceptances_per_active_dev: safeDiv(d.code_acceptance_activity_count, dau),
+    interactions_per_active_dev: safeDiv(d.user_initiated_interaction_count || 0, dau),
+    generations_per_active_dev: safeDiv(d.code_generation_activity_count || 0, dau),
+    acceptances_per_active_dev: safeDiv(d.code_acceptance_activity_count || 0, dau),
     loc10_added_per_active_dev: safeDiv((d.loc_added_sum || 0) / 10, dau),
-    agent_mode_per_active_dev: safeDiv(d.agent_mode_interaction_count, dau),
-    cli_prompts_per_active_dev: safeDiv(d.cli_prompt_count, dau),
-    acceptance_rate: safeDiv(d.code_acceptance_activity_count, d.code_generation_activity_count),
+    agent_mode_per_active_dev: safeDiv(d.agent_mode_interaction_count || 0, dau),
+    cli_prompts_per_active_dev: safeDiv(d.cli_prompt_count || 0, dau),
+    acceptance_rate: safeDiv(d.code_acceptance_activity_count || 0, d.code_generation_activity_count || 0),
   };
 }
 
