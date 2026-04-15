@@ -9,7 +9,8 @@
     "BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency",
     "BVE-dashboards-for-ai-assisted-coding/dashboard/structural",
     "BVE-dashboards-for-agentic-ai-coding",
-    "BVE-dashboards-for-agentic-ai-coding/dashboard/efficiency"
+    "BVE-dashboards-for-agentic-ai-coding/dashboard/efficiency",
+    "shared"
   ],
   "scripts": {
     "build": "node scripts/build-all.js",
