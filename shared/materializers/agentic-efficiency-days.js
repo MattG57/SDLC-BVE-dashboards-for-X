@@ -43,13 +43,22 @@ export function materializeAgenticEfficiencyDays(rawData, options = {}) {
       version: '1.0.0',
       computed_at: new Date().toISOString(),
       compute_ms: Math.round(elapsed),
-      inputs: options.inputFile ? [{
+      inputs: (options.inputFiles || (options.inputFile ? [{
         file: options.inputFile,
         hash: options.inputHash || null,
         metadata: rawData.metadata || null,
-      }] : [],
+      }] : [])).map(f => ({
+        file: f.file,
+        hash: f.hash || null,
+        metadata: f.metadata || rawData.metadata || null,
+      })),
       profile: {
         record_count: data.length,
+        detail_row_count: ddResult.data.length,
+        detail_label: 'dev-days',
+        unique_people: ddResult.profile.unique_developers || 0,
+        people_label: 'developers',
+        unique_repos: new Set(ddResult.data.map(d => d.repo).filter(Boolean)).size || null,
         date_range: dateRange,
         devday_dedup: ddResult.profile,
         aggregation: {

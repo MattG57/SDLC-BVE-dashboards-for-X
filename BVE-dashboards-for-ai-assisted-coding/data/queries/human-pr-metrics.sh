@@ -439,6 +439,8 @@ jq -n \
   '{
     metadata: {
       source: $source,
+      scope: "organization",
+      scope_name: $org,
       org: $org,
       repo: (if $repo == "" then null else $repo end),
       date_range: { since: $since, until: $until },

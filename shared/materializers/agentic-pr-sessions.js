@@ -39,8 +39,8 @@ export function materializeAgenticPrSessions(rawData, options = {}) {
   // Date range
   const dates = data.map(s => s.day).filter(Boolean).sort();
   const dateRange = dates.length > 0
-    ? { first: dates[0], last: dates[dates.length - 1] }
-    : { first: null, last: null };
+    ? { first: dates[0], last: dates[dates.length - 1], days_with_data: new Set(dates).size }
+    : { first: null, last: null, days_with_data: 0 };
 
   // LoC summary
   const totalAdditions = data.reduce((s, pr) => s + (pr.additions || 0), 0);
@@ -55,13 +55,22 @@ export function materializeAgenticPrSessions(rawData, options = {}) {
       version: '1.0.0',
       computed_at: new Date().toISOString(),
       compute_ms: Math.round(elapsed),
-      inputs: options.inputFile ? [{
+      inputs: (options.inputFiles || (options.inputFile ? [{
         file: options.inputFile,
         hash: options.inputHash || null,
         metadata: rawData.metadata || null,
-      }] : [],
+      }] : [])).map(f => ({
+        file: f.file,
+        hash: f.hash || null,
+        metadata: f.metadata || rawData.metadata || null,
+      })),
       profile: {
         record_count: data.length,
+        detail_row_count: null,
+        detail_label: null,
+        unique_people: uniqueAuthors,
+        people_label: 'authors',
+        unique_repos: uniqueRepos,
         date_range: dateRange,
         session_dedup: sessResult.profile,
         status_breakdown: {
@@ -72,8 +81,6 @@ export function materializeAgenticPrSessions(rawData, options = {}) {
         },
         with_duration: withDuration,
         without_duration: data.length - withDuration,
-        unique_repos: uniqueRepos,
-        unique_authors: uniqueAuthors,
         loc_summary: {
           total_additions: totalAdditions,
           total_deletions: totalDeletions,

@@ -123,9 +123,12 @@ if command -v node >/dev/null 2>&1; then
   echo "Materializing pipeline artifacts..."
   node "${REPO_ROOT}/scripts/materialize.js" 2>/dev/null || echo "  ⚠ materialize.js skipped (no data or error)"
   if [[ -d "${REPO_ROOT}/_data" ]]; then
-    mkdir -p "${SITE_DIR}/_data"
-    cp "${REPO_ROOT}/_data"/*.json "${SITE_DIR}/_data/" 2>/dev/null || true
-    echo "  ✔ _data/ → _site/_data/ ($(ls "${SITE_DIR}/_data"/*.json 2>/dev/null | wc -l) files)"
+    mkdir -p "${SITE_DIR}/_data/materialized" "${SITE_DIR}/_data/raw"
+    cp "${REPO_ROOT}/_data/pipeline-manifest.json" "${SITE_DIR}/_data/" 2>/dev/null || true
+    cp "${REPO_ROOT}/_data/query-status.json" "${SITE_DIR}/_data/" 2>/dev/null || true
+    cp "${REPO_ROOT}/_data/materialized"/*.json "${SITE_DIR}/_data/materialized/" 2>/dev/null || true
+    cp "${REPO_ROOT}/_data/raw"/*.json "${SITE_DIR}/_data/raw/" 2>/dev/null || true
+    echo "  ✔ _data/ → _site/_data/"
   fi
 fi
 

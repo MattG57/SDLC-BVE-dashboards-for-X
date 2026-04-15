@@ -3,62 +3,61 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BVE Dataflow & Coverage</title>
+<title>BVE Dataflow &amp; Coverage</title>
 <link rel="stylesheet" href="https://unpkg.com/@primer/css@21.3.1/dist/primer.css">
 <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <style>
-  body { background: var(--bgColor-default); }
-  .dataflow-page { max-width: 1400px; margin: 0 auto; padding: 24px 16px; }
-
-  /* Flow diagram */
-  .flow-container { position: relative; }
-  .flow-column { display: flex; flex-direction: column; gap: 12px; min-width: 200px; }
-  .flow-columns { display: flex; gap: 48px; align-items: flex-start; justify-content: center; }
-  .flow-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--fgColor-muted); font-weight: 600; margin-bottom: 8px; text-align: center; }
-
-  /* Boxes */
-  .flow-box { border: 2px solid var(--borderColor-default); border-radius: 8px; padding: 12px 14px; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; position: relative; }
-  .flow-box:hover { border-color: var(--fgColor-accent); box-shadow: 0 0 0 1px var(--fgColor-accent); }
-  .flow-box.selected { border-color: var(--fgColor-accent); background: var(--bgColor-accent-muted); }
-  .flow-box .box-title { font-size: 13px; font-weight: 600; color: var(--fgColor-default); line-height: 1.3; }
-  .flow-box .box-sub { font-size: 11px; color: var(--fgColor-muted); margin-top: 2px; }
-  .flow-box .box-badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 10px; margin-top: 4px; }
-
+  body { background: var(--bgColor-default); margin: 0; }
+  .dataflow-page { max-width: 1600px; margin: 0 auto; padding: 24px 16px; }
+  .main-layout { display: grid; grid-template-columns: 1fr 420px; gap: 20px; align-items: start; }
+  .main-layout.no-detail { grid-template-columns: 1fr; }
+  @media (max-width: 1100px) { .main-layout { grid-template-columns: 1fr; } }
+  .flow-column { display: flex; flex-direction: column; gap: 10px; }
+  .flow-columns { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; gap: 0; align-items: start; }
+  .flow-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--fgColor-muted); font-weight: 600; margin-bottom: 8px; text-align: center; }
+  .flow-box { border: 2px solid var(--borderColor-default); border-radius: 8px; padding: 10px 12px; cursor: pointer; transition: all 0.15s; position: relative; }
+  .flow-box:hover { border-color: var(--fgColor-accent); }
+  .flow-box.selected { border-color: #58a6ff !important; background: rgba(88,166,255,0.08); box-shadow: 0 0 0 2px rgba(88,166,255,0.3); }
+  .flow-box.connected { border-color: rgba(88,166,255,0.5); background: rgba(88,166,255,0.04); }
+  .flow-box.dimmed { opacity: 0.35; }
+  .flow-box .box-title { font-size: 12px; font-weight: 600; color: var(--fgColor-default); line-height: 1.3; }
+  .flow-box .box-sub { font-size: 10px; color: var(--fgColor-muted); margin-top: 1px; line-height: 1.4; }
+  .flow-box .box-badge { display: inline-block; font-size: 9px; font-weight: 600; padding: 1px 5px; border-radius: 10px; margin-top: 3px; }
+  .flow-box .box-counts { font-size: 11px; color: var(--fgColor-default); font-weight: 500; margin-top: 4px; line-height: 1.5; }
+  .flow-box .count-row { display: flex; gap: 6px; align-items: baseline; }
+  .flow-box .count-num { font-weight: 700; font-size: 13px; color: var(--fgColor-default); }
+  .flow-box .count-label { font-size: 10px; color: var(--fgColor-muted); }
+  .flow-box .box-source { font-size: 9px; color: var(--fgColor-muted); margin-top: 3px; font-style: italic; }
   .flow-box.raw { border-left: 3px solid #3fb950; }
   .flow-box.materialized { border-left: 3px solid #58a6ff; }
   .flow-box.dashboard { border-left: 3px solid #d29922; border-style: dashed; }
-  .flow-box.dashboard .box-badge { background: #d29922; color: #000; }
 
-  /* Drill-down panel */
-  .drill-panel { border: 1px solid var(--borderColor-default); border-radius: 8px; padding: 20px; margin-top: 16px; }
-  .drill-panel h3 { margin: 0 0 12px 0; }
-  .drill-section { margin-bottom: 16px; }
-  .drill-section h4 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--fgColor-muted); margin: 0 0 6px 0; font-weight: 600; }
-  .drill-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
-  .drill-stat { background: var(--bgColor-muted); border-radius: 6px; padding: 8px 12px; }
-  .drill-stat .stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--fgColor-muted); }
-  .drill-stat .stat-value { font-size: 16px; font-weight: 600; color: var(--fgColor-default); }
-  .drill-stat .stat-sub { font-size: 11px; color: var(--fgColor-muted); }
+  /* Color-coded connector dots for edge tracing */
+  .edge-dots { display: flex; gap: 3px; margin-top: 4px; flex-wrap: wrap; }
+  .edge-dot { width: 8px; height: 8px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); }
 
-  /* Arrow connectors (CSS-only) */
-  .connector-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--borderColor-default); position: absolute; }
-  .connector-dot.right { right: -5px; top: 50%; transform: translateY(-50%); }
-  .connector-dot.left { left: -5px; top: 50%; transform: translateY(-50%); }
-
-  .flow-arrow { display: flex; align-items: center; color: var(--fgColor-muted); font-size: 11px; padding: 0 8px; }
-  .flow-arrow-line { flex: 1; height: 1px; background: var(--borderColor-default); margin: 0 4px; }
-
-  /* Collection history */
-  .history-item { display: flex; align-items: center; gap: 12px; padding: 6px 12px; border-radius: 6px; font-size: 13px; }
-  .history-item:hover { background: var(--bgColor-muted); }
-  .history-dot { width: 8px; height: 8px; border-radius: 50%; }
-
-  /* Consumers list */
-  .consumer-list { list-style: none; padding: 0; margin: 0; }
-  .consumer-list li { font-size: 12px; padding: 2px 0; color: var(--fgColor-muted); }
-  .consumer-list li::before { content: '→ '; color: var(--fgColor-accent); }
+  .arrow-col { display: flex; flex-direction: column; justify-content: center; padding: 28px 2px 0; gap: 20px; min-width: 20px; }
+  .arrow-mark { color: var(--borderColor-default); font-size: 10px; text-align: center; }
+  .arrow-mark.active { color: #58a6ff; }
+  .arrow-mark.dashed { color: #d29922; opacity: 0.4; }
+  .detail-panel { border: 1px solid var(--borderColor-default); border-radius: 8px; padding: 16px; position: sticky; top: 24px; max-height: calc(100vh - 48px); overflow-y: auto; }
+  .detail-panel h3 { margin: 0 0 4px 0; font-size: 15px; }
+  .detail-panel .detail-sub { font-size: 11px; color: var(--fgColor-muted); margin-bottom: 12px; }
+  .detail-section { margin-bottom: 14px; }
+  .detail-section:last-child { margin-bottom: 0; }
+  .detail-section h4 { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--fgColor-muted); margin: 0 0 6px 0; font-weight: 600; border-bottom: 1px solid var(--borderColor-muted); padding-bottom: 4px; }
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .detail-grid.wide { grid-template-columns: 1fr; }
+  .detail-stat { background: var(--bgColor-muted); border-radius: 6px; padding: 6px 10px; }
+  .detail-stat .stat-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--fgColor-muted); }
+  .detail-stat .stat-value { font-size: 14px; font-weight: 600; color: var(--fgColor-default); }
+  .detail-stat .stat-sub { font-size: 10px; color: var(--fgColor-muted); }
+  .detail-stat.full { grid-column: 1 / -1; }
+  .consumer-tag { display: inline-block; font-size: 10px; padding: 2px 6px; border-radius: 4px; margin: 2px 2px; }
+  .close-btn { position: absolute; top: 8px; right: 8px; background: none; border: none; color: var(--fgColor-muted); cursor: pointer; font-size: 16px; padding: 4px; border-radius: 4px; }
+  .close-btn:hover { background: var(--bgColor-muted); color: var(--fgColor-default); }
 </style>
 </head>
 <body>
@@ -66,12 +65,8 @@
 <script type="text/babel">
 const { useState, useEffect, useMemo } = React;
 
-/* ═══════════════════════════════════════════════════════════════════
-   UTILITIES
-   ═══════════════════════════════════════════════════════════════════ */
-
 function timeAgo(ts) {
-  if (!ts) return '—';
+  if (!ts) return '\u2014';
   const diff = Date.now() - new Date(ts).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'just now';
@@ -80,481 +75,514 @@ function timeAgo(ts) {
   if (hrs < 24) return hrs + 'h ago';
   return Math.floor(hrs / 24) + 'd ago';
 }
+function fmtBytes(bytes) { if (!bytes) return '\u2014'; if (bytes < 1024) return bytes + ' B'; if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'; return (bytes / 1048576).toFixed(1) + ' MB'; }
+function fmtCompact(v) { if (v == null) return '\u2014'; if (Math.abs(v) >= 1e6) return (v / 1e6).toFixed(1) + 'M'; if (Math.abs(v) >= 1e3) return (v / 1e3).toFixed(1) + 'k'; return String(v); }
 
-function fmtBytes(bytes) {
-  if (!bytes) return '—';
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-  return (bytes / 1048576).toFixed(1) + ' MB';
-}
-
-function fmtCompact(v) {
-  if (v == null) return '—';
-  if (Math.abs(v) >= 1e6) return (v / 1e6).toFixed(1) + 'M';
-  if (Math.abs(v) >= 1e3) return (v / 1e3).toFixed(1) + 'k';
-  return v.toFixed(0);
-}
-
-/* Dashboard consumption map — which dashboards use which artifacts */
 const CONSUMERS = {
-  'ai-assisted-efficiency-days.json': [
-    { name: 'AI-Assisted Efficiency', sections: ['Impact', 'Drivers', 'Confidence'], path: '../ai-assisted-coding/efficiency/' },
-    { name: 'AI-Assisted Element', sections: ['Leverage Summary', 'Insights'], path: '../ai-assisted-coding/element/' },
-    { name: 'Integrated', sections: ['AI sub-rectangle'], path: '../integrated/' },
+  'ai-assisted-efficiency-days': [
+    { name: 'AI-Assisted Efficiency', sections: 'Impact \u00b7 Drivers \u00b7 Confidence' },
+    { name: 'AI-Assisted Element', sections: 'Leverage \u00b7 Insights' },
+    { name: 'Integrated', sections: 'AI sub-rectangle' },
   ],
-  'ai-assisted-structural-days.json': [
-    { name: 'AI-Assisted Structural', sections: ['Completeness', 'Consistency', 'Impact', 'Prioritized'], path: '../ai-assisted-coding/structural/' },
-    { name: 'AI-Assisted Element', sections: ['Factor donuts', 'Insights trends'], path: '../ai-assisted-coding/element/' },
-    { name: 'Integrated', sections: ['AI structural factors'], path: '../integrated/' },
+  'ai-assisted-structural-days': [
+    { name: 'AI-Assisted Structural', sections: 'Completeness \u00b7 Consistency \u00b7 Impact' },
+    { name: 'AI-Assisted Element', sections: 'Factor donuts \u00b7 Insights' },
+    { name: 'Integrated', sections: 'AI structural factors' },
   ],
-  'agentic-efficiency-days.json': [
-    { name: 'Agentic Efficiency', sections: ['Impact', 'Drivers', 'Confidence'], path: '../agentic-coding/efficiency/' },
-    { name: 'Agentic Element', sections: ['Factor donuts', 'Insights trends'], path: '../agentic-coding/element/' },
-    { name: 'Integrated', sections: ['Agentic adoption'], path: '../integrated/' },
+  'agentic-efficiency-days': [
+    { name: 'Agentic Efficiency', sections: 'Impact \u00b7 Drivers \u00b7 Confidence' },
+    { name: 'Agentic Element', sections: 'Factor donuts \u00b7 Insights' },
+    { name: 'Integrated', sections: 'Agentic adoption' },
   ],
-  'agentic-pr-sessions.json': [
-    { name: 'Agentic Efficiency', sections: ['Confidence (PR detail)'], path: '../agentic-coding/efficiency/' },
-    { name: 'Agentic Element', sections: ['Leverage rectangle', 'Completions'], path: '../agentic-coding/element/' },
-    { name: 'Integrated', sections: ['Agentic dev-hours, completions'], path: '../integrated/' },
+  'agentic-pr-sessions': [
+    { name: 'Agentic Efficiency', sections: 'Confidence (PR detail)' },
+    { name: 'Agentic Element', sections: 'Leverage rectangle \u00b7 Completions' },
+    { name: 'Integrated', sections: 'Agentic dev-hours \u00b7 completions' },
   ],
 };
 
-
-/* ═══════════════════════════════════════════════════════════════════
-   COMPONENTS
-   ═══════════════════════════════════════════════════════════════════ */
-
-function RawFileBox({ file, selected, onClick }) {
-  return (
-    <div className={`flow-box raw${selected ? ' selected' : ''}`} onClick={onClick}>
-      <div className="box-title">{file.name}</div>
-      <div className="box-sub">
-        {file.metadata?.date_range
-          ? `${file.metadata.date_range.since || '?'} → ${file.metadata.date_range.until || file.metadata.date_range.days + 'd'}`
-          : 'raw query output'}
-      </div>
-      {file.metadata?.counts && (
-        <div className="box-sub">
-          {Object.entries(file.metadata.counts).slice(0, 3).map(([k, v]) => `${v} ${k.replace(/_/g, ' ')}`).join(' · ')}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ArtifactBox({ artifact, selected, onClick }) {
-  const p = artifact.profile;
-  return (
-    <div className={`flow-box materialized${selected ? ' selected' : ''}`} onClick={onClick}>
-      <div className="box-title">{artifact.name.replace(/-/g, ' ')}</div>
-      <div className="box-sub">{p.record_count} records</div>
-      {p.date_range && (
-        <div className="box-sub">{p.date_range.first} → {p.date_range.last}</div>
-      )}
-      <div className="box-badge" style={{ background: '#58a6ff', color: '#000' }}>materialized</div>
-    </div>
-  );
-}
-
-function DashboardBox({ consumer, artifact }) {
-  return (
-    <div className="flow-box dashboard">
-      <div className="box-title">{consumer.name}</div>
-      <div className="box-sub">{consumer.sections.join(', ')}</div>
-      <div className="box-badge">live calcs</div>
-    </div>
-  );
-}
-
-function RawFileDrillDown({ file }) {
-  const m = file.metadata;
-  return (
-    <div className="drill-panel">
-      <h3 className="f4 color-fg-accent">📄 {file.name}</h3>
-      {m ? (
-        <>
-          <div className="drill-section">
-            <h4>Collection</h4>
-            <div className="drill-grid">
-              {m.collected_at && <div className="drill-stat"><div className="stat-label">Collected</div><div className="stat-value">{new Date(m.collected_at).toLocaleString()}</div><div className="stat-sub">{timeAgo(m.collected_at)}</div></div>}
-              {m.elapsed_seconds != null && <div className="drill-stat"><div className="stat-label">Elapsed</div><div className="stat-value">{m.elapsed_seconds}s</div></div>}
-              {m.source && <div className="drill-stat"><div className="stat-label">Source</div><div className="stat-value">{m.source}</div></div>}
-            </div>
-          </div>
-          {m.date_range && (
-            <div className="drill-section">
-              <h4>Date Range</h4>
-              <div className="drill-grid">
-                {m.date_range.since && <div className="drill-stat"><div className="stat-label">Since</div><div className="stat-value">{m.date_range.since}</div></div>}
-                {m.date_range.until && <div className="drill-stat"><div className="stat-label">Until</div><div className="stat-value">{m.date_range.until}</div></div>}
-                {m.date_range.days && <div className="drill-stat"><div className="stat-label">Days</div><div className="stat-value">{m.date_range.days}</div></div>}
-              </div>
-            </div>
-          )}
-          {m.counts && (
-            <div className="drill-section">
-              <h4>Record Counts</h4>
-              <div className="drill-grid">
-                {Object.entries(m.counts).map(([k, v]) => (
-                  <div key={k} className="drill-stat"><div className="stat-label">{k.replace(/_/g, ' ')}</div><div className="stat-value">{fmtCompact(v)}</div></div>
-                ))}
-              </div>
-            </div>
-          )}
-          {m.scope_name && (
-            <div className="drill-section">
-              <h4>Scope</h4>
-              <div className="drill-grid">
-                <div className="drill-stat"><div className="stat-label">Scope</div><div className="stat-value">{m.scope || '—'}</div></div>
-                <div className="drill-stat"><div className="stat-label">Name</div><div className="stat-value">{m.scope_name}</div></div>
-              </div>
-            </div>
-          )}
-          {m.completeness && (
-            <div className="drill-section">
-              <h4>Completeness</h4>
-              <div className={`flash f6 ${m.completeness === 'complete' ? 'flash-success' : 'flash-warn'}`}>
-                {m.completeness === 'complete' ? '✅' : '⚠️'} {m.completeness}
-              </div>
-            </div>
-          )}
-        </>
-      ) : (
-        <p className="f6 color-fg-muted">No embedded metadata in this file.</p>
-      )}
-    </div>
-  );
-}
-
-function ArtifactDrillDown({ artifact }) {
-  const p = artifact.profile;
-  const consumers = CONSUMERS[artifact.name.replace(/ /g, '-') + '.json'] || CONSUMERS[artifact.fileName] || [];
-
-  return (
-    <div className="drill-panel">
-      <h3 className="f4 color-fg-accent">🔷 {artifact.name.replace(/-/g, ' ')}</h3>
-      <div className="f6 color-fg-muted mb-3">Materialized at {new Date(artifact.computed_at).toLocaleString()} · {artifact.compute_ms}ms</div>
-
-      <div className="drill-section">
-        <h4>Records & Coverage</h4>
-        <div className="drill-grid">
-          <div className="drill-stat"><div className="stat-label">Records</div><div className="stat-value">{fmtCompact(p.record_count)}</div></div>
-          {p.date_range?.first && <div className="drill-stat"><div className="stat-label">Date Range</div><div className="stat-value">{p.date_range.first} → {p.date_range.last}</div><div className="stat-sub">{p.date_range.days_with_data} days with data</div></div>}
-        </div>
-      </div>
-
-      {/* Dedup stats */}
-      {(p.enterprise_dedup || p.devday_dedup || p.session_dedup) && (
-        <div className="drill-section">
-          <h4>Processing</h4>
-          <div className="drill-grid">
-            {p.enterprise_dedup && (
-              <div className="drill-stat"><div className="stat-label">Enterprise Dedup</div><div className="stat-value">{p.enterprise_dedup.before} → {p.enterprise_dedup.after}</div><div className="stat-sub">{p.enterprise_dedup.removed} removed · key: {p.enterprise_dedup.key}</div></div>
-            )}
-            {p.user_dedup && (
-              <div className="drill-stat"><div className="stat-label">User-Day Dedup</div><div className="stat-value">{p.user_dedup.before} → {p.user_dedup.after}</div><div className="stat-sub">{p.user_dedup.removed} removed · {p.user_dedup.unique_logins} logins</div></div>
-            )}
-            {p.devday_dedup && (
-              <div className="drill-stat"><div className="stat-label">Dev-Day Dedup</div><div className="stat-value">{p.devday_dedup.before} → {p.devday_dedup.after}</div><div className="stat-sub">{p.devday_dedup.removed} removed · {p.devday_dedup.unique_developers} devs</div></div>
-            )}
-            {p.aggregation && (
-              <div className="drill-stat"><div className="stat-label">Aggregation</div><div className="stat-value">{p.aggregation.devday_rows} → {p.aggregation.day_rows} days</div></div>
-            )}
-            {p.session_dedup && (
-              <div className="drill-stat"><div className="stat-label">Session Dedup</div><div className="stat-value">{p.session_dedup.before} → {p.session_dedup.after}</div><div className="stat-sub">{p.session_dedup.removed} removed · key: {p.session_dedup.key}</div></div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* PR processing */}
-      {p.pr_processing && (
-        <div className="drill-section">
-          <h4>PR Processing</h4>
-          <div className="drill-grid">
-            <div className="drill-stat"><div className="stat-label">Dedup</div><div className="stat-value">{p.pr_processing.before_dedup} → {p.pr_processing.after_dedup}</div><div className="stat-sub">{p.pr_processing.duplicates_removed} duplicates</div></div>
-            <div className="drill-stat"><div className="stat-label">Bot Filter</div><div className="stat-value">{p.pr_processing.after_dedup} → {p.pr_processing.after_filter}</div><div className="stat-sub">{p.pr_processing.bots_removed} bots removed</div></div>
-          </div>
-        </div>
-      )}
-
-      {/* PR classification */}
-      {p.pr_classification && p.has_pr_data && (
-        <div className="drill-section">
-          <h4>PR-Assist Classification</h4>
-          <div className="drill-grid">
-            <div className="drill-stat"><div className="stat-label">Lookback</div><div className="stat-value">{p.pr_classification.lookback_days} days</div></div>
-            <div className="drill-stat"><div className="stat-label">Assisted</div><div className="stat-value">{p.pr_classification.assisted_prs} of {p.pr_classification.total_merged_prs}</div><div className="stat-sub">{p.period_prs_assisted_pct != null ? (p.period_prs_assisted_pct * 100).toFixed(1) + '%' : '—'}</div></div>
-            <div className="drill-stat"><div className="stat-label">PR Authors</div><div className="stat-value">{p.pr_classification.unique_pr_authors}</div></div>
-            <div className="drill-stat"><div className="stat-label">Copilot Users</div><div className="stat-value">{p.pr_classification.unique_copilot_users}</div></div>
-          </div>
-        </div>
-      )}
-
-      {/* Status breakdown (agentic sessions) */}
-      {p.status_breakdown && (
-        <div className="drill-section">
-          <h4>Status Breakdown</h4>
-          <div className="drill-grid">
-            <div className="drill-stat"><div className="stat-label">Merged</div><div className="stat-value" style={{color:'#3fb950'}}>{p.status_breakdown.merged}</div></div>
-            <div className="drill-stat"><div className="stat-label">Open</div><div className="stat-value" style={{color:'#58a6ff'}}>{p.status_breakdown.open}</div></div>
-            <div className="drill-stat"><div className="stat-label">Closed (no merge)</div><div className="stat-value" style={{color:'#f85149'}}>{p.status_breakdown.closed_no_merge}</div></div>
-            {p.with_duration != null && <div className="drill-stat"><div className="stat-label">With Duration</div><div className="stat-value">{p.with_duration}</div><div className="stat-sub">{p.without_duration} without</div></div>}
-          </div>
-        </div>
-      )}
-
-      {/* Reconciliation */}
-      {p.reconciliation_summary && (
-        <div className="drill-section">
-          <h4>Reconciliation</h4>
-          <div className="drill-grid">
-            {Object.entries(p.reconciliation_summary).map(([status, count]) => (
-              <div key={status} className="drill-stat">
-                <div className="stat-label">{status.replace(/_/g, ' ')}</div>
-                <div className="stat-value" style={{ color: status === 'match' ? '#3fb950' : status === 'material_difference' ? '#f85149' : '#d29922' }}>{count}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Entity stats */}
-      {(p.unique_repos || p.unique_authors || p.loc_summary) && (
-        <div className="drill-section">
-          <h4>Entities</h4>
-          <div className="drill-grid">
-            {p.unique_repos != null && <div className="drill-stat"><div className="stat-label">Unique Repos</div><div className="stat-value">{p.unique_repos}</div></div>}
-            {p.unique_authors != null && <div className="drill-stat"><div className="stat-label">Unique Authors</div><div className="stat-value">{p.unique_authors}</div></div>}
-            {p.loc_summary && <div className="drill-stat"><div className="stat-label">Total LoC</div><div className="stat-value">+{fmtCompact(p.loc_summary.total_additions)} / -{fmtCompact(p.loc_summary.total_deletions)}</div></div>}
-          </div>
-        </div>
-      )}
-
-      {/* Consumers */}
-      {consumers.length > 0 && (
-        <div className="drill-section">
-          <h4>Consumed By</h4>
-          <ul className="consumer-list">
-            {consumers.map((c, i) => (
-              <li key={i}><strong>{c.name}</strong> ({c.sections.join(', ')})</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* Inputs */}
-      {artifact.inputs && artifact.inputs.length > 0 && (
-        <div className="drill-section">
-          <h4>Inputs</h4>
-          {artifact.inputs.map((inp, i) => (
-            <div key={i} className="f6 color-fg-muted">📄 {inp.file} {inp.hash ? <code className="f6">#{inp.hash.slice(0, 8)}</code> : ''}</div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-
-/* ═══════════════════════════════════════════════════════════════════
-   FLOW DIAGRAM
-   ═══════════════════════════════════════════════════════════════════ */
-
-function FlowDiagram({ manifest, artifactMeta, selected, onSelect }) {
-  const rawFiles = manifest.raw_files.map(name => {
-    const matchingArtifact = Object.values(artifactMeta).find(a =>
-      a.inputs?.some(inp => inp.file === name)
-    );
-    const metadata = matchingArtifact?.inputs?.find(inp => inp.file === name)?.metadata || null;
-    return { name, metadata };
+// Reverse map: dashboard name -> artifact base names it depends on
+var DASHBOARD_ARTIFACTS = {};
+Object.keys(CONSUMERS).forEach(function(artName) {
+  CONSUMERS[artName].forEach(function(c) {
+    if (!DASHBOARD_ARTIFACTS[c.name]) DASHBOARD_ARTIFACTS[c.name] = [];
+    if (DASHBOARD_ARTIFACTS[c.name].indexOf(artName) < 0) DASHBOARD_ARTIFACTS[c.name].push(artName);
   });
+});
 
-  const artifacts = manifest.artifacts.map(name => {
-    const key = name.replace('.json', '');
-    return { name: key, fileName: name, ...(artifactMeta[key]?.artifact || {}) };
-  });
+var DASHBOARD_NAMES = ['AI-Assisted Efficiency','AI-Assisted Structural','AI-Assisted Element','Agentic Efficiency','Agentic Element','Integrated'];
 
-  // Build edge map for highlighting
-  const edgeMap = {};
-  for (const e of manifest.edges) {
-    if (!edgeMap[e.from]) edgeMap[e.from] = [];
-    edgeMap[e.from].push(e.to);
-  }
+// Stable colors for edge tracing (assigned to raw files by index)
+var EDGE_COLORS = ['#3fb950', '#58a6ff', '#d29922', '#bc8cff', '#f85149', '#f778ba'];
 
+function shortName(filename) {
+  return filename
+    .replace(/^octodemo-/, '')
+    .replace(/-\d{8}T\d{4}Z/, '')
+    .replace('.json', '');
+}
+
+function RawFileBox({ file, selected, onClick, connected, dimmed, edgeColor, downstreamColors }) {
+  const m = file.metadata || {};
+  const d = file.derived || {};
+  const scope = m.scope_name || m.org || '';
+  const dr = m.date_range;
+  const counts = Object.entries(m.counts || {}).slice(0, 3);
+  var cls = 'flow-box raw';
+  if (selected) cls += ' selected';
+  else if (connected) cls += ' connected';
+  else if (dimmed) cls += ' dimmed';
+  // Build derived entity line
+  var hasDerived = d.unique_people || d.detail_rows || d.prs;
   return (
-    <div className="Box color-shadow-medium p-4 mb-4">
-      <h3 className="f4 mb-1">Pipeline Flow</h3>
-      <p className="f6 color-fg-muted mb-3">Click any box to see its profile. <span style={{color:'#3fb950'}}>■</span> Raw files → <span style={{color:'#58a6ff'}}>■</span> Materialized artifacts → <span style={{color:'#d29922'}}>□</span> Dashboard (live calcs)</p>
-
-      <div className="flow-columns">
-        {/* Column 1: Raw Files */}
-        <div className="flow-column">
-          <div className="flow-label">Query Output</div>
-          {rawFiles.map((f, i) => (
-            <RawFileBox key={i} file={f}
-              selected={selected?.type === 'raw' && selected.name === f.name}
-              onClick={() => onSelect({ type: 'raw', name: f.name, data: f })} />
-          ))}
+    <div className={cls} onClick={onClick} style={edgeColor ? {borderLeftColor: edgeColor} : {}}>
+      <div className="box-title">{shortName(file.name)}</div>
+      {scope && <div className="box-sub">scope: <strong style={{color:'var(--fgColor-default)'}}>{scope}</strong></div>}
+      {dr && <div className="box-sub">{(dr.since||'?').slice(0,10)} {'\u2192'} {(dr.until||'?').slice(0,10)}{dr.days ? ' ('+dr.days+'d)':''}</div>}
+      {counts.length > 0 && <div className="box-counts">
+        <div className="count-row">{counts.map(function(e, i){ return <React.Fragment key={i}><span className="count-num">{fmtCompact(e[1])}</span><span className="count-label">{e[0].replace(/_/g,' ')}</span></React.Fragment>; })}</div>
+      </div>}
+      {hasDerived && <div className="box-counts" style={{borderTop:'1px solid var(--borderColor-muted)', paddingTop:'3px', marginTop:'3px'}}>
+        <div className="count-row">
+          {d.unique_people > 0 && <><span className="count-num" style={{color:'#3fb950'}}>{fmtCompact(d.unique_people)}</span><span className="count-label">{d.people_label || 'people'}</span></>}
+          {d.unique_pr_authors > 0 && <><span className="count-num" style={{color:'#3fb950'}}>{fmtCompact(d.unique_pr_authors)}</span><span className="count-label">PR authors</span></>}
+          {d.detail_rows > 0 && <><span className="count-num" style={{color:'#58a6ff'}}>{fmtCompact(d.detail_rows)}</span><span className="count-label">{d.detail_label || 'detail rows'}</span></>}
+          {d.prs > 0 && <><span className="count-num" style={{color:'#58a6ff'}}>{fmtCompact(d.prs)}</span><span className="count-label">PRs</span></>}
+          {d.unique_repos > 0 && <><span className="count-num" style={{color:'#d29922'}}>{fmtCompact(d.unique_repos)}</span><span className="count-label">repos</span></>}
         </div>
-
-        {/* Arrow column */}
-        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '8px', padding: '28px 0' }}>
-          {manifest.edges.slice(0, 3).map((_, i) => (
-            <div key={i} className="flow-arrow">
-              <div className="flow-arrow-line" />
-              <span>▶</span>
-            </div>
-          ))}
+      </div>}
+      {m.collected_at && <div className="box-sub">{timeAgo(m.collected_at)}</div>}
+      {file.downstreamArtifacts && file.downstreamArtifacts.length > 0 && (
+        <div className="box-sub" style={{marginTop:'3px'}}>
+          {'\u2192 '}{file.downstreamArtifacts.map(function(a){return a.replace(/-/g,' ')}).join(', ')}
         </div>
-
-        {/* Column 2: Materialized Artifacts */}
-        <div className="flow-column">
-          <div className="flow-label">Materialized Artifacts</div>
-          {artifacts.map((a, i) => (
-            <ArtifactBox key={i} artifact={{ ...a, profile: a.profile || {} }}
-              selected={selected?.type === 'artifact' && selected.name === a.name}
-              onClick={() => onSelect({ type: 'artifact', name: a.name, fileName: a.fileName, data: a })} />
-          ))}
-        </div>
-
-        {/* Arrow column */}
-        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '8px', padding: '28px 0' }}>
-          {[0, 1, 2].map(i => (
-            <div key={i} className="flow-arrow">
-              <div className="flow-arrow-line" style={{ borderTop: '1px dashed var(--borderColor-default)', background: 'none' }} />
-              <span style={{ color: '#d29922' }}>▶</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Column 3: Dashboards (unique consumer dashboards) */}
-        <div className="flow-column">
-          <div className="flow-label">Dashboards (Live Calcs)</div>
-          {['AI-Assisted Efficiency', 'AI-Assisted Structural', 'AI-Assisted Element', 'Agentic Efficiency', 'Agentic Element', 'Integrated'].map(name => (
-            <div key={name} className="flow-box dashboard">
-              <div className="box-title">{name}</div>
-              <div className="box-badge">config-reactive</div>
-            </div>
-          ))}
-        </div>
-      </div>
+      )}
     </div>
   );
 }
 
+function ArtifactBox({ artifact, selected, onClick, connected, dimmed, sourceColors }) {
+  const p = artifact.profile || {};
+  var cls = 'flow-box materialized';
+  if (selected) cls += ' selected';
+  else if (connected) cls += ' connected';
+  else if (dimmed) cls += ' dimmed';
+  return (
+    <div className={cls} onClick={onClick}>
+      <div className="box-title">{(artifact.name||'').replace(/-/g, ' ')}</div>
+      <div className="box-counts">
+        <div className="count-row">
+          <span className="count-num">{fmtCompact(p.record_count)}</span>
+          <span className="count-label">{p.status_breakdown ? 'sessions' : 'day rows'}</span>
+          {p.detail_row_count > 0 && <><span className="count-num" style={{color:'#58a6ff'}}>{fmtCompact(p.detail_row_count)}</span><span className="count-label">{p.detail_label || 'detail rows'}</span></>}
+          {p.pr_record_count > 0 && <><span className="count-num" style={{color:'#58a6ff'}}>{fmtCompact(p.pr_record_count)}</span><span className="count-label">PRs</span></>}
+        </div>
+        <div className="count-row">
+          {p.unique_people > 0 && <><span className="count-num" style={{color:'#3fb950'}}>{fmtCompact(p.unique_people)}</span><span className="count-label">{p.people_label || 'people'}</span></>}
+          {p.unique_repos > 0 && <><span className="count-num" style={{color:'#d29922'}}>{fmtCompact(p.unique_repos)}</span><span className="count-label">repos</span></>}
+        </div>
+      </div>
+      {p.date_range && p.date_range.first && <div className="box-sub">{p.date_range.first} {'\u2192'} {p.date_range.last}</div>}
+      {sourceColors && sourceColors.length > 0 && (
+        <div className="edge-dots">
+          {sourceColors.map(function(sc, i) {
+            return <div key={i} className="edge-dot" style={{background: sc.color}} title={shortName(sc.file)} />;
+          })}
+          <span style={{fontSize:'9px', color:'var(--fgColor-muted)', marginLeft:'2px'}}>
+            {'\u2190 '}{sourceColors.map(function(sc){return shortName(sc.file)}).join(', ')}
+          </span>
+        </div>
+      )}
+      <div className="box-badge" style={{background:'#58a6ff',color:'#000'}}>materialized</div>
+    </div>
+  );
+}
 
-/* ═══════════════════════════════════════════════════════════════════
-   APP
-   ═══════════════════════════════════════════════════════════════════ */
+function DashboardBox({ name, selected, onClick, connected, dimmed }) {
+  var cls = 'flow-box dashboard';
+  if (selected) cls += ' selected';
+  else if (connected) cls += ' connected';
+  else if (dimmed) cls += ' dimmed';
+  return React.createElement('div', {className: cls, onClick: onClick},
+    React.createElement('div', {className:'box-title'}, name),
+    React.createElement('div', {className:'box-badge', style:{background:'#d29922',color:'#000'}}, 'live calcs')
+  );
+}
+
+function StatCard({ label, value, sub, color }) {
+  return React.createElement('div', {className:'detail-stat'},
+    React.createElement('div', {className:'stat-label'}, label),
+    React.createElement('div', {className:'stat-value', style: color ? {color} : {}}, value),
+    sub ? React.createElement('div', {className:'stat-sub'}, sub) : null
+  );
+}
+
+function RawFileDetail({ file, queryRun, onClose }) {
+  const m = file.metadata || {};
+  const target = (queryRun && queryRun.targets || []).find(function(t) { return file.name.indexOf(t.output_file ? t.output_file.replace(/\.json$/,'') : '') >= 0; });
+  return (
+    <div className="detail-panel" style={{position:'relative'}}>
+      <button className="close-btn" onClick={onClose}>{'\u2715'}</button>
+      <h3 className="color-fg-accent">{'\ud83d\udcc4 ' + file.name.replace(/^octodemo-/,'')}</h3>
+      <div className="detail-sub">{file.name}</div>
+      <div className="detail-section">
+        <h4>Query Parameters</h4>
+        <div className="detail-grid">
+          {m.scope && <StatCard label="Scope" value={m.scope} />}
+          {(m.scope_name||m.org) && <StatCard label={m.scope==='enterprise'?'Enterprise':'Org'} value={m.scope_name||m.org} />}
+          {m.repo && m.repo !== 'null' && <StatCard label="Repo" value={m.repo} />}
+          {m.date_range && m.date_range.days && <StatCard label="DAYS" value={String(m.date_range.days)} />}
+          {m.date_range && m.date_range.since && <StatCard label="Since" value={(m.date_range.since||'').slice(0,10)} />}
+          {m.date_range && m.date_range.until && <StatCard label="Until" value={m.date_range.until.slice(0,10)} />}
+          {queryRun && queryRun.profile && <StatCard label="Profile" value={queryRun.profile} />}
+        </div>
+      </div>
+      <div className="detail-section">
+        <h4>Collection</h4>
+        <div className="detail-grid">
+          {m.collected_at && <StatCard label="Collected" value={new Date(m.collected_at).toLocaleString()} sub={timeAgo(m.collected_at)} />}
+          {m.elapsed_seconds!=null && <StatCard label="Duration" value={m.elapsed_seconds+'s'} />}
+          {m.api_calls!=null && <StatCard label="API Calls" value={String(m.api_calls)} />}
+          {target && target.file_size_bytes && <StatCard label="File Size" value={fmtBytes(target.file_size_bytes)} />}
+          {m.source && <StatCard label="Script" value={m.source} />}
+          {target && target.status && <StatCard label="Status" value={target.status} color={target.status==='success'?'#3fb950':'#f85149'} />}
+        </div>
+      </div>
+      {m.counts && <div className="detail-section">
+        <h4>Raw Record Counts</h4>
+        <div className="detail-grid">
+          {Object.entries(m.counts).map(function(e) { return <StatCard key={e[0]} label={e[0].replace(/_/g,' ')} value={fmtCompact(e[1])} />; })}
+        </div>
+      </div>}
+      {file.derived && (file.derived.unique_people || file.derived.detail_rows || file.derived.prs) && <div className="detail-section">
+        <h4>Entity Counts (from materialization)</h4>
+        <div className="detail-grid">
+          {file.derived.unique_people > 0 && <StatCard label={'Unique '+(file.derived.people_label||'people')} value={fmtCompact(file.derived.unique_people)} color="#3fb950" />}
+          {file.derived.unique_pr_authors > 0 && <StatCard label="Unique PR Authors" value={fmtCompact(file.derived.unique_pr_authors)} color="#3fb950" />}
+          {file.derived.detail_rows > 0 && <StatCard label={file.derived.detail_label||'Detail rows'} value={fmtCompact(file.derived.detail_rows)} color="#58a6ff" />}
+          {file.derived.prs > 0 && <StatCard label="PR Records" value={fmtCompact(file.derived.prs)} color="#58a6ff" />}
+          {file.derived.unique_repos > 0 && <StatCard label="Unique Repos" value={fmtCompact(file.derived.unique_repos)} color="#d29922" />}
+        </div>
+      </div>}
+      {m.completeness && <div className="detail-section">
+        <h4>Completeness</h4>
+        <div className={'flash f6 ' + (m.completeness==='complete'?'flash-success':'flash-warn')}>{m.completeness==='complete'?'\u2705 Complete':'\u26a0\ufe0f '+m.completeness}</div>
+      </div>}
+      {file.downstreamArtifacts && file.downstreamArtifacts.length > 0 && <div className="detail-section">
+        <h4>Feeds Artifacts</h4>
+        <div className="detail-grid wide">
+          {file.downstreamArtifacts.map(function(a) { return <div key={a} className="detail-stat"><div className="stat-value" style={{fontSize:'11px'}}>{'\u2192 '+a.replace(/-/g,' ')}</div></div>; })}
+        </div>
+      </div>}
+    </div>
+  );
+}
+
+function ArtifactDetail({ artifact, onClose }) {
+  const p = artifact.profile || {};
+  const consumers = CONSUMERS[artifact.name] || [];
+  return (
+    <div className="detail-panel" style={{position:'relative'}}>
+      <button className="close-btn" onClick={onClose}>{'\u2715'}</button>
+      <h3 className="color-fg-accent">{'\ud83d\udd37 '+(artifact.name||'').replace(/-/g,' ')}</h3>
+      <div className="detail-sub">Materialized {artifact.computed_at ? new Date(artifact.computed_at).toLocaleString() : '\u2014'} {'\u00b7'} {artifact.compute_ms||0}ms</div>
+      <div className="detail-section"><h4>Records &amp; Coverage</h4><div className="detail-grid">
+        <StatCard label={p.status_breakdown ? 'PR Sessions' : 'Day Rows'} value={fmtCompact(p.record_count)} />
+        {p.detail_row_count != null && p.detail_row_count > 0 && <StatCard label={p.detail_label ? (p.detail_label.charAt(0).toUpperCase()+p.detail_label.slice(1)) : 'Detail Rows'} value={fmtCompact(p.detail_row_count)} />}
+        {p.pr_record_count != null && p.pr_record_count > 0 && <StatCard label="PR Records" value={fmtCompact(p.pr_record_count)} />}
+        {p.unique_people != null && p.unique_people > 0 && <StatCard label={'Unique '+(p.people_label ? p.people_label.charAt(0).toUpperCase()+p.people_label.slice(1) : 'People')} value={String(p.unique_people)} />}
+        {p.unique_repos != null && p.unique_repos > 0 && <StatCard label="Unique Repos" value={String(p.unique_repos)} />}
+        {p.date_range && p.date_range.first && <StatCard label="Date Range" value={p.date_range.first+' \u2192 '+p.date_range.last} sub={p.date_range.days_with_data+' days'} />}
+      </div></div>
+      {(p.enterprise_dedup||p.user_dedup||p.devday_dedup||p.session_dedup||p.aggregation) && <div className="detail-section"><h4>Processing Pipeline</h4><div className="detail-grid">
+        {p.enterprise_dedup && <StatCard label="Enterprise Dedup" value={p.enterprise_dedup.before+'\u2192'+p.enterprise_dedup.after} sub={p.enterprise_dedup.removed+' removed'} />}
+        {p.user_dedup && <StatCard label="User-Day Dedup" value={p.user_dedup.before+'\u2192'+p.user_dedup.after} sub={p.user_dedup.unique_logins+' logins'} />}
+        {p.devday_dedup && <StatCard label="Dev-Day Dedup" value={p.devday_dedup.before+'\u2192'+p.devday_dedup.after} sub={p.devday_dedup.unique_developers+' devs'} />}
+        {p.aggregation && <StatCard label="Aggregation" value={p.aggregation.devday_rows+'\u2192'+p.aggregation.day_rows+' days'} />}
+        {p.session_dedup && <StatCard label="Session Dedup" value={p.session_dedup.before+'\u2192'+p.session_dedup.after} sub={p.session_dedup.removed+' removed'} />}
+      </div></div>}
+      {p.pr_processing && <div className="detail-section"><h4>PR Processing</h4><div className="detail-grid">
+        <StatCard label="Dedup" value={p.pr_processing.before_dedup+'\u2192'+p.pr_processing.after_dedup} />
+        <StatCard label="Bot Filter" value={'-'+p.pr_processing.bots_removed+' bots'} sub={p.pr_processing.after_filter+' remain'} />
+      </div></div>}
+      {p.pr_classification && p.has_pr_data && <div className="detail-section"><h4>PR-Assist Classification</h4><div className="detail-grid">
+        <StatCard label="Lookback" value={p.pr_classification.lookback_days+' days'} />
+        <StatCard label="Assisted Rate" value={p.period_prs_assisted_pct!=null?(p.period_prs_assisted_pct*100).toFixed(1)+'%':'\u2014'} sub={p.pr_classification.assisted_prs+' of '+p.pr_classification.total_merged_prs} />
+        <StatCard label="PR Authors" value={String(p.pr_classification.unique_pr_authors)} />
+        <StatCard label="Copilot Users" value={String(p.pr_classification.unique_copilot_users)} />
+      </div></div>}
+      {p.status_breakdown && <div className="detail-section"><h4>PR Status</h4><div className="detail-grid">
+        <StatCard label="Merged" value={String(p.status_breakdown.merged)} color="#3fb950" />
+        <StatCard label="Open" value={String(p.status_breakdown.open)} color="#58a6ff" />
+        <StatCard label="Closed" value={String(p.status_breakdown.closed_no_merge)} color="#f85149" />
+        {p.with_duration!=null && <StatCard label="With Duration" value={String(p.with_duration)} sub={p.without_duration+' without'} />}
+      </div></div>}
+      {(p.unique_repos!=null||p.loc_summary) && <div className="detail-section"><h4>Entities</h4><div className="detail-grid">
+        {p.loc_summary && <div className="detail-stat full"><div className="stat-label">LoC</div><div className="stat-value">+{fmtCompact(p.loc_summary.total_additions)} / -{fmtCompact(p.loc_summary.total_deletions)}</div></div>}
+      </div></div>}
+      {p.reconciliation_summary && <div className="detail-section"><h4>Reconciliation</h4><div className="detail-grid">
+        {Object.entries(p.reconciliation_summary).filter(function(e){return e[1]>0}).map(function(e){ return <StatCard key={e[0]} label={e[0].replace(/_/g,' ')} value={String(e[1])} color={e[0]==='match'?'#3fb950':e[0]==='material_difference'?'#f85149':'#d29922'} />; })}
+      </div></div>}
+      {artifact.inputs && artifact.inputs.length>0 && <div className="detail-section"><h4>Source Files</h4><div className="detail-grid wide">
+        {artifact.inputs.map(function(inp,i){ return <div key={i} className="detail-stat"><div className="stat-value" style={{fontSize:'11px'}}>{'\ud83d\udcc4 '+inp.file}</div>{inp.hash && <div className="stat-sub">#{inp.hash.slice(0,12)}</div>}</div>; })}
+      </div></div>}
+      {consumers.length>0 && <div className="detail-section"><h4>Consumed By</h4>
+        {consumers.map(function(c,i){ return <div key={i} style={{marginBottom:'4px'}}>
+          <span className="consumer-tag" style={{background:'rgba(210,153,34,0.15)',color:'#d29922',fontWeight:600}}>{c.name}</span>
+          <span style={{fontSize:'10px',color:'var(--fgColor-muted)',marginLeft:'4px'}}>{c.sections}</span>
+        </div>; })}
+      </div>}
+    </div>
+  );
+}
 
 function App() {
   const [manifest, setManifest] = useState(null);
   const [artifactMeta, setArtifactMeta] = useState({});
+  const [queryRun, setQueryRun] = useState(null);
   const [selected, setSelected] = useState(null);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    async function load() {
+  useEffect(function() {
+    (async function() {
       try {
-        // Load manifest
-        // Try deployed path first (_data/ at site root), fall back to dev path
-        let mRes = await fetch('../_data/pipeline-manifest.json');
-        if (!mRes.ok) mRes = await fetch('../../_data/pipeline-manifest.json');
-        if (!mRes.ok) throw new Error(`Manifest not found (tried ../_data/ and ../../_data/)`);
-        const m = await mRes.json();
+        var mRes = await fetch('../../_data/pipeline-manifest.json');
+        if (!mRes.ok) mRes = await fetch('../_data/pipeline-manifest.json');
+        if (!mRes.ok) throw new Error('Manifest not found');
+        var m = await mRes.json();
         setManifest(m);
 
-        // Load artifact headers (just the .artifact block, not the full data)
-        const meta = {};
-        for (const name of m.artifacts) {
+        var meta = {};
+        for (var name of m.artifacts) {
           try {
-            let res = await fetch(`../_data/${name}`);
-            if (!res.ok) res = await fetch(`../../_data/${name}`);
+            var subdir = m.materialized_dir || '';
+            var prefix = subdir ? subdir + '/' : '';
+            var res = await fetch('../../_data/' + prefix + name);
+            if (!res.ok) res = await fetch('../_data/' + prefix + name);
             if (res.ok) {
-              const full = await res.json();
-              const key = name.replace('.json', '');
-              meta[key] = { artifact: full.artifact };
+              var full = await res.json();
+              // Extract artifact name without timestamp for keying
+              var key = name.replace(/-\d{4}-\d{2}-\d{2}T\d{4}Z\.json$/, '').replace('.json', '');
+              meta[key] = full.artifact;
             }
-          } catch {}
+          } catch(e2) {}
         }
         setArtifactMeta(meta);
-      } catch (e) {
-        setError(e.message);
-      }
-    }
-    load();
+
+        try {
+          var qRes = await fetch('../../_data/query-status.json');
+          if (!qRes.ok) qRes = await fetch('../_data/query-status.json');
+          if (!qRes.ok) qRes = await fetch('../../_data-status/query-status.json');
+          if (qRes.ok) setQueryRun(await qRes.json());
+        } catch(e3) {}
+      } catch (e) { setError(e.message); }
+    })();
   }, []);
+
+  var rawFiles = useMemo(function() {
+    if (!manifest) return [];
+    return manifest.raw_files.map(function(name) {
+      var metadata = null;
+      Object.values(artifactMeta).forEach(function(art) {
+        var inp = (art.inputs||[]).find(function(i){return i.file === name});
+        if (inp && inp.metadata) metadata = inp.metadata;
+      });
+      var downstreamArtifacts = (manifest.edges||[]).filter(function(e){return e.from===name}).map(function(e){return e.to.replace(/-\d{4}-\d{2}-\d{2}T\d{4}Z\.json$/,'').replace('.json','')});
+      // Derive entity counts from downstream artifact profiles
+      var derived = {};
+      downstreamArtifacts.forEach(function(artName) {
+        var art = artifactMeta[artName];
+        if (!art || !art.profile) return;
+        var p = art.profile;
+        if (p.unique_people && (!derived.unique_people || p.unique_people > derived.unique_people)) {
+          derived.unique_people = p.unique_people;
+          derived.people_label = p.people_label || 'people';
+        }
+        var prAuthors = p.unique_pr_authors || 0;
+        if (prAuthors && (!derived.unique_pr_authors || prAuthors > derived.unique_pr_authors)) derived.unique_pr_authors = prAuthors;
+        if (p.unique_repos && (!derived.unique_repos || p.unique_repos > derived.unique_repos)) derived.unique_repos = p.unique_repos;
+        if (p.detail_row_count && (!derived.detail_rows || p.detail_row_count > derived.detail_rows)) {
+          derived.detail_rows = p.detail_row_count;
+          derived.detail_label = p.detail_label || 'detail rows';
+        }
+        if (p.pr_record_count && (!derived.prs || p.pr_record_count > derived.prs)) derived.prs = p.pr_record_count;
+      });
+      return { name: name, metadata: metadata, downstreamArtifacts: downstreamArtifacts, derived: derived };
+    });
+  }, [manifest, artifactMeta]);
+
+  var artifacts = useMemo(function() {
+    if (!manifest) return [];
+    // Use artifact_map if available (maps base name → timestamped filename)
+    var map = manifest.artifact_map || {};
+    var names = Object.keys(map).length > 0 ? Object.keys(map) : manifest.artifacts.map(function(n) { return n.replace(/-\d{4}-\d{2}-\d{2}T\d{4}Z\.json$/, '').replace('.json',''); });
+    return names.map(function(baseName) {
+      return Object.assign({ name: baseName, fileName: map[baseName] || baseName + '.json' }, artifactMeta[baseName] || {});
+    });
+  }, [manifest, artifactMeta]);
+
+  function handleSelect(sel) {
+    if (selected && selected.type === sel.type && selected.name === sel.name) setSelected(null);
+    else setSelected(sel);
+  }
+
+  if (error) return (<div className="dataflow-page"><h1 className="f1 color-fg-default mb-2">Dataflow &amp; Coverage</h1><div className="flash flash-error"><p>Failed: {error}</p><p className="f6 color-fg-muted mt-2">Run <code>node scripts/materialize.js</code></p></div></div>);
+  if (!manifest) return (<div className="dataflow-page"><h1 className="f1 color-fg-default mb-2">Dataflow &amp; Coverage</h1><div className="Box p-4 text-center color-fg-muted">Loading{'\u2026'}</div></div>);
+
+  // Compute connected nodes based on selection
+  var connectedRaw = new Set();
+  var connectedArt = new Set();
+  var connectedDash = new Set();
+  var hasSelection = !!selected;
+  if (selected && manifest.edges) {
+    if (selected.type === 'raw') {
+      manifest.edges.forEach(function(e) {
+        if (e.from === selected.name) {
+          var artBase = e.to.replace(/-\d{4}-\d{2}-\d{2}T\d{4}Z\.json$/, '').replace('.json', '');
+          connectedArt.add(artBase);
+          // Also highlight dashboards that consume this artifact
+          (CONSUMERS[artBase] || []).forEach(function(c) { connectedDash.add(c.name); });
+        }
+      });
+    } else if (selected.type === 'artifact') {
+      manifest.edges.forEach(function(e) {
+        var artBase = e.to.replace(/-\d{4}-\d{2}-\d{2}T\d{4}Z\.json$/, '').replace('.json', '');
+        if (artBase === selected.name) connectedRaw.add(e.from);
+      });
+      // Also highlight dashboards that consume this artifact
+      (CONSUMERS[selected.name] || []).forEach(function(c) { connectedDash.add(c.name); });
+    } else if (selected.type === 'dashboard') {
+      // Highlight upstream artifacts and their raw sources
+      (DASHBOARD_ARTIFACTS[selected.name] || []).forEach(function(artName) {
+        connectedArt.add(artName);
+        manifest.edges.forEach(function(e) {
+          var artBase = e.to.replace(/-\d{4}-\d{2}-\d{2}T\d{4}Z\.json$/, '').replace('.json', '');
+          if (artBase === artName) connectedRaw.add(e.from);
+        });
+      });
+    }
+  }
+
+  // Build edge color map: each raw file gets a stable color
+  var rawColorMap = {};
+  rawFiles.forEach(function(f, i) { rawColorMap[f.name] = EDGE_COLORS[i % EDGE_COLORS.length]; });
+
+  // For each artifact, collect the colors of its source raw files
+  var artifactSourceColors = {};
+  artifacts.forEach(function(a) {
+    var colors = [];
+    (manifest.edges || []).forEach(function(e) {
+      var artBase = e.to.replace(/-\d{4}-\d{2}-\d{2}T\d{4}Z\.json$/, '').replace('.json', '');
+      if (artBase === a.name && rawColorMap[e.from]) {
+        colors.push({ file: e.from, color: rawColorMap[e.from] });
+      }
+    });
+    artifactSourceColors[a.name] = colors;
+  });
 
   return (
     <div className="dataflow-page">
-      <div className="d-flex flex-items-center flex-justify-between mb-4">
+      <div className="d-flex flex-items-center flex-justify-between mb-3">
         <div>
-          <h1 className="f1 color-fg-default">Dataflow & Coverage</h1>
-          <p className="f5 color-fg-muted">Pipeline flow from query output → materialized artifacts → dashboard visualizations</p>
+          <h1 className="f1 color-fg-default" style={{margin:0}}>Dataflow &amp; Coverage</h1>
+          <p className="f6 color-fg-muted mt-1">
+            <span style={{color:'#3fb950'}}>{'\u25a0'}</span> Query output {'\u2192'}
+            <span style={{color:'#58a6ff'}}> {'\u25a0'}</span> Materialized {'\u2192'}
+            <span style={{color:'#d29922'}}> {'\u25a1'}</span> Live calcs {'\u00b7 '}
+            {timeAgo(manifest.materialized_at)}
+            {queryRun && queryRun.profile && <span> {'\u00b7'} profile: <strong>{queryRun.profile}</strong></span>}
+          </p>
         </div>
-        <div className="f6 color-fg-muted">
-          {manifest && <>Materialized: {new Date(manifest.materialized_at).toLocaleString()} · {manifest.artifacts.length} artifacts</>}
+        <div className="d-flex" style={{gap:'16px'}}>
+          <div className="text-center"><div className="f6 color-fg-muted">Files</div><div className="f3 text-bold">{manifest.raw_files.length}</div></div>
+          <div className="text-center"><div className="f6 color-fg-muted">Artifacts</div><div className="f3 text-bold">{manifest.artifacts.length}</div></div>
+          <div className="text-center"><div className="f6 color-fg-muted">Flows</div><div className="f3 text-bold">{(manifest.edges||[]).length}</div></div>
+          <div className="text-center"><div className="f6 color-fg-muted">Dashboards</div><div className="f3 text-bold">6</div></div>
         </div>
       </div>
 
-      {error && (
-        <div className="flash flash-error mb-4">
-          <p className="f5">Failed to load pipeline data</p>
-          <p className="f6 color-fg-muted mt-1">{error}</p>
-          <p className="f6 color-fg-muted mt-2">Run <code>node scripts/materialize.js</code> to generate artifacts, then ensure they're accessible at <code>_data/</code>.</p>
-        </div>
-      )}
-
-      {!manifest && !error && (
-        <div className="Box p-4 text-center color-fg-muted">
-          <p className="f4">Loading pipeline manifest…</p>
-        </div>
-      )}
-
-      {manifest && (
-        <>
-          {/* Collection summary */}
-          <div className="Box color-shadow-medium p-4 mb-4">
-            <h3 className="f4 mb-2">📡 Collection Summary</h3>
-            <div className="d-flex flex-wrap" style={{ gap: '16px' }}>
-              <div className="drill-stat"><div className="stat-label">Raw Files</div><div className="stat-value">{manifest.raw_files.length}</div></div>
-              <div className="drill-stat"><div className="stat-label">Artifacts</div><div className="stat-value">{manifest.artifacts.length}</div></div>
-              <div className="drill-stat"><div className="stat-label">Data Flows</div><div className="stat-value">{manifest.edges.length}</div></div>
-              <div className="drill-stat"><div className="stat-label">Dashboards Served</div><div className="stat-value">6</div></div>
+      <div className={'main-layout' + (!selected ? ' no-detail' : '')}>
+        <div className="Box color-shadow-medium p-4">
+          <div className="flow-columns">
+            <div className="flow-column">
+              <div className="flow-label">Query Output</div>
+              {rawFiles.map(function(f,i) {
+                var isSel = selected && selected.type==='raw' && selected.name===f.name;
+                var isCon = connectedRaw.has(f.name);
+                var isDim = hasSelection && !isSel && !isCon;
+                return <RawFileBox key={i} file={f} selected={isSel} connected={isCon} dimmed={isDim} edgeColor={rawColorMap[f.name]} onClick={function(){handleSelect({type:'raw',name:f.name,data:f})}} />;
+              })}
+            </div>
+            <div className="arrow-col">{rawFiles.map(function(_,i){return <div key={i} className="arrow-mark">{'\u25b6'}</div>})}</div>
+            <div className="flow-column">
+              <div className="flow-label">Materialized Artifacts</div>
+              {artifacts.map(function(a,i) {
+                var isSel = selected && selected.type==='artifact' && selected.name===a.name;
+                var isCon = connectedArt.has(a.name);
+                var isDim = hasSelection && !isSel && !isCon;
+                return <ArtifactBox key={i} artifact={a} selected={isSel} connected={isCon} dimmed={isDim} sourceColors={artifactSourceColors[a.name]} onClick={function(){handleSelect({type:'artifact',name:a.name,data:a})}} />;
+              })}
+            </div>
+            <div className="arrow-col">{[0,1,2,3,4,5].map(function(i){return <div key={i} className="arrow-mark dashed">{'\u25b6'}</div>})}</div>
+            <div className="flow-column">
+              <div className="flow-label">Dashboards</div>
+              {DASHBOARD_NAMES.map(function(n) {
+                var isSel = selected && selected.type==='dashboard' && selected.name===n;
+                var isCon = connectedDash.has(n);
+                var isDim = hasSelection && !isSel && !isCon;
+                return <DashboardBox key={n} name={n} selected={isSel} connected={isCon} dimmed={isDim} onClick={function(){handleSelect({type:'dashboard',name:n})}} />;
+              })}
             </div>
           </div>
+        </div>
 
-          {/* Flow diagram */}
-          <FlowDiagram
-            manifest={manifest}
-            artifactMeta={artifactMeta}
-            selected={selected}
-            onSelect={setSelected}
-          />
-
-          {/* Drill-down panel */}
-          {selected?.type === 'raw' && (
-            <RawFileDrillDown file={selected.data} />
-          )}
-          {selected?.type === 'artifact' && artifactMeta[selected.name] && (
-            <ArtifactDrillDown artifact={{
-              ...artifactMeta[selected.name].artifact,
-              fileName: selected.fileName,
-            }} />
-          )}
-
-          {/* Materialization boundary explanation */}
-          <div className="Box p-4 mt-4 color-fg-muted f6">
-            <strong className="color-fg-default">Materialization boundary:</strong> Everything left of the dashed arrows is <strong>observed data</strong> — deterministic from the raw query output, same for all viewers, cacheable. Everything right is <strong>live calculation</strong> — depends on config parameters (est_hrs_per_kloc, cfg_total_developers, etc.), changes instantly when the user adjusts settings.
+        {selected && selected.type === 'raw' && (
+          <RawFileDetail file={selected.data} queryRun={queryRun} onClose={function(){setSelected(null)}} />
+        )}
+        {selected && selected.type === 'artifact' && selected.data && (
+          <ArtifactDetail artifact={selected.data} onClose={function(){setSelected(null)}} />
+        )}
+        {selected && selected.type === 'dashboard' && (
+          <div className="detail-panel" style={{position:'relative'}}>
+            <button className="close-btn" onClick={function(){setSelected(null)}}>{'\u2715'}</button>
+            <h3 className="color-fg-accent">{'\ud83d\udcca '}{selected.name}</h3>
+            <div className="detail-sub">Dashboard with live config-reactive calculations</div>
+            <div className="detail-section">
+              <h4>Consumes Artifacts</h4>
+              <div className="detail-grid wide">
+                {(DASHBOARD_ARTIFACTS[selected.name] || []).map(function(artName) {
+                  var art = artifactMeta[artName];
+                  var p = art && art.profile ? art.profile : {};
+                  return <div key={artName} className="detail-stat">
+                    <div className="stat-label">{artName.replace(/-/g,' ')}</div>
+                    <div className="stat-value">{fmtCompact(p.record_count)} records</div>
+                    {p.date_range && p.date_range.first && <div className="stat-sub">{p.date_range.first} {'\u2192'} {p.date_range.last}</div>}
+                  </div>;
+                })}
+              </div>
+            </div>
+            <div className="detail-section">
+              <h4>Sections</h4>
+              <div className="detail-grid wide">
+                {(DASHBOARD_ARTIFACTS[selected.name] || []).map(function(artName) {
+                  var consumers = CONSUMERS[artName] || [];
+                  var match = consumers.find(function(c){return c.name === selected.name});
+                  return match ? <div key={artName} className="detail-stat"><div className="stat-label">from {artName.replace(/-/g,' ')}</div><div className="stat-value" style={{fontSize:'12px'}}>{match.sections}</div></div> : null;
+                })}
+              </div>
+            </div>
           </div>
-        </>
-      )}
+        )}
+      </div>
+
+      <div className="Box p-3 mt-3 f6 color-fg-muted">
+        <strong className="color-fg-default">Materialization boundary:</strong> Solid boxes = <strong>observed data</strong> (deterministic, cacheable). Dashed boxes = <strong>live calculations</strong> (config-reactive, per-viewer).
+      </div>
     </div>
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
 </script>
 </body>
 </html>

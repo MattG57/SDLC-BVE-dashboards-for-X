@@ -35,7 +35,12 @@ import { getAllDefaults } from '../shared/core/config.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
-const OUTPUT_DIR = resolve(ROOT, '_data');
+const DATA_DIR = resolve(ROOT, '_data');
+const RAW_DIR = resolve(DATA_DIR, 'raw');
+const OUTPUT_DIR = resolve(DATA_DIR, 'materialized');
+
+// Timestamp for this materialization run
+const RUN_TS = new Date().toISOString().slice(0, 16).replace(/:/g, '') + 'Z';
 
 function hashFile(filepath) {
   const content = readFileSync(filepath);
@@ -43,6 +48,17 @@ function hashFile(filepath) {
 }
 
 function findDataFiles() {
+  // Prefer consolidated _data/raw/ directory
+  if (existsSync(RAW_DIR)) {
+    const rawFiles = readdirSync(RAW_DIR)
+      .filter(f => f.endsWith('.json'))
+      .map(f => resolve(RAW_DIR, f));
+    if (rawFiles.length > 0) {
+      return rawFiles;
+    }
+  }
+
+  // Fallback: scan traditional per-dashboard data directories
   const dirs = [
     'BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency/data',
     'BVE-dashboards-for-ai-assisted-coding/dashboard/structural/data',
@@ -65,8 +81,8 @@ function findDataFiles() {
 }
 
 function loadAndClassify(files) {
-  const sources = { copilot: null, pr: null, agentic: null };
-  const fileInfo = {};
+  const sources = { copilot: [], pr: [], agentic: [] };
+  const fileInfo = { copilot: [], pr: [], agentic: [] };
 
   for (const filepath of files) {
     let data;
@@ -79,17 +95,17 @@ function loadAndClassify(files) {
 
     const info = { file: basename(filepath), hash: hashFile(filepath), metadata: data.metadata || null };
 
-    if (isCopilotMetricsSource(data) && !sources.copilot) {
-      sources.copilot = data;
-      fileInfo.copilot = info;
+    if (isCopilotMetricsSource(data)) {
+      sources.copilot.push(data);
+      fileInfo.copilot.push(info);
       console.log(`  📊 Copilot metrics: ${basename(filepath)}`);
-    } else if (isPrReviewData(data) && !sources.pr) {
-      sources.pr = data;
-      fileInfo.pr = info;
+    } else if (isPrReviewData(data)) {
+      sources.pr.push(data);
+      fileInfo.pr.push(info);
       console.log(`  📊 PR review data: ${basename(filepath)}`);
-    } else if (isAgenticSource(data) && !sources.agentic) {
-      sources.agentic = data;
-      fileInfo.agentic = info;
+    } else if (isAgenticSource(data)) {
+      sources.agentic.push(data);
+      fileInfo.agentic.push(info);
       console.log(`  📊 Agentic data: ${basename(filepath)}`);
     }
   }
@@ -97,11 +113,76 @@ function loadAndClassify(files) {
   return { sources, fileInfo };
 }
 
+/**
+ * Merge multiple raw files of the same source type by concatenating
+ * their data arrays. Dedup is handled downstream by the materializers.
+ */
+function mergeSource(type, dataFiles) {
+  if (dataFiles.length === 0) return null;
+  if (dataFiles.length === 1) return dataFiles[0];
+
+  // Deep-merge: combine the data arrays from each file
+  const merged = JSON.parse(JSON.stringify(dataFiles[0]));
+
+  for (let i = 1; i < dataFiles.length; i++) {
+    const other = dataFiles[i];
+    if (type === 'copilot') {
+      // Concat enterprise day_totals and user_report arrays
+      if (other.enterprise_report?.day_totals) {
+        merged.enterprise_report = merged.enterprise_report || {};
+        merged.enterprise_report.day_totals = (merged.enterprise_report.day_totals || []).concat(other.enterprise_report.day_totals);
+      }
+      if (other.user_report) {
+        merged.user_report = (merged.user_report || []).concat(other.user_report);
+      }
+    } else if (type === 'pr') {
+      // Concat PR arrays (supports multiple envelope shapes)
+      const existingPrs = extractPrArrayFromMerged(merged);
+      const newPrs = extractPrArrayFromMerged(other);
+      setPrArray(merged, existingPrs.concat(newPrs));
+    } else if (type === 'agentic') {
+      // Concat developer_day_summary and pr_sessions
+      if (other.developer_day_summary) {
+        merged.developer_day_summary = (merged.developer_day_summary || []).concat(other.developer_day_summary);
+      }
+      if (other.pr_sessions) {
+        merged.pr_sessions = (merged.pr_sessions || []).concat(other.pr_sessions);
+      }
+    }
+  }
+
+  // Metadata: use the most recent file's metadata but note all sources
+  const allMeta = dataFiles.map(d => d.metadata).filter(Boolean);
+  if (allMeta.length > 0) {
+    merged.metadata = allMeta.sort((a, b) =>
+      (b.collected_at || '').localeCompare(a.collected_at || '')
+    )[0];
+    merged.metadata._merged_from = dataFiles.length;
+  }
+
+  return merged;
+}
+
+function extractPrArrayFromMerged(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data.prs)) return data.prs;
+  if (data.pull_requests?.prs) return data.pull_requests.prs;
+  return [];
+}
+
+function setPrArray(data, prs) {
+  if (Array.isArray(data.prs)) { data.prs = prs; return; }
+  if (data.pull_requests?.prs) { data.pull_requests.prs = prs; return; }
+  data.prs = prs;
+}
+
 function writeArtifact(name, artifact) {
-  const filepath = join(OUTPUT_DIR, `${name}.json`);
+  const tsName = `${name}-${RUN_TS}`;
+  const filepath = join(OUTPUT_DIR, `${tsName}.json`);
   writeFileSync(filepath, JSON.stringify(artifact, null, 2));
   const size = readFileSync(filepath).length;
-  console.log(`  ✅ ${name}.json (${(size / 1024).toFixed(1)} KB, ${artifact.data?.length ?? artifact.artifact?.profile?.record_count ?? '?'} records)`);
+  console.log(`  ✅ ${tsName}.json (${(size / 1024).toFixed(1)} KB, ${artifact.data?.length ?? artifact.artifact?.profile?.record_count ?? '?'} records)`);
+  return `${tsName}.json`;
 }
 
 function main() {
@@ -121,58 +202,88 @@ function main() {
   const { sources, fileInfo } = loadAndClassify(dataFiles);
   console.log();
 
+  // Merge multiple files of the same source type
+  const mergedCopilot = mergeSource('copilot', sources.copilot);
+  const mergedPr = mergeSource('pr', sources.pr);
+  const mergedAgentic = mergeSource('agentic', sources.agentic);
+
+  if (mergedCopilot && sources.copilot.length > 1) console.log(`  🔗 Merged ${sources.copilot.length} copilot-metrics files`);
+  if (mergedPr && sources.pr.length > 1) console.log(`  🔗 Merged ${sources.pr.length} pr-review files`);
+  if (mergedAgentic && sources.agentic.length > 1) console.log(`  🔗 Merged ${sources.agentic.length} agentic files`);
+
   const config = getAllDefaults();
-  const artifacts = [];
+  const artifactFiles = [];
+  const artifactMap = {};
   const edges = [];
 
   // AI-Assisted Efficiency Days
-  if (sources.copilot) {
-    const result = materializeAiAssistedEfficiencyDays(sources.copilot, fileInfo.copilot);
-    writeArtifact('ai-assisted-efficiency-days', result);
-    artifacts.push('ai-assisted-efficiency-days.json');
-    edges.push({ from: fileInfo.copilot.file, to: 'ai-assisted-efficiency-days.json' });
+  if (mergedCopilot) {
+    const result = materializeAiAssistedEfficiencyDays(mergedCopilot, {
+      inputFiles: fileInfo.copilot,
+    });
+    const fname = writeArtifact('ai-assisted-efficiency-days', result);
+    artifactFiles.push(fname);
+    artifactMap['ai-assisted-efficiency-days'] = fname;
+    fileInfo.copilot.forEach(f => edges.push({ from: f.file, to: fname }));
   }
 
   // AI-Assisted Structural Days
-  if (sources.copilot) {
-    const inputFiles = [fileInfo.copilot];
-    if (fileInfo.pr) inputFiles.push(fileInfo.pr);
+  if (mergedCopilot) {
+    const inputFiles = [...fileInfo.copilot, ...fileInfo.pr];
     const result = materializeAiAssistedStructuralDays(
-      sources.copilot, sources.pr || null, config, { inputFiles }
+      mergedCopilot, mergedPr || null, config, { inputFiles }
     );
-    writeArtifact('ai-assisted-structural-days', result);
-    artifacts.push('ai-assisted-structural-days.json');
-    edges.push({ from: fileInfo.copilot.file, to: 'ai-assisted-structural-days.json' });
-    if (fileInfo.pr) edges.push({ from: fileInfo.pr.file, to: 'ai-assisted-structural-days.json' });
+    const fname = writeArtifact('ai-assisted-structural-days', result);
+    artifactFiles.push(fname);
+    artifactMap['ai-assisted-structural-days'] = fname;
+    fileInfo.copilot.forEach(f => edges.push({ from: f.file, to: fname }));
+    fileInfo.pr.forEach(f => edges.push({ from: f.file, to: fname }));
   }
 
   // Agentic Efficiency Days
-  if (sources.agentic) {
-    const result = materializeAgenticEfficiencyDays(sources.agentic, fileInfo.agentic);
-    writeArtifact('agentic-efficiency-days', result);
-    artifacts.push('agentic-efficiency-days.json');
-    edges.push({ from: fileInfo.agentic.file, to: 'agentic-efficiency-days.json' });
+  if (mergedAgentic) {
+    const result = materializeAgenticEfficiencyDays(mergedAgentic, {
+      inputFiles: fileInfo.agentic,
+    });
+    const fname = writeArtifact('agentic-efficiency-days', result);
+    artifactFiles.push(fname);
+    artifactMap['agentic-efficiency-days'] = fname;
+    fileInfo.agentic.forEach(f => edges.push({ from: f.file, to: fname }));
   }
 
   // Agentic PR Sessions
-  if (sources.agentic) {
-    const result = materializeAgenticPrSessions(sources.agentic, fileInfo.agentic);
-    writeArtifact('agentic-pr-sessions', result);
-    artifacts.push('agentic-pr-sessions.json');
-    edges.push({ from: fileInfo.agentic.file, to: 'agentic-pr-sessions.json' });
+  if (mergedAgentic) {
+    const result = materializeAgenticPrSessions(mergedAgentic, {
+      inputFiles: fileInfo.agentic,
+    });
+    const fname = writeArtifact('agentic-pr-sessions', result);
+    artifactFiles.push(fname);
+    artifactMap['agentic-pr-sessions'] = fname;
+    fileInfo.agentic.forEach(f => edges.push({ from: f.file, to: fname }));
   }
+
+  // Collect all unique raw files for the manifest
+  const allRawFiles = [...new Set([
+    ...fileInfo.copilot.map(f => f.file),
+    ...fileInfo.pr.map(f => f.file),
+    ...fileInfo.agentic.map(f => f.file),
+  ])];
 
   // Write pipeline manifest
   const manifest = {
     materialized_at: new Date().toISOString(),
-    raw_files: Object.values(fileInfo).map(f => f.file),
-    artifacts,
+    run_timestamp: RUN_TS,
+    raw_dir: 'raw',
+    materialized_dir: 'materialized',
+    raw_files: allRawFiles,
+    artifacts: artifactFiles,
+    artifact_map: artifactMap,
     edges,
   };
-  writeFileSync(join(OUTPUT_DIR, 'pipeline-manifest.json'), JSON.stringify(manifest, null, 2));
+  writeFileSync(join(DATA_DIR, 'pipeline-manifest.json'), JSON.stringify(manifest, null, 2));
   console.log(`  ✅ pipeline-manifest.json`);
 
-  console.log(`\n✅ Materialized ${artifacts.length} artifact(s) to _data/\n`);
+  console.log(`\n✅ Materialized ${artifactFiles.length} artifact(s) from ${allRawFiles.length} raw file(s) to _data/materialized/\n`);
 }
 
 main();

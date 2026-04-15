@@ -60,13 +60,22 @@ export function materializeAiAssistedEfficiencyDays(rawData, options = {}) {
       version: '1.0.0',
       computed_at: new Date().toISOString(),
       compute_ms: Math.round(elapsed),
-      inputs: options.inputFile ? [{
+      inputs: (options.inputFiles || (options.inputFile ? [{
         file: options.inputFile,
         hash: options.inputHash || null,
         metadata: rawData.metadata || null,
-      }] : [],
+      }] : [])).map(f => ({
+        file: f.file,
+        hash: f.hash || null,
+        metadata: f.metadata || rawData.metadata || null,
+      })),
       profile: {
         record_count: data.length,
+        detail_row_count: userResult.data.length,
+        detail_label: 'user-days',
+        unique_people: userResult.profile.unique_logins || 0,
+        people_label: 'users',
+        unique_repos: null,
         date_range: dateRange,
         enterprise_dedup: entResult.profile,
         user_dedup: userResult.profile,

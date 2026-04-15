@@ -110,6 +110,7 @@ if [[ -n "$ENTERPRISE" ]]; then
     --slurpfile ur "$TMP_DIR/user_report.json" \
     --arg scope "enterprise" \
     --arg name "$ENTERPRISE" \
+    --arg since "$SINCE_DATE" \
     --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     --argjson days "$DAY_COUNT" \
     --argjson users "$USER_COUNT" \
@@ -119,6 +120,7 @@ if [[ -n "$ENTERPRISE" ]]; then
         source: "copilot-user-and-enterprise-metrics",
         scope: $scope,
         scope_name: $name,
+        date_range: { since: $since, days: $days },
         collected_at: $ts,
         elapsed_seconds: $elapsed,
         counts: {
@@ -157,7 +159,7 @@ elif [[ -n "$ORG" ]]; then
         source: "copilot-user-and-enterprise-metrics",
         scope: $scope,
         scope_name: $name,
-        since: $since,
+        date_range: { since: $since, days: $days },
         collected_at: $ts,
         elapsed_seconds: $elapsed,
         counts: {
