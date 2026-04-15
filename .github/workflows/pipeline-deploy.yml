@@ -1,0 +1,84 @@
+name: Pipeline Collect & Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_data_collection:
+        description: 'Deploy pages only (skip data collection)'
+        type: boolean
+        default: false
+      enterprise:
+        description: 'GitHub Enterprise slug (overrides ENTERPRISE variable)'
+        required: false
+      org:
+        description: 'GitHub Organization name (overrides ORG variable)'
+        required: false
+      days:
+        description: 'Number of days to look back (overrides DAYS variable)'
+        required: false
+        default: '28'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-deploy
+  cancel-in-progress: false
+
+jobs:
+  collect-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore cached raw data
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            _data/raw/*.json
+          key: pipeline-data-${{ github.run_id }}
+          restore-keys: pipeline-data-
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install shared dependencies
+        run: npm install --workspace=shared --include=dev
+
+      - name: Collect and materialize data
+        if: ${{ inputs.skip_data_collection != true }}
+        env:
+          GH_TOKEN: ${{ secrets.DASHBOARD_GH_TOKEN }}
+          ENTERPRISE: ${{ inputs.enterprise || vars.ENTERPRISE || '' }}
+          ORG: ${{ inputs.org || vars.ORG || '' }}
+          DAYS: ${{ inputs.days || vars.DAYS || '28' }}
+        run: bash scripts/collect-and-materialize.sh
+
+      - name: Materialize only (skip collection)
+        if: ${{ inputs.skip_data_collection == true }}
+        run: bash scripts/collect-and-materialize.sh --materialize-only
+
+      - name: Save raw data to cache
+        if: ${{ inputs.skip_data_collection != true }}
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            _data/raw/*.json
+          key: pipeline-data-${{ github.run_id }}
+
+      - name: Build Pages site
+        run: bash scripts/build-pages.sh
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v4
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
