@@ -40,7 +40,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: |
-            _data/raw/*.json
+            dashboard/dataflow/data/raw/*.json
           key: pipeline-data-${{ github.run_id }}
           restore-keys: pipeline-data-
 
@@ -70,7 +70,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: |
-            _data/raw/*.json
+            dashboard/dataflow/data/raw/*.json
           key: pipeline-data-${{ github.run_id }}
 
       - name: Build Pages site

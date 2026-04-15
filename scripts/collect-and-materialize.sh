@@ -27,7 +27,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-DATA_DIR="${REPO_ROOT}/_data"
+DATA_DIR="${REPO_ROOT}/dashboard/dataflow/data"
 RAW_DIR="${DATA_DIR}/raw"
 MATERIALIZED_DIR="${DATA_DIR}/materialized"
 SETTINGS_FILE="${REPO_ROOT}/query-settings.json"

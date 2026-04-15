@@ -55,4 +55,4 @@ verify_output.txt
 calculation_results.txt
 _data-status/
 BVE-dashboards-for-ai-assisted-coding/data/queries/tmp/
-_data/
+dashboard/dataflow/data/

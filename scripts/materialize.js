@@ -35,7 +35,7 @@ import { getAllDefaults } from '../shared/core/config.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
-const DATA_DIR = resolve(ROOT, '_data');
+const DATA_DIR = resolve(ROOT, 'dashboard/dataflow/data');
 const RAW_DIR = resolve(DATA_DIR, 'raw');
 const OUTPUT_DIR = resolve(DATA_DIR, 'materialized');
 

@@ -346,8 +346,7 @@ function App() {
   useEffect(function() {
     (async function() {
       try {
-        var mRes = await fetch('../../_data/pipeline-manifest.json');
-        if (!mRes.ok) mRes = await fetch('../_data/pipeline-manifest.json');
+        var mRes = await fetch('data/pipeline-manifest.json');
         if (!mRes.ok) throw new Error('Manifest not found');
         var m = await mRes.json();
         setManifest(m);
@@ -357,11 +356,9 @@ function App() {
           try {
             var subdir = m.materialized_dir || '';
             var prefix = subdir ? subdir + '/' : '';
-            var res = await fetch('../../_data/' + prefix + name);
-            if (!res.ok) res = await fetch('../_data/' + prefix + name);
+            var res = await fetch('data/' + prefix + name);
             if (res.ok) {
               var full = await res.json();
-              // Extract artifact name without timestamp for keying
               var key = name.replace(/-\d{4}-\d{2}-\d{2}T\d{4}Z\.json$/, '').replace('.json', '');
               meta[key] = full.artifact;
             }
@@ -370,9 +367,7 @@ function App() {
         setArtifactMeta(meta);
 
         try {
-          var qRes = await fetch('../../_data/query-status.json');
-          if (!qRes.ok) qRes = await fetch('../_data/query-status.json');
-          if (!qRes.ok) qRes = await fetch('../../_data-status/query-status.json');
+          var qRes = await fetch('data/query-status.json');
           if (qRes.ok) setQueryRun(await qRes.json());
         } catch(e3) {}
       } catch (e) { setError(e.message); }
