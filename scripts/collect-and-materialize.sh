@@ -141,52 +141,22 @@ run_target() {
   echo "  Script: $script"
   echo "  Output: _data/raw/$output_file"
 
-  # Run the query script, capturing output to temp file
-  local tmp_output
-  tmp_output=$(mktemp)
-
-  if bash "$script_path" > "$tmp_output" 2>&1; then
-    # Find the JSON output (script writes to stdout or a known location)
-    # The existing scripts write to stdout, we need to capture that
-    # Actually, existing scripts write to a file based on env vars — let's
-    # just run them and find the output
-    echo "  ✔ Script completed"
+  # Run the query script — scripts write JSON to stdout, progress to stderr
+  if bash "$script_path" > "$output_path"; then
+    # Validate the output is valid JSON
+    if jq -e '.' "$output_path" > /dev/null 2>&1; then
+      local fsize
+      fsize=$(wc -c < "$output_path" | tr -d ' ')
+      echo "  ✔ Captured _data/raw/$output_file ($fsize bytes)"
+      return 0
+    else
+      echo "  ✗ Output is not valid JSON"
+      rm -f "$output_path"
+      return 1
+    fi
   else
     echo "  ✗ Script failed"
-    rm -f "$tmp_output"
-    return 1
-  fi
-
-  rm -f "$tmp_output"
-
-  # The existing query scripts write output based on their own logic.
-  # We need to find the most recently written file and copy/move it.
-  # Look for the script's output in its traditional location.
-  local traditional_dir
-  case "$name" in
-    copilot-metrics) traditional_dir="BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency/data" ;;
-    human-pr-metrics) traditional_dir="BVE-dashboards-for-ai-assisted-coding/dashboard/structural/data" ;;
-    coding-agent-pr-metrics) traditional_dir="BVE-dashboards-for-agentic-ai-coding/dashboard/efficiency/data" ;;
-  esac
-
-  # Find the most recently written file matching the pattern
-  local found_file=""
-  if [[ -d "${REPO_ROOT}/${traditional_dir}" ]]; then
-    found_file=$(find "${REPO_ROOT}/${traditional_dir}" -name "${scope_name}-${basename}*.json" -newer "$SETTINGS_FILE" -type f 2>/dev/null | sort -t/ -k999 | tail -1)
-    # Fallback: any file matching the pattern
-    if [[ -z "$found_file" ]]; then
-      found_file=$(find "${REPO_ROOT}/${traditional_dir}" -name "*${basename}*.json" -not -name 'manifest.json' -type f 2>/dev/null | sort | tail -1)
-    fi
-  fi
-
-  if [[ -n "$found_file" && -f "$found_file" ]]; then
-    cp "$found_file" "$output_path"
-    local fsize
-    fsize=$(wc -c < "$output_path" | tr -d ' ')
-    echo "  ✔ Copied to _data/raw/$output_file ($fsize bytes)"
-    return 0
-  else
-    echo "  ⚠ Could not find output file in $traditional_dir"
+    rm -f "$output_path"
     return 1
   fi
 }
@@ -306,6 +276,9 @@ main() {
   # Create directories
   mkdir -p "$RAW_DIR" "$MATERIALIZED_DIR"
 
+  # Register query targets
+  register_targets
+
   if $MATERIALIZE_ONLY; then
     echo "Skipping collection (--materialize-only)"
 
@@ -319,8 +292,20 @@ main() {
     load_profile
 
     echo ""
-    echo "Collecting existing data into _data/raw/..."
-    collect_existing
+    echo "Running data collection..."
+    local targets_run=0
+    for idx in "${!TARGET_NAMES[@]}"; do
+      if run_target "$idx"; then
+        targets_run=$((targets_run + 1))
+      fi
+    done
+
+    # If no targets ran (missing env vars), fall back to collecting existing files
+    if [[ $targets_run -eq 0 ]]; then
+      echo ""
+      echo "No query targets ran — collecting existing data files..."
+      collect_existing
+    fi
   fi
 
   # Write query status
