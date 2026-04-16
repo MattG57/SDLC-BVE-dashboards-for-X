@@ -1051,18 +1051,37 @@ function App() {
     setConfig(d.config);
   }, [method]);
 
-  // Auto-load data from ./data/ when served via GitHub Pages
+  // Auto-load data from pipeline data directory or ./data/ fallback
   useEffect(() => {
-    fetch('./data/manifest.json')
-      .then(r => r.ok ? r.json() : null)
-      .then(manifest => {
-        if (!manifest?.files?.length) return null;
-        return Promise.all(manifest.files.map(f =>
-          fetch('./data/' + f).then(r => r.ok ? r.json() : null)
-        )).then(r => ({ manifest, results: r }));
-      })
-      .then(({ manifest, results } = {}) => {
-        if (!results) return;
+    async function fetchPipelineRawFiles() {
+      const bases = ['../../dataflow/data/', '../dataflow/data/'];
+      for (const base of bases) {
+        try {
+          const r = await fetch(base + 'pipeline-manifest.json');
+          if (!r.ok) continue;
+          const manifest = await r.json();
+          const rawFiles = manifest.raw_files || [];
+          if (!rawFiles.length) continue;
+          const rawDir = base + (manifest.raw_dir || 'raw') + '/';
+          const results = await Promise.all(rawFiles.map(f => fetch(rawDir + f).then(r => r.ok ? r.json() : null)));
+          return { manifest: { files: rawFiles }, results: results.filter(Boolean) };
+        } catch(e) {}
+      }
+      try {
+        const r = await fetch('./data/manifest.json');
+        if (r.ok) {
+          const manifest = await r.json();
+          if (manifest?.files?.length) {
+            const results = await Promise.all(manifest.files.map(f => fetch('./data/' + f).then(r => r.ok ? r.json() : null)));
+            return { manifest, results: results.filter(Boolean) };
+          }
+        }
+      } catch(e) {}
+      return null;
+    }
+    fetchPipelineRawFiles().then(loaded => {
+      if (!loaded) return;
+      const { manifest, results } = loaded;
         let prSessions = [];
         let requests = [];
         let devDays = [];
