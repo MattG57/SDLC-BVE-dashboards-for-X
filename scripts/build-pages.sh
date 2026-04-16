@@ -125,11 +125,13 @@ if command -v node >/dev/null 2>&1; then
   node "${REPO_ROOT}/scripts/materialize.js" 2>/dev/null || echo "  ⚠ materialize.js skipped (no data or error)"
   DATAFLOW_SRC="${REPO_ROOT}/dashboard/dataflow/data"
   DATAFLOW_DEST="${SITE_DIR}/dataflow/data"
-  if [[ -d "${DATAFLOW_SRC}/materialized" ]]; then
-    mkdir -p "${DATAFLOW_DEST}/materialized"
-    cp "${DATAFLOW_SRC}/materialized"/*.json "${DATAFLOW_DEST}/materialized/" 2>/dev/null || true
-    echo "  ✔ dataflow/data/materialized/ copied to site"
-  fi
+  for subdir in raw materialized; do
+    if [[ -d "${DATAFLOW_SRC}/${subdir}" ]]; then
+      mkdir -p "${DATAFLOW_DEST}/${subdir}"
+      cp "${DATAFLOW_SRC}/${subdir}"/*.json "${DATAFLOW_DEST}/${subdir}/" 2>/dev/null || true
+    fi
+  done
+  echo "  ✔ dataflow/data/{raw,materialized}/ copied to site"
 fi
 
 # ─── Generate data-status.json for the data management dashboard ──────────────

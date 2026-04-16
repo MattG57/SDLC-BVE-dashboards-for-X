@@ -1646,6 +1646,7 @@ function App() {
 
   // Auto-load data from pipeline data directory or ./data/ fallback
   useEffect(() => {
+    const sourceFilter = ['copilot-metrics', 'human-pr-metrics'];
     async function fetchPipelineRawFiles() {
       const bases = ['../../dataflow/data/', '../dataflow/data/'];
       for (const base of bases) {
@@ -1653,7 +1654,7 @@ function App() {
           const r = await fetch(base + 'pipeline-manifest.json');
           if (!r.ok) continue;
           const manifest = await r.json();
-          const rawFiles = manifest.raw_files || [];
+          const rawFiles = (manifest.raw_files || []).filter(f => sourceFilter.some(s => f.includes(s)));
           if (!rawFiles.length) continue;
           const rawDir = base + (manifest.raw_dir || 'raw') + '/';
           const results = await Promise.all(rawFiles.map(f => fetch(rawDir + f).then(r => r.ok ? r.json() : null)));
