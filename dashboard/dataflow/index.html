@@ -83,21 +83,33 @@ const CONSUMERS = {
     { name: 'AI-Assisted Efficiency', sections: 'Impact \u00b7 Drivers \u00b7 Confidence' },
     { name: 'AI-Assisted Element', sections: 'Leverage \u00b7 Insights' },
     { name: 'Integrated', sections: 'AI sub-rectangle' },
+    { name: 'AI Efficiency v2', sections: 'Impact \u00b7 Drivers \u00b7 Confidence', v2: true },
+    { name: 'AI Element v2', sections: 'Leverage \u00b7 Insights', v2: true },
+    { name: 'Integrated v2', sections: 'AI sub-rectangle', v2: true },
   ],
   'ai-assisted-structural-days': [
     { name: 'AI-Assisted Structural', sections: 'Completeness \u00b7 Consistency \u00b7 Impact' },
     { name: 'AI-Assisted Element', sections: 'Factor donuts \u00b7 Insights' },
     { name: 'Integrated', sections: 'AI structural factors' },
+    { name: 'AI Structural v2', sections: 'Overview \u00b7 Trends \u00b7 PR Analysis', v2: true },
+    { name: 'AI Element v2', sections: 'Structural factors \u00b7 Insights', v2: true },
+    { name: 'Integrated v2', sections: 'AI structural factors', v2: true },
   ],
   'agentic-efficiency-days': [
     { name: 'Agentic Efficiency', sections: 'Impact \u00b7 Drivers \u00b7 Confidence' },
     { name: 'Agentic Element', sections: 'Factor donuts \u00b7 Insights' },
     { name: 'Integrated', sections: 'Agentic adoption' },
+    { name: 'Agentic Efficiency v2', sections: 'Impact \u00b7 Drivers \u00b7 Confidence', v2: true },
+    { name: 'Agentic Element v2', sections: 'Leverage \u00b7 Insights', v2: true },
+    { name: 'Integrated v2', sections: 'Agentic adoption', v2: true },
   ],
   'agentic-pr-sessions': [
     { name: 'Agentic Efficiency', sections: 'Confidence (PR detail)' },
     { name: 'Agentic Element', sections: 'Leverage rectangle \u00b7 Completions' },
     { name: 'Integrated', sections: 'Agentic dev-hours \u00b7 completions' },
+    { name: 'Agentic Efficiency v2', sections: 'PR sessions', v2: true },
+    { name: 'Agentic Element v2', sections: 'Leverage \u00b7 PR Analysis', v2: true },
+    { name: 'Integrated v2', sections: 'Agentic completions', v2: true },
   ],
 };
 
@@ -110,7 +122,7 @@ Object.keys(CONSUMERS).forEach(function(artName) {
   });
 });
 
-var DASHBOARD_NAMES = ['AI-Assisted Efficiency','AI-Assisted Structural','AI-Assisted Element','Agentic Efficiency','Agentic Element','Integrated'];
+var DASHBOARD_NAMES = ['AI-Assisted Efficiency','AI-Assisted Structural','AI-Assisted Element','Agentic Efficiency','Agentic Element','Integrated','AI Efficiency v2','AI Structural v2','AI Element v2','Agentic Efficiency v2','Agentic Element v2','Integrated v2'];
 
 // Stable colors for edge tracing (assigned to raw files by index)
 var EDGE_COLORS = ['#3fb950', '#58a6ff', '#d29922', '#bc8cff', '#f85149', '#f778ba'];
