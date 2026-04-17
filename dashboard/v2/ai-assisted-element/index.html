@@ -1,0 +1,1287 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark" data-dark-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Assisted Coding — Element (v2)</title>
+
+<!-- Primer CSS -->
+<link rel="stylesheet" href="https://unpkg.com/@primer/css@21.3.1/dist/primer.css">
+
+<!-- Highcharts -->
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/highcharts.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/highcharts-more.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/modules/accessibility.js"></script>
+
+<!-- React -->
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<style>
+  body { background: var(--bgColor-default); }
+  .element-page { max-width: 1280px; margin: 0 auto; padding: 24px 16px; }
+
+  .definition-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px; }
+  @media (max-width: 768px) { .definition-row { grid-template-columns: 1fr; } }
+  .def-card { border-top: 3px solid var(--borderColor-accent-emphasis); }
+  .def-card-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; }
+  .def-card-value { font-size: 1rem; font-weight: 600; line-height: 1.4; }
+  .def-card-sub { font-size: 0.8rem; }
+
+  .kpi-card { text-align: center; }
+  .kpi-value { font-size: 2rem; font-weight: 600; line-height: 1.2; }
+  .kpi-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; }
+  .kpi-sub { font-size: 0.75rem; }
+  .kpi-unit { font-size: 1.1rem; font-weight: 400; opacity: 0.65; margin-left: 2px; }
+  .kpi-hero .kpi-value { font-size: 3rem; }
+  .kpi-hero .kpi-label { font-size: 0.85rem; }
+  .kpi-hero .kpi-sub { font-size: 0.85rem; }
+  .kpi-hero { border-top: 3px solid var(--borderColor-accent-emphasis); }
+
+  .section-row { margin-bottom: 32px; padding-top: 8px; }
+  .chart-container { min-height: 320px; }
+  .chart-container-sm { min-height: 240px; }
+  .donut-container { min-height: 200px; }
+
+  .leverage-section { border: 2px solid var(--borderColor-accent-emphasis); border-radius: 8px; padding: 20px; margin-bottom: 32px; }
+  .leverage-section h2 { margin: 0 0 4px 0; }
+  .insights-section { border: 1px solid var(--borderColor-default); border-radius: 8px; padding: 20px; margin-bottom: 32px; }
+  .insights-section h2 { margin: 0 0 4px 0; }
+
+  .view-toggle { display: inline-flex; border: 1px solid var(--borderColor-default); border-radius: 6px; overflow: hidden; }
+  .view-toggle button {
+    padding: 2px 10px; font-size: 0.75rem; border: none; cursor: pointer;
+    background: var(--bgColor-muted); color: var(--fgColor-muted); transition: all 0.15s;
+  }
+  .view-toggle button + button { border-left: 1px solid var(--borderColor-default); }
+  .view-toggle button.active { background: var(--bgColor-accent-muted); color: var(--fgColor-accent); font-weight: 600; }
+
+  .driver-toggles { display: flex; flex-wrap: wrap; gap: 8px; }
+  .driver-toggles label { font-size: 0.8rem; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+  .drivers-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 768px) { .drivers-grid { grid-template-columns: 1fr; } }
+
+  .trend-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  @media (max-width: 900px) { .trend-grid { grid-template-columns: 1fr; } }
+
+  .highcharts-background { fill: transparent !important; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-type="module">
+
+/* ═══════════════════════════════════════════════════════
+   HIGHCHARTS DARK THEME (GitHub-aligned)
+   ═══════════════════════════════════════════════════════ */
+Highcharts.setOptions({
+  chart: { backgroundColor: 'transparent', style: { fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif' } },
+  colors: ['#58a6ff', '#3fb950', '#d29922', '#f85149', '#bc8cff', '#f778ba', '#79c0ff', '#56d364'],
+  title: { style: { color: '#e6edf3', fontSize: '14px', fontWeight: '600' } },
+  subtitle: { style: { color: '#8b949e', fontSize: '12px' } },
+  xAxis: { labels: { style: { color: '#8b949e' } }, gridLineColor: '#30363d', lineColor: '#30363d', tickColor: '#30363d' },
+  yAxis: { labels: { style: { color: '#8b949e' } }, gridLineColor: '#30363d', title: { style: { color: '#8b949e' } } },
+  legend: { itemStyle: { color: '#e6edf3' }, itemHoverStyle: { color: '#58a6ff' } },
+  tooltip: { backgroundColor: '#161b22', borderColor: '#30363d', style: { color: '#e6edf3' } },
+  plotOptions: { series: { animation: { duration: 400 } } },
+  credits: { enabled: false },
+});
+
+/* ═══════════════════════════════════════════════════════
+   DATA LOADING — TWO MATERIALIZED ARTIFACTS
+   ═══════════════════════════════════════════════════════ */
+
+async function fetchArtifacts() {
+  const bases = ['../../dataflow/data/', '../dataflow/data/'];
+  for (const base of bases) {
+    try {
+      const r = await fetch(base + 'pipeline-manifest.json');
+      if (!r.ok) continue;
+      const manifest = await r.json();
+      const effFile = (manifest.artifacts || []).find(f => f.startsWith('ai-assisted-efficiency-days'));
+      const strFile = (manifest.artifacts || []).find(f => f.startsWith('ai-assisted-structural-days'));
+      if (!effFile) continue;
+      const dir = base + 'materialized/';
+      const [eff, str] = await Promise.all([
+        fetch(dir + effFile).then(r => r.ok ? r.json() : null),
+        strFile ? fetch(dir + strFile).then(r => r.ok ? r.json() : null) : null,
+      ]);
+      if (eff) return { efficiency: eff, structural: str };
+    } catch(e) {}
+  }
+  return null;
+}
+
+/* ═══════════════════════════════════════════════════════
+   UTILITIES
+   ═══════════════════════════════════════════════════════ */
+
+function safeDiv(a, b) { return b > 0 ? a / b : null; }
+function fmtDec(v, d = 1) { return v != null ? v.toFixed(d) : '—'; }
+function fmtPct(v) { return v != null ? (v * 100).toFixed(1) + '%' : '—'; }
+function fmtPct0(v) { return v != null ? Math.round(v * 100) + '%' : '—'; }
+const fmt = n => n == null ? '—' : Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+function fmtCompact(v) {
+  if (v == null) return '—';
+  if (Math.abs(v) >= 1e6) return (v / 1e6).toFixed(1) + 'M';
+  if (Math.abs(v) >= 1e3) return (v / 1e3).toFixed(1) + 'k';
+  return v.toFixed(0);
+}
+function fmtCurrency(v) {
+  if (v == null) return '—';
+  if (Math.abs(v) >= 1e6) return '$' + (v / 1e6).toFixed(1) + 'M';
+  if (Math.abs(v) >= 1e3) return '$' + (v / 1e3).toFixed(1) + 'k';
+  return '$' + v.toFixed(0);
+}
+
+function mean(arr) { const v = arr.filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; }
+
+function linearRegression(points) {
+  const n = points.length;
+  if (n < 3) return null;
+  let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+  for (const [x, y] of points) { sumX += x; sumY += y; sumXY += x * y; sumX2 += x * x; }
+  const denom = n * sumX2 - sumX * sumX;
+  if (Math.abs(denom) < 1e-10) return null;
+  const slope = (n * sumXY - sumX * sumY) / denom;
+  const intercept = (sumY - slope * sumX) / n;
+  const xMin = Math.min(...points.map(p => p[0]));
+  const xMax = Math.max(...points.map(p => p[0]));
+  return { slope, intercept, line: [[xMin, slope * xMin + intercept], [xMax, slope * xMax + intercept]] };
+}
+
+function dayOffset(dayStr, offset) {
+  const d = new Date(dayStr + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() + offset);
+  return d.toISOString().slice(0, 10);
+}
+
+function isWeekend(dayStr) {
+  const d = new Date(dayStr + 'T12:00:00Z');
+  const dow = d.getUTCDay();
+  return dow === 0 || dow === 6;
+}
+
+function smooth7(arr) {
+  return arr.map((_, i) => {
+    const start = Math.max(0, i - 6);
+    const slice = arr.slice(start, i + 1).filter(v => v != null);
+    return slice.length > 0 ? slice.reduce((a, b) => a + b, 0) / slice.length : null;
+  });
+}
+
+/* ═══════════════════════════════════════════════════════
+   ESTIMATION METHODS, DRIVER SERIES, DEFAULT CONFIG
+   ═══════════════════════════════════════════════════════ */
+
+const ESTIMATION_METHODS = [
+  { key: 'interactions', label: 'Interactions-Based',
+    descFn: (cfg) => `1 hour saved per ${cfg.est_interactions_per_hour || 20} interactions`,
+    formulaFn: (cfg) => `hrs_saved_day = interactions / ${cfg.est_interactions_per_hour || 20}`,
+    calc: (d, cfg) => (d.user_initiated_interaction_count || 0) / (cfg.est_interactions_per_hour || 20) },
+  { key: 'loc', label: 'LoC-Based',
+    descFn: (cfg) => `${cfg.est_hrs_per_kloc || 2} hours saved per 1,000 LoC added`,
+    formulaFn: (cfg) => `hrs_saved_day = (loc_added / 1000) × ${cfg.est_hrs_per_kloc || 2}`,
+    calc: (d, cfg) => ((d.loc_added_sum || 0) / 1000) * (cfg.est_hrs_per_kloc || 2) },
+  { key: 'manual_daily_pct', label: 'Manual Daily %',
+    descFn: (cfg) => `${fmtPct(cfg.cfg_time_saved_pct_day)} × ${((cfg.cfg_pct_time_coding || 0.5) * 100).toFixed(0)}% coding time`,
+    formulaFn: () => 'hrs_saved_day = pct × coding_pct × baseline_hrs / workdays × active_devs',
+    calc: (d, cfg) => {
+      const p = cfg.cfg_time_saved_pct_day, b = cfg.cfg_baseline_hours_per_dev_per_week, w = cfg.cfg_workdays_per_week || 5;
+      const c = cfg.cfg_pct_time_coding || 0.5;
+      return (p != null && b != null) ? (p * c * b / w) * (d.daily_active_users || 0) : null;
+    }},
+];
+
+const DRIVER_SERIES = [
+  { key: 'user_initiated_interaction_count', perDev: 'interactions_per_active_dev', label: 'Interactions', color: '#58a6ff', scale: 1 },
+  { key: 'code_generation_activity_count', perDev: 'generations_per_active_dev', label: 'Suggestions', color: '#3fb950', scale: 1 },
+  { key: 'code_acceptance_activity_count', perDev: 'acceptances_per_active_dev', label: 'Accepts', color: '#d29922', scale: 1 },
+  { key: 'loc_added_sum', perDev: 'loc10_added_per_active_dev', label: 'LoC/10 Added', color: '#bc8cff', scale: 10 },
+  { key: 'agent_mode_interaction_count', perDev: 'agent_mode_per_active_dev', label: 'Agent Mode', color: '#f778ba', scale: 1 },
+  { key: 'cli_prompt_count', perDev: 'cli_prompts_per_active_dev', label: 'CLI Prompts', color: '#79c0ff', scale: 1 },
+];
+
+const DEFAULT_CONFIG = {
+  cfg_total_developers: 100, cfg_workdays_per_week: 5, cfg_labor_cost_per_hour: null,
+  est_interactions_per_hour: 20, est_hrs_per_kloc: 2,
+  cfg_pr_assist_lookback_days: 3, cfg_total_dev_loc_added_day: null,
+};
+
+/* ═══════════════════════════════════════════════════════
+   DATA PROCESSING
+   ═══════════════════════════════════════════════════════ */
+
+function computeDerived(days, config, selectedMethod) {
+  const method = ESTIMATION_METHODS.find(m => m.key === selectedMethod) || ESTIMATION_METHODS[0];
+  return days.map(d => {
+    const dau = d.daily_active_users || 0;
+    const estimates = {};
+    for (const m of ESTIMATION_METHODS) {
+      const raw = m.calc(d, config);
+      estimates['est_' + m.key + '_hrs_day'] = raw;
+      estimates['est_' + m.key + '_hrs_per_dev_day'] = safeDiv(raw, dau);
+    }
+    const selectedHrsDay = method.calc(d, config);
+    return {
+      ...d, ...estimates,
+      interactions_per_active_dev: safeDiv(d.user_initiated_interaction_count, dau),
+      generations_per_active_dev: safeDiv(d.code_generation_activity_count, dau),
+      acceptances_per_active_dev: safeDiv(d.code_acceptance_activity_count, dau),
+      loc10_added_per_active_dev: safeDiv((d.loc_added_sum || 0) / 10, dau),
+      agent_mode_per_active_dev: safeDiv(d.agent_mode_interaction_count, dau),
+      cli_prompts_per_active_dev: safeDiv(d.cli_prompt_count, dau),
+      acceptance_rate: safeDiv(d.code_acceptance_activity_count, d.code_generation_activity_count),
+      time_saved_hours_total_day: selectedHrsDay,
+      time_saved_hours_per_dev_per_day: safeDiv(selectedHrsDay, dau),
+    };
+  });
+}
+
+/* ═══════════════════════════════════════════════════════
+   REACT COMPONENTS
+   ═══════════════════════════════════════════════════════ */
+const { useState, useEffect, useRef, useMemo, useCallback } = React;
+
+function Chart({ options, className = 'chart-container' }) {
+  const ref = useRef(null);
+  const chartRef = useRef(null);
+  useEffect(() => {
+    if (ref.current) chartRef.current = Highcharts.chart(ref.current, options);
+    return () => { if (chartRef.current) chartRef.current.destroy(); };
+  }, [JSON.stringify(options)]);
+  return <div ref={ref} className={className} />;
+}
+
+function KpiCard({ label, value, unit, sub, color, hero }) {
+  return (
+    <div className={`Box p-3 kpi-card${hero ? ' kpi-hero' : ''}`}>
+      <div className="kpi-label color-fg-muted mb-1">{label}</div>
+      <div className="kpi-value" style={color ? { color } : {}}>
+        {value}{unit && <span className="kpi-unit">{unit}</span>}
+      </div>
+      {sub && <div className="kpi-sub color-fg-muted mt-1">{sub}</div>}
+    </div>
+  );
+}
+
+function DefinitionCard({ label, value, description, icon }) {
+  return (
+    <div className="Box p-3 def-card">
+      <div className="def-card-label color-fg-muted mb-1">{icon && <span className="mr-1">{icon}</span>}{label}</div>
+      <div className="def-card-value color-fg-default">{value}</div>
+      {description && <div className="def-card-sub color-fg-muted mt-2">{description}</div>}
+    </div>
+  );
+}
+
+function SourceSummary({ effArtifact, strArtifact, days, users, prRecords }) {
+  const profile = effArtifact?.artifact?.profile || {};
+  const n = days.length;
+  const range = n > 0 ? `${days[0].day} → ${days[n - 1].day}` : 'none';
+  const uniqueUsers = profile.unique_people || new Set(users.map(u => u.user_login)).size;
+  const prCount = prRecords ? prRecords.length : 0;
+
+  return (
+    <div className="flash flash-success f6 mb-3">
+      ✅ Loaded <strong>ai-assisted-efficiency-days</strong>{strArtifact && <> + <strong>ai-assisted-structural-days</strong></>}
+      {' '}· {n} enterprise days ({range}) · {fmt(uniqueUsers)} users
+      {prCount > 0 ? <span> · {fmtCompact(prCount)} PR records</span> : <span className="color-fg-attention"> · ⚠ No PR data — leverage estimates use Copilot metrics only</span>}
+    </div>
+  );
+}
+
+function DevSearch({ users, selectedUser, onSelect }) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const logins = useMemo(() => [...new Set(users.map(u => u.user_login))].sort(), [users]);
+  const filtered = query ? logins.filter(l => l.toLowerCase().includes(query.toLowerCase())).slice(0, 10) : logins.slice(0, 10);
+
+  const select = (login) => { onSelect(login); setQuery(''); setOpen(false); };
+  const clear = () => { onSelect(null); setQuery(''); };
+
+  if (!users.length) return null;
+
+  return (
+    <div className="d-flex flex-items-center mb-3" style={{ gap: '8px', position: 'relative' }}>
+      <span className="f6 color-fg-muted text-bold">Developer:</span>
+      <span className="f6 color-fg-muted" style={{ fontStyle: 'italic' }}>Overlay individual developer data to compare to Org averages</span>
+      {selectedUser ? (
+        <div className="d-flex flex-items-center" style={{ gap: '6px' }}>
+          <span className="Label Label--accent">{selectedUser}</span>
+          <button className="btn-octicon" onClick={clear} title="Clear" style={{ color: 'var(--fgColor-muted)', cursor: 'pointer', background: 'none', border: 'none', fontSize: '14px' }}>✕</button>
+        </div>
+      ) : (
+        <div style={{ position: 'relative', width: '220px' }}>
+          <input
+            type="text" className="form-control input-sm" placeholder="Search by login…"
+            value={query} onChange={e => { setQuery(e.target.value); setOpen(true); }}
+            onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
+          />
+          {open && filtered.length > 0 && (
+            <div className="Box color-shadow-large" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, maxHeight: '200px', overflow: 'auto' }}>
+              {filtered.map(l => (
+                <div key={l} className="Box-row px-3 py-1 f6" style={{ cursor: 'pointer' }} onMouseDown={() => select(l)}>
+                  {l}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {selectedUser && <span className="f6 color-fg-muted">(dashed lines on charts)</span>}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   LEVERAGE RECTANGLE SECTION
+   ═══════════════════════════════════════════════════════ */
+
+function LeverageRectangleSection({ days, config, selectedEstimate, onEstimateChange, structuralFactor, onStructuralFactorChange }) {
+  const method = selectedEstimate;
+  const setMethod = onEstimateChange;
+  const setStructuralFactor = onStructuralFactorChange;
+  const n = days.length;
+  const nonWeekendDays = days.filter(d => !isWeekend(d.day)).length;
+  const totalDevs = config.cfg_total_developers || 100;
+  const pctTimeCoding = config.cfg_pct_time_coding || 0.5;
+  const avgDau = mean(days.map(d => d.daily_active_users));
+
+  const totalTaskHours = totalDevs * nonWeekendDays * pctTimeCoding * 8;
+  const activeDevHours = days.reduce((s, d) => s + (d.daily_active_users || 0) * pctTimeCoding * 8, 0);
+  const hasPrData = days.some(d => d.has_pr_data);
+  const prPeriod = days._prPeriod || {};
+  const totalCompletions = hasPrData && prPeriod.total_prs ? prPeriod.total_prs
+    : days.reduce((s, d) => s + (d.total_prs || d.pr_total_created || 0), 0);
+  const currentLeverage = safeDiv(totalCompletions, activeDevHours);
+  const hoursPerCompletion = safeDiv(activeDevHours, totalCompletions);
+
+  const estByMethod = {};
+  for (const m of ESTIMATION_METHODS) {
+    estByMethod[m.key] = days.reduce((s, d) => s + (d['est_' + m.key + '_hrs_day'] || 0), 0);
+  }
+  const timeSaved = estByMethod[method] || 0;
+
+  const adoptionPct = safeDiv(avgDau, totalDevs);
+  const avgPrsAssisted = hasPrData ? (days._periodPrsAssistedPct ?? 0) : mean(days.map(d => d.prs_assisted_pct));
+  const avgLocPct = hasPrData ? (days._periodLocAssistedPct ?? mean(days.map(d => d.ai_assisted_loc_pct))) : mean(days.map(d => d.ai_assisted_loc_pct));
+
+  const STRUCTURAL_FACTORS = [
+    { key: 'adoption', label: 'Adoption', current: adoptionPct, color: '#58a6ff',
+      detail: `${fmtDec(avgDau, 0)} of ${totalDevs} devs using Copilot` },
+    { key: 'prs_assisted', label: '% PRs Assisted', current: avgPrsAssisted, color: '#3fb950',
+      detail: hasPrData ? (prPeriod.assisted_prs != null ? `${fmtCompact(prPeriod.assisted_prs)} of ${fmtCompact(prPeriod.total_prs)} PRs` : 'from PR data') : 'Requires PR review data' },
+    { key: 'loc_assisted', label: '% AI-Assisted LOC', current: avgLocPct, color: '#bc8cff',
+      detail: hasPrData ? (prPeriod.assisted_loc != null ? `${fmtCompact(prPeriod.assisted_loc)} of ${fmtCompact(prPeriod.total_loc)} LOC` : 'from PR data') : 'Requires PR review data' },
+  ];
+
+  const selectedFactor = STRUCTURAL_FACTORS.find(f => f.key === structuralFactor) || STRUCTURAL_FACTORS[0];
+  const currentLevel = selectedFactor.current || 0;
+  const potentialAdditional = currentLevel > 0 ? timeSaved * ((1 / currentLevel) - 1) : 0;
+
+  const withoutAiHours = activeDevHours + timeSaved;
+  const improvedTaskHours = Math.max(activeDevHours - potentialAdditional, 0);
+
+  const xMax = Math.max(totalTaskHours, withoutAiHours) * 1.1;
+  const yMax = totalCompletions * 1.5;
+
+  const rectSeries = [];
+
+  if (timeSaved > 0) {
+    rectSeries.push({
+      type: 'polygon', name: 'Counterfactual (without AI)',
+      data: [[0, 0], [withoutAiHours, 0], [withoutAiHours, totalCompletions], [0, totalCompletions]],
+      color: 'rgba(248,81,73,0.08)', lineWidth: 1, lineColor: '#f85149', dashStyle: 'ShortDot',
+      enableMouseTracking: true,
+      tooltip: { headerFormat: '', pointFormat: `<b>Counterfactual (without AI)</b><br/>Dev-Hours: ${fmtCompact(withoutAiHours)}<br/>Same completions, ${fmtCompact(timeSaved)} more hours needed<br/>Leverage: ${fmtDec(safeDiv(totalCompletions, withoutAiHours), 3)}` },
+    });
+  }
+
+  rectSeries.push({
+    type: 'polygon', name: 'Existing (measured)',
+    data: [[0, 0], [activeDevHours, 0], [activeDevHours, totalCompletions], [0, totalCompletions]],
+    color: 'rgba(88,166,255,0.15)', lineWidth: 2, lineColor: '#58a6ff',
+    enableMouseTracking: true,
+    tooltip: { headerFormat: '', pointFormat: `<b>Existing</b><br/>Dev-Hours: ${fmtCompact(activeDevHours)}<br/>Completions: ${fmtCompact(totalCompletions)}<br/>Leverage: ${fmtDec(currentLeverage, 3)}` },
+  });
+
+  if (potentialAdditional > 0) {
+    const projectedLeverage = safeDiv(totalCompletions, improvedTaskHours);
+    rectSeries.push({
+      type: 'polygon', name: `Projected (${selectedFactor.label} → 100%)`,
+      data: [[0, 0], [improvedTaskHours, 0], [improvedTaskHours, totalCompletions], [0, totalCompletions]],
+      color: `rgba(${selectedFactor.color === '#58a6ff' ? '88,166,255' : selectedFactor.color === '#3fb950' ? '63,185,80' : '188,140,255'},0.10)`,
+      lineWidth: 1, lineColor: selectedFactor.color, dashStyle: 'ShortDash',
+      enableMouseTracking: true,
+      tooltip: { headerFormat: '', pointFormat: `<b>Projected (${selectedFactor.label} → 100%)</b><br/>Dev-Hours: ${fmtCompact(improvedTaskHours)}<br/>Completions: ${fmtCompact(totalCompletions)}<br/>Leverage: ${fmtDec(projectedLeverage, 3)}<br/>Potential savings: ${fmtCompact(potentialAdditional)} hrs` },
+    });
+  }
+
+  rectSeries.push({
+    type: 'line', name: `Leverage = ${fmtDec(currentLeverage, 3)}`,
+    data: [[0, 0], [activeDevHours, totalCompletions]],
+    color: '#3fb950', dashStyle: 'Dash', lineWidth: 2,
+    marker: { enabled: true, radius: 5, symbol: 'circle' },
+    enableMouseTracking: false,
+  });
+
+  const rectChartOpts = {
+    chart: { type: 'scatter', height: 420 },
+    title: { text: 'Leverage Rectangle' },
+    subtitle: { text: 'Org aggregate · Narrower rectangle = higher leverage' },
+    xAxis: { title: { text: 'Raw Capacity (Dev Hours)', style: { fontSize: '13px', fontWeight: '600' } }, min: 0, max: xMax, gridLineWidth: 1, labels: { formatter: function() { return fmtCompact(this.value); } } },
+    yAxis: { title: { text: 'Completions (PRs)', style: { fontSize: '13px', fontWeight: '600' } }, min: 0, max: yMax, labels: { formatter: function() { return fmtCompact(this.value); } } },
+    tooltip: { useHTML: true, headerFormat: '' },
+    legend: { enabled: true, align: 'center', verticalAlign: 'bottom' },
+    plotOptions: { series: { animation: { duration: 600 }, states: { inactive: { opacity: 0.6 } } } },
+    series: rectSeries,
+  };
+
+  function completenessDonutOpts(title, pct, color, isSelected) {
+    const val = pct != null ? Math.min(pct * 100, 100) : 0;
+    return {
+      chart: { type: 'pie', height: 160, margin: [0, 0, 30, 0] },
+      title: { text: fmtPct0(pct), verticalAlign: 'middle', y: -8, style: { fontSize: '22px', fontWeight: '700', color: '#e6edf3' } },
+      subtitle: { text: title, align: 'center', verticalAlign: 'bottom', y: -5, style: { fontSize: '10px' } },
+      tooltip: { pointFormat: '<b>{point.percentage:.1f}%</b>' },
+      plotOptions: { pie: { innerSize: '70%', borderWidth: isSelected ? 3 : 0,
+        borderColor: isSelected ? color : 'transparent', dataLabels: { enabled: false } } },
+      series: [{ data: [{ name: title, y: val, color }, { name: 'Gap', y: Math.max(100 - val, 0), color: '#30363d' }] }],
+    };
+  }
+
+  return (
+    <div className="leverage-section">
+      <h2 className="f2 color-fg-accent">Leverage Summary</h2>
+      <p className="f6 color-fg-muted mb-3">Period aggregates: dev-hours, completions, leverage, and structural projections.</p>
+
+      {/* KPI tiles */}
+      <div className="d-flex flex-wrap mb-3" style={{ gap: '12px' }}>
+        <div style={{ flex: '1 1 140px' }}>
+          <KpiCard label="Active Dev-Hours" value={fmtCompact(activeDevHours)}
+            sub={`${fmtDec(avgDau, 0)} avg active devs × ${n} days × ${(pctTimeCoding * 100).toFixed(0)}% × 8h`} />
+        </div>
+        <div style={{ flex: '1 1 140px' }}>
+          <KpiCard label="Completions (Merged PRs)" value={fmtCompact(totalCompletions)}
+            sub={`${n} day period`} />
+        </div>
+        <div style={{ flex: '0 0 200px' }}>
+          <KpiCard hero label="Current Leverage" value={fmtDec(currentLeverage, 3)}
+            sub="completions / dev-hour" color="#3fb950" />
+        </div>
+        <div style={{ flex: '1 1 140px' }}>
+          <KpiCard label="Hrs / Completion" value={fmtDec(hoursPerCompletion, 2)} unit="hrs"
+            sub="inverse leverage" />
+        </div>
+      </div>
+
+      {/* Time Saved Estimates */}
+      <h3 className="f5 color-fg-default mb-2">Time Saved Estimates <span className="f6 color-fg-muted">(click to select for projections)</span></h3>
+      <div className="d-flex flex-wrap mb-3" style={{ gap: '12px' }}>
+        {ESTIMATION_METHODS.map((m, i) => {
+          const total = estByMethod[m.key];
+          const isSelected = m.key === method;
+          const color = ['#58a6ff', '#3fb950', '#d29922'][i];
+          return (
+            <div key={m.key} className="Box p-3" onClick={() => setMethod(m.key)}
+              style={{ flex: '1 1 200px', cursor: 'pointer',
+                borderColor: isSelected ? color : undefined, borderWidth: isSelected ? '2px' : undefined,
+                transition: 'border-color 0.15s' }}>
+              <div className="f6 color-fg-muted text-bold mb-1">{m.label}</div>
+              <div className="f2 text-bold" style={{ color }}>{fmtCompact(total)}<span className="kpi-unit">hrs</span></div>
+              <div className="f6 color-fg-muted mt-1">{m.descFn(config)}</div>
+              {isSelected && <div className="f6 mt-1" style={{ color }}>▲ Using for projections</div>}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Leverage rectangle chart */}
+      <div className="Box p-3 mb-3">
+        <div className="d-flex flex-items-center flex-justify-between mb-2">
+          <div className="f5 text-bold color-fg-default" style={{ fontStyle: 'italic' }}>
+            {timeSaved === 0 && potentialAdditional === 0
+              ? 'Select an estimate and factor to explore leverage changes'
+              : 'Same completions, less dev time → higher leverage'}
+          </div>
+          <div className="d-flex flex-items-center" style={{ gap: '8px' }}>
+            {timeSaved > 0 && (() => {
+              const mDef = ESTIMATION_METHODS.find(m => m.key === method);
+              return <span className="Label d-flex flex-items-center" style={{ color: '#d29922', borderColor: '#d29922', gap: '4px', fontSize: '12px', padding: '4px 10px' }}>
+                Estimate: {mDef?.label || ''} ({fmtCompact(timeSaved)} hrs)
+              </span>;
+            })()}
+            {potentialAdditional > 0 &&
+              <span className="Label d-flex flex-items-center" style={{ color: selectedFactor.color, borderColor: selectedFactor.color, gap: '4px', fontSize: '12px', padding: '4px 10px' }}>
+                Projection: {selectedFactor.label} ({fmtPct(currentLevel)}) → 100%
+              </span>
+            }
+          </div>
+        </div>
+        <Chart options={rectChartOpts} />
+      </div>
+
+      {/* Structural factor donuts */}
+      <h3 className="f5 color-fg-default mb-2">Structural Factors <span className="f6 color-fg-muted">(click to change projection)</span></h3>
+      <div className="d-flex flex-wrap mb-3" style={{ gap: '12px', alignItems: 'stretch' }}>
+        {STRUCTURAL_FACTORS.map(f => {
+          const isSelected = f.key === structuralFactor;
+          return (
+            <div key={f.key} className="Box p-3" onClick={() => setStructuralFactor(f.key)}
+              style={{ flex: '1 1 180px', cursor: 'pointer', borderColor: isSelected ? f.color : undefined,
+                borderWidth: isSelected ? '2px' : undefined, transition: 'border-color 0.15s' }}>
+              <Chart options={completenessDonutOpts(f.label, f.current, f.color, isSelected)} className="donut-container" />
+              <div className="text-center f6 color-fg-muted mt-1">{f.detail}</div>
+              {isSelected && <div className="text-center f6 mt-1" style={{ color: f.color }}>▲ Projecting from this factor</div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   TREND CHARTS
+   ═══════════════════════════════════════════════════════ */
+
+function TrendChart({ title, days, orgKey, userDayMap, selectedUser, smoothing, color, yLabel, isPercent, chartType }) {
+  const orgRaw = days.map(d => {
+    const v = d[orgKey];
+    return v != null ? (isPercent ? v * 100 : v) : null;
+  });
+  const orgData = smoothing ? smooth7(orgRaw) : orgRaw;
+
+  const series = [{
+    name: 'Org Average',
+    type: chartType || 'spline',
+    data: orgData,
+    color: color,
+    marker: { radius: 2 },
+  }];
+
+  if (selectedUser && userDayMap) {
+    const userRaw = days.map(d => {
+      const rec = userDayMap[d.day];
+      if (!rec) return null;
+      const v = rec[orgKey];
+      return v != null ? (isPercent ? v * 100 : v) : null;
+    });
+    const userData = smoothing ? smooth7(userRaw) : userRaw;
+    series.push({
+      name: selectedUser,
+      type: chartType || 'spline',
+      data: userData,
+      color: '#d29922',
+      dashStyle: 'ShortDash',
+      marker: { radius: 3, symbol: 'diamond' },
+      lineWidth: 2,
+    });
+  }
+
+  const opts = {
+    chart: { height: 260 },
+    title: { text: title, style: { fontSize: '13px' } },
+    xAxis: { categories: days.map(d => d.day), labels: { rotation: -45, style: { fontSize: '9px' }, step: Math.max(1, Math.floor(days.length / 8)) } },
+    yAxis: { title: { text: yLabel || '' }, min: 0, labels: isPercent ? { format: '{value}%' } : {} },
+    tooltip: { shared: true, valueDecimals: isPercent ? 1 : 2, valueSuffix: isPercent ? '%' : '' },
+    legend: { enabled: !!selectedUser },
+    series,
+  };
+
+  return <Chart options={opts} className="chart-container-sm" />;
+}
+
+function CompletionsTrendChart({ title, days, dataMap, selectedUser, userDataMap, smoothing, color, yLabel, chartType }) {
+  const orgRaw = days.map(d => dataMap[d.day] ?? 0);
+  const orgData = smoothing ? smooth7(orgRaw) : orgRaw;
+
+  const series = [{
+    name: 'Org',
+    type: chartType || 'spline',
+    data: orgData,
+    color: color,
+    marker: { radius: 2 },
+  }];
+
+  if (selectedUser && userDataMap) {
+    const userRaw = days.map(d => userDataMap[d.day] ?? 0);
+    const userData = smoothing ? smooth7(userRaw) : userRaw;
+    series.push({
+      name: selectedUser,
+      type: chartType || 'spline',
+      data: userData,
+      color: '#d29922',
+      dashStyle: 'ShortDash',
+      marker: { radius: 3, symbol: 'diamond' },
+      lineWidth: 2,
+    });
+  }
+
+  const opts = {
+    chart: { height: 260 },
+    title: { text: title, style: { fontSize: '13px' } },
+    xAxis: { categories: days.map(d => d.day), labels: { rotation: -45, style: { fontSize: '9px' }, step: Math.max(1, Math.floor(days.length / 8)) } },
+    yAxis: { title: { text: yLabel || '' }, min: 0 },
+    tooltip: { shared: true, valueDecimals: 1 },
+    legend: { enabled: !!selectedUser },
+    series,
+  };
+
+  return <Chart options={opts} className="chart-container-sm" />;
+}
+
+/* ═══════════════════════════════════════════════════════
+   LEVERAGE INSIGHTS SECTION
+   ═══════════════════════════════════════════════════════ */
+
+function LeverageInsightsSection({ days, config, users, prRecords, selectedUser, selectedEstimate, structuralFactor }) {
+  const [smoothing, setSmoothing] = useState(false);
+  const [driverViewMode, setDriverViewMode] = useState('grid');
+  const [structViewMode, setStructViewMode] = useState('grid');
+  const [driverToggles, setDriverToggles] = useState(() => {
+    const t = {};
+    DRIVER_SERIES.forEach(s => t[s.key] = true);
+    return t;
+  });
+
+  const n = days.length;
+  const totalDevs = config.cfg_total_developers || 100;
+  const pctTimeCoding = config.cfg_pct_time_coding || 0.5;
+  const sum = (k) => days.reduce((s, d) => s + (d[k] || 0), 0);
+
+  // User day map for overlay
+  const userDayMap = useMemo(() => {
+    if (!selectedUser || !users.length) return null;
+    const map = {};
+    for (const u of users) {
+      if (u.user_login === selectedUser) {
+        map[u.day] = {
+          ...u,
+          interactions_per_active_dev: u.user_initiated_interaction_count || 0,
+          generations_per_active_dev: u.code_generation_activity_count || 0,
+          acceptances_per_active_dev: u.code_acceptance_activity_count || 0,
+          loc10_added_per_active_dev: ((u.loc_added_sum || 0) / 10),
+          agent_mode_per_active_dev: u.agent_mode_interaction_count || 0,
+          cli_prompts_per_active_dev: u.cli_prompt_count || 0,
+        };
+      }
+    }
+    return Object.keys(map).length > 0 ? map : null;
+  }, [selectedUser, users]);
+
+  const userStructuralMap = useMemo(() => {
+    if (!selectedUser || !users.length) return null;
+    const map = {};
+    for (const u of users) {
+      if (u.user_login === selectedUser) {
+        const isActive = (u.code_generation_activity_count || 0) > 0 || (u.user_initiated_interaction_count || 0) > 0;
+        map[u.day] = { adopted_individuals_pct: isActive ? 1.0 : 0.0 };
+      }
+    }
+    return Object.keys(map).length > 0 ? map : null;
+  }, [selectedUser, users]);
+
+  // PR data maps
+  const { mergedByDay, userMergedByDay, totalPrsByDay, userTotalPrsByDay, incompletionsByDay, userIncompletionsByDay } = useMemo(() => {
+    const mergedByDay = {}, userMergedByDay = {}, totalPrsByDay = {}, userTotalPrsByDay = {};
+    const incompletionsByDay = {}, userIncompletionsByDay = {};
+    if (prRecords) {
+      for (const pr of prRecords) {
+        if (!pr.day) continue;
+        totalPrsByDay[pr.day] = (totalPrsByDay[pr.day] || 0) + 1;
+        if (selectedUser && pr.user === selectedUser) userTotalPrsByDay[pr.day] = (userTotalPrsByDay[pr.day] || 0) + 1;
+        if (pr.merged) {
+          mergedByDay[pr.day] = (mergedByDay[pr.day] || 0) + 1;
+          if (selectedUser && pr.user === selectedUser) userMergedByDay[pr.day] = (userMergedByDay[pr.day] || 0) + 1;
+        }
+        if (!pr.merged && (pr.state === 'closed' || pr.state === 'CLOSED')) {
+          const closeDay = pr.closed_at?.slice(0, 10) || pr.day;
+          incompletionsByDay[closeDay] = (incompletionsByDay[closeDay] || 0) + 1;
+          if (selectedUser && pr.user === selectedUser) userIncompletionsByDay[closeDay] = (userIncompletionsByDay[closeDay] || 0) + 1;
+        }
+      }
+    }
+    return { mergedByDay, userMergedByDay, totalPrsByDay, userTotalPrsByDay, incompletionsByDay, userIncompletionsByDay };
+  }, [prRecords, selectedUser]);
+
+  const userPrsAssistedMap = useMemo(() => {
+    if (!selectedUser || !prRecords) return null;
+    const map = {};
+    for (const pr of prRecords) {
+      if (pr.user === selectedUser && pr.merged && pr.day) map[pr.day] = { prs_assisted_pct: 1.0 };
+    }
+    return Object.keys(map).length > 0 ? map : null;
+  }, [selectedUser, prRecords]);
+
+  const userAiLocMap = useMemo(() => {
+    if (!selectedUser || !prRecords) return null;
+    const map = {};
+    for (const pr of prRecords) {
+      if (pr.user === selectedUser && pr.merged && pr.day) map[pr.day] = { ai_assisted_loc_pct: 1.0 };
+    }
+    return Object.keys(map).length > 0 ? map : null;
+  }, [selectedUser, prRecords]);
+
+  // Diagnostic leverage rectangle (per-developer)
+  const activeDevHours = days.reduce((s, d) => s + (d.daily_active_users || 0) * pctTimeCoding * 8, 0);
+  const hasPrData = days.some(d => d.has_pr_data);
+  const prPeriod = days._prPeriod || {};
+  const totalCompletions = hasPrData && prPeriod.total_prs ? prPeriod.total_prs
+    : days.reduce((s, d) => s + (d.total_prs || d.pr_total_created || 0), 0);
+
+  const uniqueDevs = useMemo(() => {
+    const logins = new Set();
+    for (const u of users) { if (u.user_login) logins.add(u.user_login); }
+    return Math.max(logins.size, 1);
+  }, [users]);
+
+  const orgHoursPerDev = activeDevHours / uniqueDevs;
+  const orgCompletionsPerDev = totalCompletions / uniqueDevs;
+  const currentLeverage = safeDiv(totalCompletions, activeDevHours);
+
+  const estByMethod = {};
+  for (const m of ESTIMATION_METHODS) {
+    estByMethod[m.key] = days.reduce((s, d) => s + (d['est_' + m.key + '_hrs_day'] || 0), 0);
+  }
+  const timeSaved = selectedEstimate ? (estByMethod[selectedEstimate] || 0) : 0;
+  const timeSavedPerDev = timeSaved / uniqueDevs;
+
+  const avgDau = mean(days.map(d => d.daily_active_users));
+  const adoptionPct = safeDiv(avgDau, totalDevs);
+  const avgPrsAssisted = hasPrData ? (days._periodPrsAssistedPct ?? 0) : mean(days.map(d => d.prs_assisted_pct));
+  const avgLocPct = hasPrData ? (days._periodLocAssistedPct ?? mean(days.map(d => d.ai_assisted_loc_pct))) : mean(days.map(d => d.ai_assisted_loc_pct));
+
+  const factorMap = { adoption: adoptionPct, prs_assisted: avgPrsAssisted, loc_assisted: avgLocPct };
+  const factorLabelMap = { adoption: 'Adoption', prs_assisted: '% PRs Assisted', loc_assisted: '% AI-Assisted LOC' };
+  const factorColorMap = { adoption: '#58a6ff', prs_assisted: '#3fb950', loc_assisted: '#bc8cff' };
+  const currentLevel = factorMap[structuralFactor] || 0;
+  const potentialAdditional = (currentLevel > 0 && timeSaved > 0) ? timeSaved * ((1 / currentLevel) - 1) : 0;
+  const potentialAdditionalPerDev = potentialAdditional / uniqueDevs;
+
+  const withoutAiPerDev = orgHoursPerDev + timeSavedPerDev;
+  const improvedHoursPerDev = Math.max(orgHoursPerDev - potentialAdditionalPerDev, 0);
+  const improvedLeverage = safeDiv(orgCompletionsPerDev, improvedHoursPerDev);
+
+  const devStats = useMemo(() => {
+    if (!selectedUser) return null;
+    const devDays = users.filter(u => u.user_login === selectedUser);
+    const activeDays = devDays.filter(u => (u.code_generation_activity_count || 0) > 0 || (u.user_initiated_interaction_count || 0) > 0).length;
+    const devHourProxy = activeDays * pctTimeCoding * 8;
+    const devCompletions = Object.values(userMergedByDay).reduce((s, v) => s + v, 0);
+    const devLeverage = safeDiv(devCompletions, devHourProxy);
+    return { activeDays, devHourProxy, devCompletions, devLeverage };
+  }, [selectedUser, users, userMergedByDay, pctTimeCoding]);
+
+  const xMax = Math.max(orgHoursPerDev, withoutAiPerDev, (devStats?.devHourProxy || 0) * 1.2) * 1.15;
+  const yMax = Math.max(orgCompletionsPerDev, (devStats?.devCompletions || 0) * 1.2) * 1.3;
+
+  const diagRectSeries = [];
+
+  if (timeSavedPerDev > 0) {
+    diagRectSeries.push({
+      type: 'polygon', name: 'Counterfactual (without AI)',
+      data: [[0, 0], [withoutAiPerDev, 0], [withoutAiPerDev, orgCompletionsPerDev], [0, orgCompletionsPerDev]],
+      color: 'rgba(248,81,73,0.08)', lineWidth: 1, lineColor: '#f85149', dashStyle: 'ShortDot',
+      enableMouseTracking: true,
+      tooltip: { headerFormat: '', pointFormat: `<b>Counterfactual (without AI)</b><br/>Hours/Dev: ${fmtDec(withoutAiPerDev, 1)}<br/>Same completions, ${fmtDec(timeSavedPerDev, 1)} more hrs/dev needed<br/>Leverage: ${fmtDec(safeDiv(orgCompletionsPerDev, withoutAiPerDev), 3)}` },
+    });
+    diagRectSeries.push({
+      type: 'line', name: `Time Saved (${fmtDec(timeSavedPerDev, 1)} hrs/dev)`,
+      data: [[orgHoursPerDev, orgCompletionsPerDev * 0.35], [withoutAiPerDev, orgCompletionsPerDev * 0.35]],
+      color: '#d29922', lineWidth: 2, dashStyle: 'ShortDash',
+      marker: { enabled: true, radius: 4, symbol: 'diamond' }, enableMouseTracking: false,
+    });
+  }
+
+  diagRectSeries.push({
+    type: 'polygon', name: 'Org Existing',
+    data: [[0, 0], [orgHoursPerDev, 0], [orgHoursPerDev, orgCompletionsPerDev], [0, orgCompletionsPerDev]],
+    color: 'rgba(88,166,255,0.12)', lineWidth: 2, lineColor: '#58a6ff',
+    enableMouseTracking: true,
+    tooltip: { headerFormat: '', pointFormat: `<b>Existing (per dev)</b><br/>Hours/Dev: ${fmtDec(orgHoursPerDev, 1)}<br/>Completions/Dev: ${fmtDec(orgCompletionsPerDev, 1)}<br/>Leverage: ${fmtDec(currentLeverage, 3)}<br/>${uniqueDevs} developers` },
+  });
+
+  if (potentialAdditionalPerDev > 0) {
+    diagRectSeries.push({
+      type: 'polygon', name: `Projected (${factorLabelMap[structuralFactor] || structuralFactor} → 100%)`,
+      data: [[0, 0], [improvedHoursPerDev, 0], [improvedHoursPerDev, orgCompletionsPerDev], [0, orgCompletionsPerDev]],
+      color: `rgba(${factorColorMap[structuralFactor] === '#58a6ff' ? '88,166,255' : factorColorMap[structuralFactor] === '#3fb950' ? '63,185,80' : '188,140,255'},0.10)`,
+      lineWidth: 1, lineColor: factorColorMap[structuralFactor] || '#bc8cff', dashStyle: 'ShortDash',
+      enableMouseTracking: true,
+      tooltip: { headerFormat: '', pointFormat: `<b>Projected (${factorLabelMap[structuralFactor]} → 100%)</b><br/>Hours/Dev: ${fmtDec(improvedHoursPerDev, 1)}<br/>Completions/Dev: ${fmtDec(orgCompletionsPerDev, 1)}<br/>Leverage: ${fmtDec(improvedLeverage, 3)}<br/>Potential savings: ${fmtDec(potentialAdditionalPerDev, 1)} hrs/dev` },
+    });
+    diagRectSeries.push({
+      type: 'line', name: `Projected Leverage = ${fmtDec(improvedLeverage, 3)}`,
+      data: [[0, 0], [improvedHoursPerDev, orgCompletionsPerDev]],
+      color: factorColorMap[structuralFactor] || '#bc8cff', dashStyle: 'ShortDash', lineWidth: 1,
+      marker: { enabled: false }, enableMouseTracking: false,
+    });
+  }
+
+  diagRectSeries.push({
+    type: 'line', name: `Org Leverage = ${fmtDec(currentLeverage, 3)}`,
+    data: [[0, 0], [orgHoursPerDev, orgCompletionsPerDev]],
+    color: '#3fb950', dashStyle: 'Dash', lineWidth: 2,
+    marker: { enabled: false }, enableMouseTracking: false,
+  });
+
+  if (devStats && devStats.devHourProxy > 0) {
+    diagRectSeries.push({
+      type: 'scatter', name: `${selectedUser}`,
+      data: [{ x: devStats.devHourProxy, y: devStats.devCompletions,
+        custom: { leverage: devStats.devLeverage, activeDays: devStats.activeDays } }],
+      color: '#d29922',
+      marker: { radius: 10, symbol: 'diamond', lineWidth: 2, lineColor: '#d29922', fillColor: 'rgba(210,153,34,0.7)' },
+      tooltip: { headerFormat: '', pointFormat:
+        `<b>${selectedUser}</b><br/>Hours: ${fmtDec(devStats.devHourProxy, 1)}<br/>Completions: ${devStats.devCompletions}<br/>Leverage: ${fmtDec(devStats.devLeverage, 3)}<br/>Active Days: ${devStats.activeDays}` },
+    });
+    if (devStats.devCompletions > 0) {
+      const devSlope = devStats.devCompletions / devStats.devHourProxy;
+      const extendX = Math.min(devStats.devHourProxy * 1.3, xMax);
+      diagRectSeries.push({
+        type: 'line', name: `Dev Leverage = ${fmtDec(devStats.devLeverage, 3)}`,
+        data: [[0, 0], [extendX, devSlope * extendX]],
+        color: '#d29922', dashStyle: 'ShortDot', lineWidth: 1,
+        marker: { enabled: false }, enableMouseTracking: false,
+      });
+    }
+  }
+
+  const diagRectOpts = {
+    chart: { type: 'scatter', height: 420 },
+    title: { text: 'Diagnostic Leverage Rectangle' },
+    subtitle: { text: selectedUser ? `Per-developer view · Org vs ${selectedUser}` : 'Per-developer view · Select a developer to overlay their position' },
+    xAxis: { title: { text: 'Hours / Dev', style: { fontSize: '13px', fontWeight: '600' } }, min: 0, max: xMax, gridLineWidth: 1, labels: { formatter: function() { return fmtCompact(this.value); } } },
+    yAxis: { title: { text: 'Completions / Dev', style: { fontSize: '13px', fontWeight: '600' } }, min: 0, max: yMax, labels: { formatter: function() { return fmtCompact(this.value); } } },
+    tooltip: { useHTML: true, headerFormat: '' },
+    legend: { enabled: true, align: 'center', verticalAlign: 'bottom' },
+    plotOptions: { series: { animation: { duration: 600 }, states: { inactive: { opacity: 0.6 } } } },
+    series: diagRectSeries,
+  };
+
+  // Driver charts — Grid|Combined toggle
+  const hasUserData = userDayMap != null;
+  const labels = days.map(d => d.day);
+  const activeDrivers = DRIVER_SERIES.filter(s => s.perDev && driverToggles[s.key] && sum(s.key) > 0);
+  const toggleDriver = (key) => setDriverToggles(prev => ({ ...prev, [key]: !prev[key] }));
+
+  function renderDriversCombined() {
+    const perDevSeries = activeDrivers.map(s => ({
+      name: s.label + ' / Dev', data: days.map(d => d[s.perDev] != null ? Math.round(d[s.perDev] * 100) / 100 : null), color: s.color,
+    }));
+    if (hasUserData) {
+      for (const s of activeDrivers) {
+        perDevSeries.push({
+          name: selectedUser + ' ' + s.label,
+          data: days.map(d => { const u = userDayMap[d.day]; return u ? Math.round((u[s.key] / (s.scale || 1)) * 100) / 100 : null; }),
+          color: s.color, dashStyle: 'Dash', marker: { radius: 3, symbol: 'diamond' }, lineWidth: 2,
+        });
+      }
+    }
+    return (
+      <div className="Box p-3">
+        <Chart options={{
+          chart: { type: 'spline', height: 320 }, title: { text: null },
+          xAxis: { categories: labels, labels: { rotation: -45, style: { fontSize: '10px' } } },
+          yAxis: { title: { text: 'Per Active Dev' }, min: 0 },
+          tooltip: { shared: true, valueDecimals: 2 }, series: perDevSeries,
+        }} />
+      </div>
+    );
+  }
+
+  function renderDriversGrid() {
+    return (
+      <div className="drivers-grid">
+        {activeDrivers.map(s => {
+          const series = [{ name: s.label + ' / Dev', data: days.map(d => d[s.perDev] != null ? Math.round(d[s.perDev] * 100) / 100 : null), color: s.color }];
+          if (hasUserData) {
+            series.push({
+              name: selectedUser + ' ' + s.label,
+              data: days.map(d => { const u = userDayMap[d.day]; return u ? Math.round((u[s.key] / (s.scale || 1)) * 100) / 100 : null; }),
+              color: s.color, dashStyle: 'Dash', marker: { radius: 3, symbol: 'diamond' }, lineWidth: 2,
+            });
+          }
+          return (
+            <div key={s.key} className="Box p-3">
+              <Chart options={{
+                chart: { type: 'spline', height: 220 }, title: { text: s.label, style: { fontSize: '13px' } },
+                xAxis: { categories: labels, labels: { rotation: -45, style: { fontSize: '9px' } }, tickInterval: Math.max(1, Math.floor(labels.length / 6)) },
+                yAxis: { title: { text: null }, min: 0 }, tooltip: { shared: true, valueDecimals: 2 },
+                legend: { enabled: hasUserData, itemStyle: { fontSize: '10px' } }, series,
+              }} className="chart-container-sm" />
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // Structural trends — Grid|Combined toggle
+  const STRUCT_SERIES = [
+    { key: 'adopted_individuals_pct', label: 'Adoption %', color: '#58a6ff', userMap: userStructuralMap },
+    { key: 'prs_assisted_pct', label: '% PRs Assisted', color: '#3fb950', userMap: userPrsAssistedMap },
+    { key: 'ai_assisted_loc_pct', label: '% AI-Assisted LOC', color: '#bc8cff', userMap: userAiLocMap },
+  ];
+
+  function renderStructCombined() {
+    const series = STRUCT_SERIES.map(s => ({
+      name: s.label,
+      data: smoothing ? smooth7(days.map(d => d[s.key] != null ? d[s.key] * 100 : null)) : days.map(d => d[s.key] != null ? d[s.key] * 100 : null),
+      color: s.color,
+    }));
+    return (
+      <div className="Box p-3">
+        <Chart options={{
+          chart: { type: 'spline', height: 300 }, title: { text: null },
+          xAxis: { categories: labels, labels: { rotation: -45, style: { fontSize: '10px' } } },
+          yAxis: { title: { text: '%' }, min: 0, labels: { format: '{value}%' } },
+          tooltip: { shared: true, valueDecimals: 1, valueSuffix: '%' }, series,
+        }} />
+      </div>
+    );
+  }
+
+  function renderStructGrid() {
+    return (
+      <div className="trend-grid">
+        {STRUCT_SERIES.map(s => (
+          <div key={s.key} className="Box p-3">
+            <TrendChart title={s.label} days={days} orgKey={s.key}
+              userDayMap={s.userMap} selectedUser={selectedUser} smoothing={smoothing}
+              color={s.color} yLabel="%" isPercent />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="insights-section">
+      <h2 className="f2 color-fg-accent">Leverage Insights</h2>
+      <p className="f6 color-fg-muted mb-3">Daily trends + developer overlay. (Trends are signals; estimates are aggregate.)</p>
+
+      {/* 7-day smoothing toggle */}
+      <label className="d-flex flex-items-center mb-3" style={{ gap: '6px', cursor: 'pointer' }}>
+        <input type="checkbox" checked={smoothing} onChange={e => setSmoothing(e.target.checked)} />
+        <span className="f6 color-fg-muted">7-day rolling average</span>
+      </label>
+
+      {/* Diagnostic leverage rectangle */}
+      <div className="Box p-3 mb-4">
+        <div className="d-flex flex-items-center flex-justify-between mb-2">
+          <div className="f5 text-bold color-fg-default" style={{ fontStyle: 'italic' }}>
+            {timeSavedPerDev === 0 && potentialAdditionalPerDev === 0
+              ? 'Per-developer view · Select estimate & factor in Leverage Summary above'
+              : 'Same completions, less dev time → higher leverage'}
+          </div>
+          <div className="d-flex flex-items-center" style={{ gap: '8px' }}>
+            {timeSavedPerDev > 0 && (() => {
+              const mDef = ESTIMATION_METHODS.find(m => m.key === selectedEstimate);
+              return <span className="Label d-flex flex-items-center" style={{ color: '#d29922', borderColor: '#d29922', gap: '4px', fontSize: '12px', padding: '4px 10px' }}>
+                Estimate: {mDef?.label || ''} ({fmtDec(timeSavedPerDev, 1)} hrs/dev)
+              </span>;
+            })()}
+            {potentialAdditionalPerDev > 0 &&
+              <span className="Label d-flex flex-items-center" style={{ color: factorColorMap[structuralFactor] || '#bc8cff', borderColor: factorColorMap[structuralFactor] || '#bc8cff', gap: '4px', fontSize: '12px', padding: '4px 10px' }}>
+                Projection: {factorLabelMap[structuralFactor]} ({fmtPct(currentLevel)}) → 100%
+              </span>
+            }
+          </div>
+        </div>
+        <Chart options={diagRectOpts} />
+      </div>
+
+      {/* Efficiency / Activity Signals — with Grid|Combined toggle */}
+      <div className="d-flex flex-items-center flex-wrap mb-3" style={{ gap: '12px' }}>
+        <h3 className="f5 color-fg-default mb-0">Efficiency / Activity Signals <span className="f6 color-fg-muted">(per active dev)</span></h3>
+        <div className="driver-toggles ml-2">
+          {DRIVER_SERIES.filter(s => s.perDev && sum(s.key) > 0).map(s => (
+            <label key={s.key} className="color-fg-default">
+              <input type="checkbox" checked={driverToggles[s.key]} onChange={() => toggleDriver(s.key)} />
+              <span className="ml-1" style={{ color: s.color }}>●</span> {s.label}
+            </label>
+          ))}
+        </div>
+        <div className="view-toggle ml-auto">
+          <button className={driverViewMode === 'combined' ? 'active' : ''} onClick={() => setDriverViewMode('combined')}>Combined</button>
+          <button className={driverViewMode === 'grid' ? 'active' : ''} onClick={() => setDriverViewMode('grid')}>Grid</button>
+        </div>
+      </div>
+      <div className="mb-4">
+        {driverViewMode === 'combined' ? renderDriversCombined() : renderDriversGrid()}
+      </div>
+
+      {/* Structural Factors — with Grid|Combined toggle */}
+      <div className="d-flex flex-items-center flex-justify-between mb-3">
+        <h3 className="f5 color-fg-default mb-0">Structural Factors <span className="f6 color-fg-muted">(%)</span></h3>
+        <div className="view-toggle">
+          <button className={structViewMode === 'combined' ? 'active' : ''} onClick={() => setStructViewMode('combined')}>Combined</button>
+          <button className={structViewMode === 'grid' ? 'active' : ''} onClick={() => setStructViewMode('grid')}>Grid</button>
+        </div>
+      </div>
+      <div className="mb-4">
+        {structViewMode === 'combined' ? renderStructCombined() : renderStructGrid()}
+      </div>
+
+      {/* Completions + Failed Completions */}
+      <h3 className="f5 color-fg-default mb-2">Completions + Failed Completions</h3>
+      <div className="trend-grid mb-3">
+        <div className="Box p-3">
+          <CompletionsTrendChart title="Completion Attempts (PRs Created)" days={days}
+            dataMap={totalPrsByDay} selectedUser={selectedUser} userDataMap={selectedUser ? userTotalPrsByDay : null}
+            smoothing={smoothing} color="#3fb950" yLabel="PRs" />
+        </div>
+        <div className="Box p-3">
+          <CompletionsTrendChart title="Valid Completions (Merged PRs)" days={days}
+            dataMap={mergedByDay} selectedUser={selectedUser} userDataMap={selectedUser ? userMergedByDay : null}
+            smoothing={smoothing} color="#58a6ff" yLabel="PRs" />
+        </div>
+        <div className="Box p-3">
+          <CompletionsTrendChart title="Failed Completions (Closed w/o Merge)" days={days}
+            dataMap={incompletionsByDay} selectedUser={selectedUser} userDataMap={selectedUser ? userIncompletionsByDay : null}
+            smoothing={smoothing} color="#f85149" yLabel="PRs" chartType="column" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   CONFIG PANEL
+   ═══════════════════════════════════════════════════════ */
+
+function ConfigPanel({ config, onApply, isOpen, onToggle }) {
+  const [cfg, setCfg] = useState(config);
+  useEffect(() => setCfg(config), [config]);
+  const set = (k, v) => setCfg(prev => ({ ...prev, [k]: v }));
+  const apply = () => onApply(cfg);
+
+  const fields = [
+    { section: 'Organization', items: [
+      { key: 'cfg_total_developers', label: 'Total Developers', type: 'number' },
+      { key: 'cfg_pct_time_coding', label: '% Time Coding (0–1)', type: 'number', step: '0.05' },
+      { key: 'cfg_labor_cost_per_hour', label: 'Labor Cost $/hr', type: 'number' },
+      { key: 'cfg_workdays_per_week', label: 'Workdays / Week', type: 'number' },
+    ]},
+    { section: 'Estimation Constants', items: [
+      { key: 'est_interactions_per_hour', label: 'Interactions per Hour Saved', type: 'number' },
+      { key: 'est_hrs_per_kloc', label: 'Hrs Saved per 1K LoC', type: 'number', step: '0.5' },
+    ]},
+    { section: 'Manual Daily % Parameters', items: [
+      { key: 'cfg_time_saved_pct_day', label: 'Time Saved % (0–1)', type: 'number', step: '0.01' },
+      { key: 'cfg_baseline_hours_per_dev_per_week', label: 'Baseline Hrs / Dev / Week', type: 'number' },
+    ]},
+  ];
+
+  return (
+    <div className="Box mt-4" style={{ borderColor: isOpen ? 'var(--borderColor-accent-emphasis)' : undefined }}>
+      <div className="Box-header d-flex flex-items-center flex-justify-between" style={{ cursor: 'pointer' }} onClick={onToggle}>
+        <div className="d-flex flex-items-center" style={{ gap: '8px' }}>
+          <span style={{ transition: 'transform 0.15s', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', display: 'inline-block' }}>▶</span>
+          <h4 className="f5 mb-0">Configuration</h4>
+        </div>
+        <span className="f6 color-fg-muted">{cfg.cfg_total_developers || 100} devs · {((cfg.cfg_pct_time_coding || 0.5) * 100).toFixed(0)}% coding · {cfg.est_interactions_per_hour || 20} int/hr</span>
+      </div>
+      {isOpen && (
+        <div className="Box-body">
+          {fields.map(section => (
+            <div key={section.section} className="mb-3">
+              <h5 className="f6 color-fg-muted text-bold mb-2">{section.section}</h5>
+              <div className="d-flex flex-wrap" style={{ gap: '12px', alignItems: 'flex-end' }}>
+                {section.items.map(f => (
+                  <div key={f.key} className="form-group mb-0" style={{ flex: '1 1 160px' }}>
+                    <label className="f6 color-fg-muted">{f.label}</label>
+                    <input type={f.type} className="form-control input-sm" step={f.step || '1'}
+                      value={cfg[f.key] ?? ''} onChange={e => set(f.key, e.target.value === '' ? null : parseFloat(e.target.value))} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+          <div className="d-flex flex-items-center mt-3" style={{ gap: '8px' }}>
+            <button className="btn btn-sm btn-primary" onClick={apply}>Apply &amp; Recalculate</button>
+            <button className="btn btn-sm btn-outline" onClick={() => {
+              const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: 'application/json' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a'); a.href = url; a.download = 'config.json'; a.click();
+              URL.revokeObjectURL(url);
+            }}>💾 Save config.json</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   APP
+   ═══════════════════════════════════════════════════════ */
+
+function App() {
+  const [effArtifact, setEffArtifact] = useState(null);
+  const [strArtifact, setStrArtifact] = useState(null);
+  const [data, setData] = useState(null);
+  const [config, setConfig] = useState({ ...DEFAULT_CONFIG });
+  const [configOpen, setConfigOpen] = useState(false);
+  const [method, setMethod] = useState('interactions');
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [selectedEstimate, setSelectedEstimate] = useState('interactions');
+  const [structuralFactor, setStructuralFactor] = useState('adoption');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  function mergeDays(effDays, structural) {
+    const hasPrData = structural?._prRecords?.length > 0;
+    const structByDay = {};
+    if (structural?.data) {
+      for (const s of structural.data) structByDay[s.day] = s;
+    }
+    const baseDays = effDays.map(d => {
+      const s = structByDay[d.day] || {};
+      return {
+        ...d,
+        adopted_individuals_pct: s.adopted_individuals_pct ?? null,
+        prs_assisted_pct: s.prs_assisted_pct ?? null,
+        ai_assisted_loc_pct: s.ai_assisted_loc_pct ?? null,
+        total_prs: s.total_prs ?? 0,
+        assisted_prs: s.assisted_prs ?? 0,
+        total_loc: s.total_loc ?? 0,
+        assisted_loc: s.assisted_loc ?? 0,
+        prs_per_day: s.prs_per_day ?? 0,
+        loc_per_day: s.loc_per_day ?? 0,
+        unique_active_users: s.unique_active_users ?? (d.daily_active_users || 0),
+        has_pr_data: hasPrData,
+      };
+    });
+
+    const prPeriod = { total_prs: 0, assisted_prs: 0, total_loc: 0, assisted_loc: 0 };
+    if (structural?.data) {
+      for (const sd of structural.data) {
+        prPeriod.total_prs += sd.total_prs || 0;
+        prPeriod.assisted_prs += sd.assisted_prs || 0;
+        prPeriod.total_loc += sd.total_loc || 0;
+        prPeriod.assisted_loc += sd.assisted_loc || 0;
+      }
+    }
+    baseDays._prPeriod = prPeriod;
+    baseDays._periodPrsAssistedPct = structural?._periodPrsAssistedPct ?? safeDiv(prPeriod.assisted_prs, prPeriod.total_prs);
+    baseDays._periodLocAssistedPct = structural?._periodLocAssistedPct ?? safeDiv(prPeriod.assisted_loc, prPeriod.total_loc);
+
+    return baseDays;
+  }
+
+  function enrichDays(baseDays, cfg, m) {
+    const enriched = computeDerived(baseDays, cfg, m);
+    enriched._prPeriod = baseDays._prPeriod;
+    enriched._periodPrsAssistedPct = baseDays._periodPrsAssistedPct;
+    enriched._periodLocAssistedPct = baseDays._periodLocAssistedPct;
+    return enriched;
+  }
+
+  useEffect(() => {
+    fetchArtifacts().then(result => {
+      if (!result || !result.efficiency?.data?.length) {
+        setError('Efficiency artifact not found or empty.');
+        setLoading(false);
+        return;
+      }
+      const { efficiency, structural } = result;
+      setEffArtifact(efficiency);
+      setStrArtifact(structural);
+
+      const effDays = efficiency.data.sort((a, b) => a.day.localeCompare(b.day));
+      const users = efficiency._users || [];
+      const prRecords = structural?._prRecords || null;
+
+      const baseDays = mergeDays(effDays, structural);
+      const enriched = enrichDays(baseDays, DEFAULT_CONFIG, 'interactions');
+
+      setData({ baseDays, days: enriched, users, prRecords });
+      setLoading(false);
+    }).catch(e => {
+      console.error('Artifact load error:', e);
+      setError('Failed to load artifacts: ' + e.message);
+      setLoading(false);
+    });
+  }, []);
+
+  const handleMethodChange = useCallback((newMethod) => {
+    setMethod(newMethod);
+    setSelectedEstimate(newMethod);
+    if (data) {
+      const enriched = enrichDays(data.baseDays, config, newMethod);
+      setData(prev => ({ ...prev, days: enriched }));
+    }
+  }, [data, config]);
+
+  const handleConfigApply = useCallback((newCfg) => {
+    setConfig(newCfg);
+    if (data) {
+      const enriched = enrichDays(data.baseDays, newCfg, method);
+      setData(prev => ({ ...prev, days: enriched }));
+    }
+  }, [data, method]);
+
+  return (
+    <div className="element-page">
+      <div className="mb-4">
+        <h1 className="f1">AI Assisted Coding — Element <span className="Label Label--accent ml-2" style={{ verticalAlign: 'middle', fontSize: '0.5em' }}>v2</span></h1>
+        <p className="f4 color-fg-muted">Element of Leverage</p>
+      </div>
+
+      {loading && (
+        <div className="Box p-4 text-center color-fg-muted">
+          <p className="f3 mb-2">⏳</p>
+          <p className="f5">Loading materialized artifacts…</p>
+        </div>
+      )}
+
+      {error && (
+        <div className="flash flash-warn f5 mb-3">
+          ⚠️ {error}
+          <p className="f6 mt-2 color-fg-muted">Run the pipeline: <code>./scripts/collect-and-materialize.sh</code></p>
+        </div>
+      )}
+
+      {data && (
+        <>
+          <SourceSummary effArtifact={effArtifact} strArtifact={strArtifact}
+            days={data.days} users={data.users} prRecords={data.prRecords} />
+
+          <div className="definition-row">
+            <DefinitionCard icon="🎯" label="Job to Be Done"
+              value="Write and ship code faster with AI assistance"
+              description="Developers use GitHub Copilot to generate, complete, and iterate on code within their editor and PR workflow." />
+            <DefinitionCard icon="✅" label="What Counts as a Completion"
+              value="A PR merged by a Copilot-active developer"
+              description="Valid = PR achieved its purpose (shipped a working change). Failed/flawed = reverted PRs or PRs requiring significant rework." />
+            <DefinitionCard icon="📋" label="Job Class"
+              value="Value-creating"
+              description="Valid completions directly produce desired output — shipped code that moves the product forward." />
+          </div>
+
+          <DevSearch users={data.users} selectedUser={selectedUser} onSelect={setSelectedUser} />
+
+          <LeverageRectangleSection days={data.days} config={config}
+            selectedEstimate={selectedEstimate} onEstimateChange={setSelectedEstimate}
+            structuralFactor={structuralFactor} onStructuralFactorChange={setStructuralFactor} />
+
+          <LeverageInsightsSection days={data.days} config={config} users={data.users}
+            prRecords={data.prRecords} selectedUser={selectedUser}
+            selectedEstimate={selectedEstimate} structuralFactor={structuralFactor} />
+
+          <ConfigPanel config={config} onApply={handleConfigApply} isOpen={configOpen} onToggle={() => setConfigOpen(!configOpen)} />
+        </>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
