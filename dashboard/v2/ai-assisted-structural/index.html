@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark" data-dark-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Assisted Coding — Structural (v2)</title>
+
+<!-- Primer CSS -->
+<link rel="stylesheet" href="https://unpkg.com/@primer/css@21.3.1/dist/primer.css">
+
+<!-- Highcharts -->
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/highcharts.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/modules/accessibility.js"></script>
+
+<!-- React -->
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<style>
+  body { background: var(--bgColor-default); }
+  .structural-page { max-width: 1280px; margin: 0 auto; padding: 24px 16px; }
+
+  /* KPI cards with GitHub feel */
+  .kpi-card { text-align: center; }
+  .kpi-value { font-size: 2rem; font-weight: 600; line-height: 1.2; }
+  .kpi-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; }
+  .kpi-sub { font-size: 0.75rem; }
+  .kpi-unit { font-size: 1.1rem; font-weight: 400; opacity: 0.65; margin-left: 2px; }
+
+  /* Hero KPI — stands out from supporting cards */
+  .kpi-hero .kpi-value { font-size: 3rem; }
+  .kpi-hero .kpi-label { font-size: 0.85rem; }
+  .kpi-hero .kpi-sub { font-size: 0.85rem; }
+  .kpi-hero { border-top: 3px solid var(--borderColor-accent-emphasis); }
+
+  /* Section dividers */
+  .section-row { margin-bottom: 32px; padding-top: 8px; }
+
+  /* Chart containers */
+  .chart-container { min-height: 320px; }
+  .chart-container-sm { min-height: 240px; }
+
+  /* Grid|Combined view toggle */
+  .view-toggle { display: inline-flex; border: 1px solid var(--borderColor-default); border-radius: 6px; overflow: hidden; }
+  .view-toggle button {
+    padding: 2px 10px; font-size: 0.75rem; border: none; cursor: pointer;
+    background: var(--bgColor-muted); color: var(--fgColor-muted); transition: all 0.15s;
+  }
+  .view-toggle button + button { border-left: 1px solid var(--borderColor-default); }
+  .view-toggle button.active { background: var(--bgColor-accent-muted); color: var(--fgColor-accent); font-weight: 600; }
+
+  /* Trends grid layout */
+  .trends-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 768px) { .trends-grid { grid-template-columns: 1fr; } }
+
+  /* Scatter grid */
+  .scatter-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  @media (max-width: 960px) { .scatter-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 640px) { .scatter-grid { grid-template-columns: 1fr; } }
+
+  /* Section spacing */
+  .section-row { margin-bottom: 32px; }
+
+  /* Highcharts dark theme overrides */
+  .highcharts-background { fill: transparent !important; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-type="module">
+
+/* ═══════════════════════════════════════════════════════
+   HIGHCHARTS DARK THEME (GitHub-aligned)
+   ═══════════════════════════════════════════════════════ */
+Highcharts.setOptions({
+  chart: { backgroundColor: 'transparent', style: { fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif' } },
+  colors: ['#58a6ff', '#3fb950', '#d29922', '#f85149', '#bc8cff', '#f778ba', '#79c0ff', '#56d364'],
+  title: { style: { color: '#e6edf3', fontSize: '14px', fontWeight: '600' } },
+  subtitle: { style: { color: '#8b949e', fontSize: '12px' } },
+  xAxis: { labels: { style: { color: '#8b949e' } }, gridLineColor: '#30363d', lineColor: '#30363d', tickColor: '#30363d' },
+  yAxis: { labels: { style: { color: '#8b949e' } }, gridLineColor: '#30363d', title: { style: { color: '#8b949e' } } },
+  legend: { itemStyle: { color: '#e6edf3' }, itemHoverStyle: { color: '#58a6ff' } },
+  tooltip: { backgroundColor: '#161b22', borderColor: '#30363d', style: { color: '#e6edf3' } },
+  plotOptions: { series: { animation: { duration: 400 } } },
+  credits: { enabled: false },
+});
+
+/* ═══════════════════════════════════════════════════════
+   DATA LOADING — MATERIALIZED ARTIFACTS ONLY
+   ═══════════════════════════════════════════════════════ */
+
+async function fetchArtifact() {
+  const bases = ['../../dataflow/data/', '../dataflow/data/'];
+  for (const base of bases) {
+    try {
+      const r = await fetch(base + 'pipeline-manifest.json');
+      if (!r.ok) continue;
+      const manifest = await r.json();
+      const artFile = (manifest.artifacts || []).find(f => f.startsWith('ai-assisted-structural-days'));
+      if (!artFile) continue;
+      const art = await fetch(base + 'materialized/' + artFile).then(r => r.ok ? r.json() : null);
+      if (art) return art;
+    } catch(e) {}
+  }
+  return null;
+}
+
+/* ═══════════════════════════════════════════════════════
+   DATA PROCESSING LAYER
+   ═══════════════════════════════════════════════════════ */
+
+function safeDiv(a, b) { return b > 0 ? a / b : null; }
+
+const DEFAULT_CONFIG = {
+  cfg_total_developers: 100,
+  cfg_workdays_per_week: 5,
+  cfg_pr_assist_lookback_days: 3,
+};
+
+/* ── Statistical helpers ── */
+function mean(arr) {
+  const valid = arr.filter(v => v != null);
+  return valid.length ? valid.reduce((a, b) => a + b, 0) / valid.length : null;
+}
+
+function stddev(arr) {
+  const valid = arr.filter(v => v != null);
+  if (valid.length < 2) return 0;
+  const m = mean(valid);
+  return Math.sqrt(valid.reduce((s, v) => s + (v - m) ** 2, 0) / (valid.length - 1));
+}
+
+function median(arr) {
+  const sorted = arr.filter(v => v != null).sort((a, b) => a - b);
+  if (!sorted.length) return null;
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+/* ── Linear regression helper ── */
+function linearRegression(points) {
+  const filtered = points.filter(p => p[0] != null && p[1] != null);
+  if (filtered.length < 2) return null;
+  const n = filtered.length;
+  const sumX = filtered.reduce((s, p) => s + p[0], 0);
+  const sumY = filtered.reduce((s, p) => s + p[1], 0);
+  const sumXY = filtered.reduce((s, p) => s + p[0] * p[1], 0);
+  const sumX2 = filtered.reduce((s, p) => s + p[0] * p[0], 0);
+  const denom = n * sumX2 - sumX * sumX;
+  if (Math.abs(denom) < 1e-10) return null;
+  const slope = (n * sumXY - sumX * sumY) / denom;
+  const intercept = (sumY - slope * sumX) / n;
+  const xMin = Math.min(...filtered.map(p => p[0]));
+  const xMax = Math.max(...filtered.map(p => p[0]));
+  return { slope, intercept, line: [[xMin, slope * xMin + intercept], [xMax, slope * xMax + intercept]] };
+}
+
+/* ═══════════════════════════════════════════════════════
+   REACT COMPONENTS
+   ═══════════════════════════════════════════════════════ */
+const { useState, useEffect, useRef, useCallback, useMemo } = React;
+
+/* ── Formatting helpers ── */
+const fmt = n => n == null ? '—' : Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+const fmtDec = (n, d=1) => n == null ? '—' : Number(n).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
+const fmtPct = n => n == null ? '—' : (n * 100).toFixed(1) + '%';
+const fmtPct0 = n => n == null ? '—' : (n * 100).toFixed(0) + '%';
+const fmtCompact = n => {
+  if (n == null) return '—';
+  if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (Math.abs(n) >= 1e3) return (n / 1e3).toFixed(0) + 'K';
+  return fmt(n);
+};
+
+/* ── Highcharts wrapper ── */
+function Chart({ options, className = 'chart-container' }) {
+  const ref = useRef(null);
+  const chartRef = useRef(null);
+  useEffect(() => {
+    if (ref.current) {
+      chartRef.current = Highcharts.chart(ref.current, options);
+    }
+    return () => { if (chartRef.current) chartRef.current.destroy(); };
+  }, [JSON.stringify(options)]);
+  return <div ref={ref} className={className} />;
+}
+
+/* ── KPI Card ── */
+function KpiCard({ label, value, unit, sub, color, hero }) {
+  return (
+    <div className={`Box p-3 kpi-card${hero ? ' kpi-hero' : ''}`}>
+      <div className="kpi-label color-fg-muted">{label}</div>
+      <div className="kpi-value" style={color ? { color } : {}}>{value}{unit && <span className="kpi-unit">{unit}</span>}</div>
+      {sub && <div className="kpi-sub color-fg-muted">{sub}</div>}
+    </div>
+  );
+}
+
+/* ── Section Header ── */
+function SectionHeader({ title, desc, children }) {
+  return (
+    <div className="mb-3 pb-2 d-flex flex-items-end flex-justify-between" style={{ borderBottom: '1px solid var(--borderColor-default)', borderTop: '2px solid var(--borderColor-muted)', paddingTop: '12px' }}>
+      <div>
+        <h2 className="f2 color-fg-accent">{title}</h2>
+        <p className="f6 color-fg-muted">{desc}</p>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/* ── Source summary bar ── */
+function SourceSummary({ artifact, days }) {
+  const n = days.length;
+  const range = n > 0 ? `${days[0].day} → ${days[n-1].day}` : 'none';
+  const prCount = artifact?._prRecords?.length || 0;
+  const avgAdoption = mean(days.map(d => d.adopted_individuals_pct));
+  const prAssistPct = artifact?._periodPrsAssistedPct;
+
+  return (
+    <div className="flash flash-success f6 mb-3">
+      ✅ Loaded <strong>ai-assisted-structural-days</strong> · {n} enterprise days ({range}) · {fmt(prCount)} PRs · Adoption: {fmtPct(avgAdoption)} · PR Assist: {fmtPct(prAssistPct)}
+    </div>
+  );
+}
+
+/* ── Developer Search (using _copilotUsersByDay) ── */
+function DevSearch({ copilotUsersByDay, selectedUser, onSelect }) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const logins = useMemo(() => {
+    const all = new Set();
+    if (copilotUsersByDay) {
+      Object.values(copilotUsersByDay).forEach(users => {
+        if (Array.isArray(users)) users.forEach(u => all.add(u));
+      });
+    }
+    return [...all].sort();
+  }, [copilotUsersByDay]);
+  const filtered = query ? logins.filter(l => l.toLowerCase().includes(query.toLowerCase())).slice(0, 10) : logins.slice(0, 10);
+
+  const select = (login) => { onSelect(login); setQuery(''); setOpen(false); };
+  const clear = () => { onSelect(null); setQuery(''); };
+
+  if (!logins.length) return null;
+
+  return (
+    <div className="d-flex flex-items-center mb-3" style={{ gap: '8px', position: 'relative' }}>
+      <span className="f6 color-fg-muted text-bold">Developer:</span>
+      <span className="f6 color-fg-muted" style={{ fontStyle: 'italic' }}>Filter PR records by author</span>
+      {selectedUser ? (
+        <div className="d-flex flex-items-center" style={{ gap: '6px' }}>
+          <span className="Label Label--accent">{selectedUser}</span>
+          <button className="btn-octicon" onClick={clear} title="Clear" style={{ color: 'var(--fgColor-muted)', cursor: 'pointer', background: 'none', border: 'none', fontSize: '14px' }}>✕</button>
+        </div>
+      ) : (
+        <div style={{ position: 'relative', width: '220px' }}>
+          <input
+            type="text" className="form-control input-sm" placeholder="Search by login…"
+            value={query} onChange={e => { setQuery(e.target.value); setOpen(true); }}
+            onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
+          />
+          {open && filtered.length > 0 && (
+            <div className="Box color-shadow-large" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, maxHeight: '200px', overflow: 'auto' }}>
+              {filtered.map(l => (
+                <div key={l} className="Box-row px-3 py-1 f6" style={{ cursor: 'pointer' }} onMouseDown={() => select(l)}>
+                  {l}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION — OVERVIEW KPIs
+   ═══════════════════════════════════════════════════════ */
+function OverviewSection({ days, artifact, config }) {
+  const n = days.length;
+  const avgAdoption = mean(days.map(d => d.adopted_individuals_pct));
+  const prAssistPct = artifact._periodPrsAssistedPct;
+  const locAssistPct = artifact._periodLocAssistedPct;
+  const prPeriod = artifact._prPeriod || {};
+  const totalPrsInPeriod = prPeriod.count || (artifact._prRecords || []).length;
+  const avgActiveUsers = mean(days.map(d => d.unique_active_users || d.daily_active_users));
+
+  const enterpriseId = days[0]?.enterprise_id;
+  const orgIdentifier = enterpriseId ? `Enterprise ${enterpriseId}` : 'your organization';
+
+  return (
+    <div className="section-row">
+      <SectionHeader title="Overview" desc={`Structural conditions for AI-assisted coding in ${orgIdentifier}`} />
+      <div className="d-flex flex-wrap mb-3" style={{ gap: '12px', alignItems: 'stretch' }}>
+        <div style={{ flex: '1 1 180px' }}>
+          <KpiCard hero label="Adoption %" value={fmtPct(avgAdoption)} sub={`avg across ${n} days`} color="#58a6ff" />
+        </div>
+        <div style={{ flex: '1 1 150px' }}>
+          <KpiCard label="PR Assist %" value={fmtPct(prAssistPct)} sub={prPeriod.count ? `${fmt(prPeriod.count)} PRs in period` : 'period-level'} color="#3fb950" />
+        </div>
+        <div style={{ flex: '1 1 150px' }}>
+          <KpiCard label="LoC Assist %" value={fmtPct(locAssistPct)} sub="of LoC from assisted PRs" color="#bc8cff" />
+        </div>
+        <div style={{ flex: '1 1 150px' }}>
+          <KpiCard label="Total PRs" value={fmt(totalPrsInPeriod)} sub={prPeriod.first ? `${prPeriod.first} → ${prPeriod.last}` : '—'} />
+        </div>
+        <div style={{ flex: '1 1 150px' }}>
+          <KpiCard label="Active Copilot Users" value={fmtDec(avgActiveUsers, 0)} unit="avg" sub={`across ${n} days`} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION — STRUCTURAL TRENDS (Grid|Combined toggle)
+   ═══════════════════════════════════════════════════════ */
+const TREND_SERIES = [
+  { key: 'adopted_individuals_pct', label: 'Adoption %', color: '#58a6ff' },
+  { key: 'prs_assisted_pct', label: 'PRs Assisted %', color: '#3fb950' },
+  { key: 'ai_assisted_loc_pct', label: 'AI-Assisted LoC %', color: '#bc8cff' },
+];
+
+function TrendsSection({ days }) {
+  const [viewMode, setViewMode] = useState('combined');
+  const n = days.length;
+  const labels = days.map(d => d.day);
+
+  // Control chart helpers for grid view
+  function controlChartOpts(metric) {
+    const values = days.map(d => d[metric.key] != null ? d[metric.key] * 100 : null);
+    const validVals = values.filter(v => v != null);
+    const m = mean(validVals);
+    const sd = stddev(validVals);
+    const ucl = m + 2 * sd;
+    const lcl = Math.max(0, m - 2 * sd);
+
+    const data = values.map(v => {
+      if (v == null) return null;
+      const outside = v > ucl || v < lcl;
+      return {
+        y: Math.round(v * 100) / 100,
+        marker: outside ? { fillColor: '#f85149', radius: 6, lineWidth: 2, lineColor: '#f85149' } : undefined,
+        color: outside ? '#f85149' : undefined,
+      };
+    });
+
+    return {
+      chart: { type: 'spline', height: 260 },
+      title: { text: metric.label, style: { fontSize: '13px' } },
+      xAxis: { categories: labels, labels: { rotation: -45, style: { fontSize: '9px' } }, tickInterval: Math.max(1, Math.floor(n / 7)) },
+      yAxis: {
+        title: { text: null }, min: 0, labels: { format: '{value}%' },
+        plotLines: [
+          { value: m, color: '#8b949e', dashStyle: 'Dash', width: 2, label: { text: 'Mean ' + (m != null ? m.toFixed(1) + '%' : ''), style: { color: '#8b949e', fontSize: '10px' }, align: 'right' } },
+        ],
+        plotBands: [
+          { from: lcl, to: ucl, color: 'rgba(88,166,255,0.06)', label: { text: '±2σ', style: { color: '#484f58', fontSize: '9px' }, align: 'left' } },
+        ],
+      },
+      tooltip: { valueSuffix: '%', valueDecimals: 1 },
+      legend: { enabled: false },
+      series: [{ name: metric.label, data, color: metric.color, marker: { radius: 3 }, lineWidth: 2 }],
+    };
+  }
+
+  // Combined chart
+  function renderCombinedView() {
+    const yMax = Math.max(100, ...days.flatMap(d =>
+      TREND_SERIES.map(s => d[s.key] != null ? d[s.key] * 100 : 0)
+    ));
+
+    const trendOpts = {
+      chart: { type: 'spline', height: 340 },
+      title: { text: null },
+      subtitle: { text: 'Daily structural metrics over the data window' },
+      xAxis: { categories: labels, labels: { rotation: -45, style: { fontSize: '10px' } } },
+      yAxis: [
+        { title: { text: '% of Target' }, min: 0, max: yMax, labels: { format: '{value}%' } },
+        { title: { text: 'Active Users' }, opposite: true, min: 0 },
+      ],
+      tooltip: { shared: true, valueDecimals: 1 },
+      legend: { symbolWidth: 16 },
+      series: [
+        ...TREND_SERIES.map(s => ({
+          name: s.label,
+          data: days.map(d => d[s.key] != null ? Math.round(d[s.key] * 1000) / 10 : null),
+          color: s.color,
+          marker: { radius: 3 },
+          tooltip: { valueSuffix: '%' },
+          yAxis: 0,
+        })),
+        {
+          name: 'Daily Active Users',
+          data: days.map(d => d.daily_active_users || 0),
+          type: 'column',
+          color: '#484f58',
+          opacity: 0.4,
+          yAxis: 1,
+          tooltip: { valueSuffix: '' },
+        },
+      ],
+    };
+
+    return (
+      <div className="Box p-3">
+        <Chart options={trendOpts} />
+      </div>
+    );
+  }
+
+  // Grid view — individual control charts
+  function renderGridView() {
+    return (
+      <div className="trends-grid">
+        {TREND_SERIES.map(s => (
+          <div key={s.key} className="Box p-3">
+            <Chart options={controlChartOpts(s)} className="chart-container-sm" />
+          </div>
+        ))}
+        <div className="Box p-3">
+          <Chart options={{
+            chart: { type: 'column', height: 260 },
+            title: { text: 'Daily Active Users', style: { fontSize: '13px' } },
+            xAxis: { categories: labels, labels: { rotation: -45, style: { fontSize: '9px' } }, tickInterval: Math.max(1, Math.floor(n / 7)) },
+            yAxis: { title: { text: null }, min: 0 },
+            tooltip: { valueDecimals: 0 },
+            legend: { enabled: false },
+            series: [{ name: 'Active Users', data: days.map(d => d.daily_active_users || 0), color: '#58a6ff' }],
+          }} className="chart-container-sm" />
+        </div>
+      </div>
+    );
+  }
+
+  // Consistency KPIs
+  const consistencyKpis = TREND_SERIES.map(m => {
+    const vals = days.map(d => d[m.key]).filter(v => v != null);
+    const sd = stddev(vals.map(v => v * 100));
+    const cv = mean(vals) != null && mean(vals) !== 0 ? sd / (mean(vals) * 100) : null;
+    const mn = mean(vals.map(v => v * 100));
+    const outliers = vals.filter(v => Math.abs(v * 100 - mn) > 2 * stddev(vals.map(v2 => v2 * 100))).length;
+    return { ...m, sd, cv, outliers };
+  });
+
+  return (
+    <div className="section-row">
+      <SectionHeader title="Structural Trends" desc="How adoption, PR assist, and LoC assist vary day-to-day — with consistency indicators.">
+        <div className="view-toggle">
+          <button className={viewMode === 'combined' ? 'active' : ''} onClick={() => setViewMode('combined')}>Combined</button>
+          <button className={viewMode === 'grid' ? 'active' : ''} onClick={() => setViewMode('grid')}>Grid</button>
+        </div>
+      </SectionHeader>
+
+      {/* Consistency KPIs */}
+      <div className="d-flex flex-wrap mb-3" style={{ gap: '12px' }}>
+        {consistencyKpis.map(m => (
+          <div key={m.key} style={{ flex: '1 1 200px' }}>
+            <KpiCard
+              label={m.label.replace(' %', '')}
+              value={fmtDec(m.sd, 1)}
+              unit="σ"
+              sub={`CV: ${m.cv != null ? fmtPct(m.cv) : '—'} · ${m.outliers} outlier${m.outliers !== 1 ? 's' : ''}`}
+              color={m.color}
+            />
+          </div>
+        ))}
+      </div>
+
+      {viewMode === 'combined' ? renderCombinedView() : renderGridView()}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION — PR ANALYSIS
+   ═══════════════════════════════════════════════════════ */
+function PrAnalysisSection({ prRecords, selectedUser }) {
+  const [sortCol, setSortCol] = useState('repo');
+  const [sortDir, setSortDir] = useState('asc');
+
+  if (!prRecords || !prRecords.length) {
+    return (
+      <div className="section-row">
+        <SectionHeader title="PR Analysis" desc="Pull request breakdown from the data period." />
+        <div className="Box p-4 text-center color-fg-muted">
+          <p className="f5">No PR records available in the artifact.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const filteredPrs = selectedUser ? prRecords.filter(pr => pr.author === selectedUser) : prRecords;
+
+  // Summary stats
+  const totalPrs = filteredPrs.length;
+  const mergedPrs = filteredPrs.filter(pr => pr.merged || pr.state === 'merged').length;
+  const mergeRate = safeDiv(mergedPrs, totalPrs);
+  const assistedPrs = filteredPrs.filter(pr => pr.assisted).length;
+  const medianAdditions = median(filteredPrs.map(pr => pr.additions || 0));
+  const medianDeletions = median(filteredPrs.map(pr => pr.deletions || 0));
+  const totalAdditions = filteredPrs.reduce((s, pr) => s + (pr.additions || 0), 0);
+  const totalDeletions = filteredPrs.reduce((s, pr) => s + (pr.deletions || 0), 0);
+
+  // Sort PRs
+  const sorted = [...filteredPrs].sort((a, b) => {
+    const dir = sortDir === 'asc' ? 1 : -1;
+    const va = a[sortCol], vb = b[sortCol];
+    if (va == null && vb == null) return 0;
+    if (va == null) return dir;
+    if (vb == null) return -dir;
+    if (typeof va === 'string') return va.localeCompare(vb) * dir;
+    return (va - vb) * dir;
+  });
+
+  const toggleSort = (col) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('asc'); }
+  };
+
+  const sortIcon = (col) => sortCol === col ? (sortDir === 'asc' ? ' ↑' : ' ↓') : '';
+
+  return (
+    <div className="section-row">
+      <SectionHeader title="PR Analysis" desc={`Pull request breakdown — ${selectedUser ? `filtered to ${selectedUser}` : 'all authors'}`} />
+
+      {/* Summary KPIs */}
+      <div className="d-flex flex-wrap mb-3" style={{ gap: '12px' }}>
+        <div style={{ flex: '1 1 140px' }}><KpiCard label="Total PRs" value={fmt(totalPrs)} sub={selectedUser ? `by ${selectedUser}` : 'in period'} /></div>
+        <div style={{ flex: '1 1 140px' }}><KpiCard label="Merged" value={fmt(mergedPrs)} sub={`merge rate: ${fmtPct(mergeRate)}`} color="#a371f7" /></div>
+        <div style={{ flex: '1 1 140px' }}><KpiCard label="AI-Assisted" value={fmt(assistedPrs)} sub={fmtPct(safeDiv(assistedPrs, totalPrs)) + ' of PRs'} color="#3fb950" /></div>
+        <div style={{ flex: '1 1 140px' }}><KpiCard label="Median Additions" value={fmt(medianAdditions)} sub={`total: ${fmtCompact(totalAdditions)}`} /></div>
+        <div style={{ flex: '1 1 140px' }}><KpiCard label="Median Deletions" value={fmt(medianDeletions)} sub={`total: ${fmtCompact(totalDeletions)}`} /></div>
+      </div>
+
+      {/* PR Table */}
+      <div className="Box p-3">
+        <h4 className="f5 mb-2">PR Records ({sorted.length})</h4>
+        <div style={{ maxHeight: '400px', overflow: 'auto' }}>
+          <table className="f6" style={{ borderCollapse: 'collapse', width: '100%' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--borderColor-default)', position: 'sticky', top: 0, background: 'var(--bgColor-default)' }}>
+                <th className="text-left py-1 px-2" style={{ cursor: 'pointer' }} onClick={() => toggleSort('repo')}>Repo{sortIcon('repo')}</th>
+                <th className="text-right py-1 px-2" style={{ cursor: 'pointer' }} onClick={() => toggleSort('number')}>#PR{sortIcon('number')}</th>
+                <th className="text-left py-1 px-2" style={{ cursor: 'pointer' }} onClick={() => toggleSort('author')}>Author{sortIcon('author')}</th>
+                <th className="text-left py-1 px-2" style={{ cursor: 'pointer' }} onClick={() => toggleSort('state')}>State{sortIcon('state')}</th>
+                <th className="text-center py-1 px-2">Merged</th>
+                <th className="text-right py-1 px-2" style={{ cursor: 'pointer' }} onClick={() => toggleSort('additions')}>+Lines{sortIcon('additions')}</th>
+                <th className="text-right py-1 px-2" style={{ cursor: 'pointer' }} onClick={() => toggleSort('deletions')}>−Lines{sortIcon('deletions')}</th>
+                <th className="text-center py-1 px-2">Assisted</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((pr, i) => {
+                const merged = pr.merged || pr.state === 'merged';
+                const stateLabel = merged ? 'merged' : (pr.state || '—');
+                const stateColor = merged ? '#a371f7' : stateLabel === 'open' || stateLabel === 'OPEN' ? '#3fb950' : stateLabel === 'closed' ? '#f85149' : '#8b949e';
+                return (
+                  <tr key={`${pr.repo || pr.repository}-${pr.number}-${i}`}>
+                    <td className="py-1 px-2 color-fg-muted" style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={pr.repo || pr.repository}>{pr.repo || pr.repository}</td>
+                    <td className="text-right py-1 px-2">{pr.number}</td>
+                    <td className="py-1 px-2"><code>{pr.author || pr.user}</code></td>
+                    <td className="py-1 px-2"><span style={{ color: stateColor }}>{stateLabel}</span></td>
+                    <td className="text-center py-1 px-2">{merged ? <span style={{ color: '#a371f7' }}>✓</span> : '—'}</td>
+                    <td className="text-right py-1 px-2" style={{ color: '#3fb950' }}>+{fmt(pr.additions || 0)}</td>
+                    <td className="text-right py-1 px-2" style={{ color: '#f85149' }}>−{fmt(pr.deletions || 0)}</td>
+                    <td className="text-center py-1 px-2">{pr.assisted ? <span style={{ color: '#3fb950' }}>✓</span> : <span className="color-fg-muted">—</span>}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION — IMPACT (Scatter plots)
+   ═══════════════════════════════════════════════════════ */
+const COMPLETENESS_METRICS = [
+  { key: 'adopted_individuals_pct', label: '% Adoption' },
+  { key: 'prs_assisted_pct', label: '% PRs Assisted' },
+  { key: 'ai_assisted_loc_pct', label: '% AI-Assisted LoC' },
+];
+
+const DOWNSTREAM_METRICS = [
+  { key: 'prs_per_day', label: 'PRs per Day' },
+  { key: 'loc_per_day', label: 'LoC per Day' },
+];
+
+function ImpactSection({ days }) {
+  function scatterOpts(xKey, yKey) {
+    const xDef = COMPLETENESS_METRICS.find(m => m.key === xKey) || COMPLETENESS_METRICS[0];
+    const yDef = DOWNSTREAM_METRICS.find(m => m.key === yKey) || DOWNSTREAM_METRICS[0];
+
+    const points = days.map(d => [
+      d[xKey] != null ? d[xKey] * 100 : null,
+      d[yKey],
+    ]).filter(p => p[0] != null && p[1] != null);
+
+    const reg = linearRegression(points);
+
+    const series = [
+      {
+        type: 'scatter',
+        name: 'Daily',
+        data: points.map(p => ({ x: Math.round(p[0] * 100) / 100, y: Math.round(p[1] * 100) / 100 })),
+        color: '#58a6ff',
+        marker: { radius: 5, symbol: 'circle' },
+        tooltip: { pointFormat: `${xDef.label}: <b>{point.x:.1f}%</b><br/>${yDef.label}: <b>{point.y:.1f}</b>` },
+      },
+    ];
+
+    if (reg) {
+      series.push({
+        type: 'line',
+        name: 'Trend',
+        data: reg.line.map(p => [Math.round(p[0] * 100) / 100, Math.round(p[1] * 100) / 100]),
+        color: '#d29922',
+        dashStyle: 'Dash',
+        lineWidth: 2,
+        marker: { enabled: false },
+        enableMouseTracking: false,
+      });
+    }
+
+    return {
+      chart: { height: 280 },
+      title: { text: `${xDef.label} vs ${yDef.label}`, style: { fontSize: '12px' } },
+      xAxis: { title: { text: xDef.label }, labels: { format: '{value}%' }, gridLineWidth: 1 },
+      yAxis: { title: { text: yDef.label }, min: 0 },
+      legend: { enabled: false },
+      series,
+    };
+  }
+
+  return (
+    <div className="section-row">
+      <SectionHeader title="Impact" desc="Whether rising completeness is associated with more PRs and more LoC output." />
+
+      <div className="f5 color-fg-muted mb-2 mt-3 text-bold">Completeness vs PRs per Day</div>
+      <div className="scatter-grid mb-4">
+        {COMPLETENESS_METRICS.map(cm => (
+          <div key={cm.key + '-prs'} className="Box p-3">
+            <Chart options={scatterOpts(cm.key, 'prs_per_day')} className="chart-container-sm" />
+          </div>
+        ))}
+      </div>
+
+      <div className="f5 color-fg-muted mb-2 text-bold">Completeness vs LoC per Day</div>
+      <div className="scatter-grid mb-4">
+        {COMPLETENESS_METRICS.map(cm => (
+          <div key={cm.key + '-loc'} className="Box p-3">
+            <Chart options={scatterOpts(cm.key, 'loc_per_day')} className="chart-container-sm" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION — CONFIDENCE
+   ═══════════════════════════════════════════════════════ */
+function ConfidenceSection({ days, artifact, config }) {
+  const n = days.length;
+  const prPeriod = artifact._prPeriod || {};
+  const hasPrData = days.some(d => d.has_pr_data);
+  const daysWithPrData = days.filter(d => d.has_pr_data).length;
+
+  return (
+    <div className="section-row">
+      <SectionHeader title="Confidence" desc="Data coverage and how structural metrics are computed." />
+
+      <div className="d-flex flex-wrap" style={{ gap: '16px' }}>
+        <div className="Box p-3" style={{ flex: '1 1 380px' }}>
+          <h4 className="f5 mb-2">Data Coverage</h4>
+          <table className="width-full f6">
+            <tbody>
+              <tr><td className="color-fg-muted py-1">Enterprise Days</td><td className="py-1 text-bold">{n}</td></tr>
+              <tr><td className="color-fg-muted py-1">Date Range</td><td className="py-1 text-bold">{n > 0 ? `${days[0].day} → ${days[n-1].day}` : '—'}</td></tr>
+              <tr><td className="color-fg-muted py-1">PR Records</td><td className="py-1 text-bold">{fmt((artifact._prRecords || []).length)}</td></tr>
+              <tr><td className="color-fg-muted py-1">PR Period</td><td className="py-1 text-bold">{prPeriod.first ? `${prPeriod.first} → ${prPeriod.last}` : '—'}</td></tr>
+              <tr><td className="color-fg-muted py-1">Days with PR Data</td><td className="py-1 text-bold">{daysWithPrData} of {n}</td></tr>
+              <tr><td className="color-fg-muted py-1">Has PR Data</td><td className="py-1 text-bold">{hasPrData ? '✅ Yes' : '❌ No'}</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="Box p-3" style={{ flex: '1 1 380px' }}>
+          <h4 className="f5 mb-2">Configuration</h4>
+          <table className="width-full f6">
+            <tbody>
+              <tr><td className="color-fg-muted py-1">Total Developer Population</td><td className="py-1 text-bold">{fmt(config.cfg_total_developers)}</td></tr>
+              <tr><td className="color-fg-muted py-1">Workdays / Week</td><td className="py-1 text-bold">{config.cfg_workdays_per_week}</td></tr>
+              <tr><td className="color-fg-muted py-1">PR Assist Lookback</td><td className="py-1 text-bold">{config.cfg_pr_assist_lookback_days} days</td></tr>
+            </tbody>
+          </table>
+
+          <h5 className="f6 color-fg-muted text-bold mt-3 mb-1">Definitions</h5>
+          <p className="f6 color-fg-muted"><strong>Adopted Individuals %:</strong> Fraction of total devs who were active Copilot users (with lookback window to bridge weekends).</p>
+          <p className="f6 color-fg-muted"><strong>PRs Assisted %:</strong> Fraction of PRs whose author was a Copilot user within the lookback window around the PR creation date.</p>
+          <p className="f6 color-fg-muted"><strong>AI-Assisted LoC %:</strong> Fraction of total LoC that came from AI-assisted PRs.</p>
+          <p className="f6 color-fg-muted"><strong>Pre-computed:</strong> All structural factors are materialized by the pipeline — no runtime computation required.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION — CONFIG PANEL (collapsible)
+   ═══════════════════════════════════════════════════════ */
+function ConfigPanel({ config, onApply, isOpen, onToggle }) {
+  const [totalDevs, setTotalDevs] = useState(config.cfg_total_developers ?? 100);
+  const [wdays, setWdays] = useState(config.cfg_workdays_per_week ?? 5);
+  const [lookback, setLookback] = useState(config.cfg_pr_assist_lookback_days ?? 3);
+
+  useEffect(() => {
+    setTotalDevs(config.cfg_total_developers ?? 100);
+    setWdays(config.cfg_workdays_per_week ?? 5);
+    setLookback(config.cfg_pr_assist_lookback_days ?? 3);
+  }, [config]);
+
+  const apply = () => {
+    onApply({
+      cfg_total_developers: parseInt(totalDevs) || 100,
+      cfg_workdays_per_week: parseFloat(wdays) || 5,
+      cfg_pr_assist_lookback_days: parseInt(lookback) || 3,
+    });
+  };
+
+  const summary = `${fmt(config.cfg_total_developers)} total devs · ${config.cfg_pr_assist_lookback_days}-day lookback`;
+
+  return (
+    <div className="Box mt-4" style={{ borderColor: isOpen ? 'var(--borderColor-accent-emphasis)' : undefined }}>
+      <div className="Box-header d-flex flex-items-center flex-justify-between" style={{ cursor: 'pointer' }} onClick={onToggle}>
+        <div className="d-flex flex-items-center" style={{ gap: '8px' }}>
+          <span style={{ transition: 'transform 0.15s', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', display: 'inline-block' }}>▶</span>
+          <h4 className="f5 mb-0">Configuration</h4>
+          <span className="Label Label--secondary f6">structural parameters</span>
+        </div>
+        <span className="f6 color-fg-muted">{summary}</span>
+      </div>
+
+      {isOpen && (
+        <div className="Box-body">
+          <p className="f6 color-fg-muted mb-3">These parameters affect how overview KPIs are displayed. Structural factors in the artifact are pre-computed and not affected by configuration changes.</p>
+
+          <div className="d-flex flex-wrap mb-3" style={{ gap: '12px', alignItems: 'flex-end' }}>
+            <div className="form-group mb-0" style={{ flex: '1 1 220px' }}>
+              <label className="f6 color-fg-muted">Total Developer Population</label>
+              <input type="number" className="form-control input-sm" step="1" min="1" value={totalDevs} onChange={e => setTotalDevs(e.target.value)} placeholder="e.g. 500" />
+              <p className="note f6 color-fg-muted mt-1">Total number of developers in the organization.</p>
+            </div>
+            <div className="form-group mb-0" style={{ flex: '1 1 120px' }}>
+              <label className="f6 color-fg-muted">Workdays / Week</label>
+              <input type="number" className="form-control input-sm" step="1" min="1" max="7" value={wdays} onChange={e => setWdays(e.target.value)} />
+            </div>
+            <div className="form-group mb-0" style={{ flex: '1 1 180px' }}>
+              <label className="f6 color-fg-muted">PR Assist Lookback (days)</label>
+              <input type="number" className="form-control input-sm" step="1" min="1" max="14" value={lookback} onChange={e => setLookback(e.target.value)} />
+              <p className="note f6 color-fg-muted mt-1">How many days back to check for Copilot activity when classifying PRs.</p>
+            </div>
+          </div>
+          <button className="btn btn-sm btn-primary" onClick={apply}>Apply</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   APP
+   ═══════════════════════════════════════════════════════ */
+function App() {
+  const [artifact, setArtifact] = useState(null);
+  const [days, setDays] = useState(null);
+  const [config, setConfig] = useState({ ...DEFAULT_CONFIG });
+  const [configOpen, setConfigOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetchArtifact().then(art => {
+      if (!art || !art.data || !art.data.length) {
+        setError('Materialized artifact not found or empty. Expected ai-assisted-structural-days-*.json in materialized/.');
+        setLoading(false);
+        return;
+      }
+      setArtifact(art);
+      const sorted = art.data.sort((a, b) => a.day.localeCompare(b.day));
+      setDays(sorted);
+
+      // Auto-detect total developer population from data
+      const maxMau = Math.max(...sorted.map(d => d.monthly_active_users || 0));
+      const detectedTotal = maxMau > 0 ? Math.round(maxMau * 1.25) : Math.round(Math.max(...sorted.map(d => d.daily_active_users || 0)) * 2);
+      setConfig(prev => ({ ...prev, cfg_total_developers: detectedTotal || prev.cfg_total_developers }));
+      setLoading(false);
+    }).catch(e => {
+      console.error('Artifact load error:', e);
+      setError('Failed to load artifact: ' + e.message);
+      setLoading(false);
+    });
+  }, []);
+
+  const handleConfigApply = useCallback((newCfg) => {
+    setConfig(newCfg);
+  }, []);
+
+  return (
+    <div className="structural-page">
+      <div className="mb-4">
+        <h1 className="f1">AI Assisted Coding — Structural <span className="Label Label--accent ml-2" style={{ verticalAlign: 'middle', fontSize: '0.5em' }}>v2</span></h1>
+        <p className="f4 color-fg-muted">Understand how deeply Copilot is embedded in your organization</p>
+      </div>
+
+      {loading && (
+        <div className="Box p-4 text-center color-fg-muted">
+          <p className="f3 mb-2">⏳</p>
+          <p className="f5">Loading materialized artifact…</p>
+        </div>
+      )}
+
+      {error && (
+        <div className="flash flash-warn f5 mb-3">
+          ⚠️ {error}
+          <p className="f6 mt-2 color-fg-muted">Run the pipeline: <code>./scripts/collect-and-materialize.sh</code></p>
+        </div>
+      )}
+
+      {days && artifact && (
+        <>
+          <SourceSummary artifact={artifact} days={days} />
+          <DevSearch copilotUsersByDay={artifact._copilotUsersByDay} selectedUser={selectedUser} onSelect={setSelectedUser} />
+          <OverviewSection days={days} artifact={artifact} config={config} />
+          <TrendsSection days={days} />
+          <PrAnalysisSection prRecords={artifact._prRecords} selectedUser={selectedUser} />
+          <ImpactSection days={days} />
+          <ConfidenceSection days={days} artifact={artifact} config={config} />
+          <ConfigPanel config={config} onApply={handleConfigApply} isOpen={configOpen} onToggle={() => setConfigOpen(o => !o)} />
+        </>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

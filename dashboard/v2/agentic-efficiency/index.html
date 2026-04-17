@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark" data-dark-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agentic AI Coding — Efficiency (v2)</title>
+
+<!-- Primer CSS -->
+<link rel="stylesheet" href="https://unpkg.com/@primer/css@21.3.1/dist/primer.css">
+
+<!-- Highcharts -->
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/highcharts.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/modules/accessibility.js"></script>
+
+<!-- React -->
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<style>
+  body { background: var(--bgColor-default); }
+  .efficiency-page { max-width: 1280px; margin: 0 auto; padding: 24px 16px; }
+
+  /* KPI cards with GitHub feel */
+  .kpi-card { text-align: center; }
+  .kpi-value { font-size: 2rem; font-weight: 600; line-height: 1.2; }
+  .kpi-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; }
+  .kpi-sub { font-size: 0.75rem; }
+  .kpi-unit { font-size: 1.1rem; font-weight: 400; opacity: 0.65; margin-left: 2px; }
+
+  /* Hero KPI — stands out from supporting cards */
+  .kpi-hero .kpi-value { font-size: 3rem; }
+  .kpi-hero .kpi-label { font-size: 0.85rem; }
+  .kpi-hero .kpi-sub { font-size: 0.85rem; }
+  .kpi-hero { border-top: 3px solid var(--borderColor-accent-emphasis); }
+
+  /* Section dividers */
+  .section-row { margin-bottom: 32px; padding-top: 8px; }
+
+  /* Chart containers */
+  .chart-container { min-height: 320px; }
+  .chart-container-sm { min-height: 240px; }
+
+  /* Method comparison — selected row accent */
+  .method-row-selected { border-left: 3px solid #58a6ff; background: rgba(88,166,255,0.06); }
+
+  /* Toggle checkboxes row */
+  .driver-toggles { display: flex; flex-wrap: wrap; gap: 8px; }
+  .driver-toggles label { font-size: 0.8rem; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+
+  /* Grid|Combined view toggle */
+  .view-toggle { display: inline-flex; border: 1px solid var(--borderColor-default); border-radius: 6px; overflow: hidden; }
+  .view-toggle button {
+    padding: 2px 10px; font-size: 0.75rem; border: none; cursor: pointer;
+    background: var(--bgColor-muted); color: var(--fgColor-muted); transition: all 0.15s;
+  }
+  .view-toggle button + button { border-left: 1px solid var(--borderColor-default); }
+  .view-toggle button.active { background: var(--bgColor-accent-muted); color: var(--fgColor-accent); font-weight: 600; }
+
+  /* Drivers grid layout */
+  .drivers-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 768px) { .drivers-grid { grid-template-columns: 1fr; } }
+
+  /* Section spacing */
+  .section-row { margin-bottom: 32px; }
+
+  /* Highcharts dark theme overrides */
+  .highcharts-background { fill: transparent !important; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-type="module">
+
+/* ═══════════════════════════════════════════════════════
+   HIGHCHARTS DARK THEME (GitHub-aligned)
+   ═══════════════════════════════════════════════════════ */
+Highcharts.setOptions({
+  chart: { backgroundColor: 'transparent', style: { fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif' } },
+  colors: ['#58a6ff', '#3fb950', '#d29922', '#f85149', '#bc8cff', '#f778ba', '#79c0ff', '#56d364'],
+  title: { style: { color: '#e6edf3', fontSize: '14px', fontWeight: '600' } },
+  subtitle: { style: { color: '#8b949e', fontSize: '12px' } },
+  xAxis: { labels: { style: { color: '#8b949e' } }, gridLineColor: '#30363d', lineColor: '#30363d', tickColor: '#30363d' },
+  yAxis: { labels: { style: { color: '#8b949e' } }, gridLineColor: '#30363d', title: { style: { color: '#8b949e' } } },
+  legend: { itemStyle: { color: '#e6edf3' }, itemHoverStyle: { color: '#58a6ff' } },
+  tooltip: { backgroundColor: '#161b22', borderColor: '#30363d', style: { color: '#e6edf3' } },
+  plotOptions: { series: { animation: { duration: 400 } } },
+  credits: { enabled: false },
+});
+
+/* ═══════════════════════════════════════════════════════
+   DATA LOADING — MATERIALIZED ARTIFACTS ONLY
+   ═══════════════════════════════════════════════════════ */
+
+async function fetchArtifacts() {
+  const bases = ['../../dataflow/data/', '../dataflow/data/'];
+  for (const base of bases) {
+    try {
+      const r = await fetch(base + 'pipeline-manifest.json');
+      if (!r.ok) continue;
+      const manifest = await r.json();
+      const effFile = (manifest.artifacts || []).find(f => f.startsWith('agentic-efficiency-days'));
+      const sessFile = (manifest.artifacts || []).find(f => f.startsWith('agentic-pr-sessions'));
+      if (!effFile) continue;
+      const artDir = base + 'materialized/';
+      const [eff, sess] = await Promise.all([
+        fetch(artDir + effFile).then(r => r.ok ? r.json() : null),
+        sessFile ? fetch(artDir + sessFile).then(r => r.ok ? r.json() : null) : null,
+      ]);
+      if (eff) return { efficiency: eff, sessions: sess };
+    } catch(e) {}
+  }
+  return null;
+}
+
+/* ═══════════════════════════════════════════════════════
+   DATA PROCESSING LAYER
+   ═══════════════════════════════════════════════════════ */
+
+function safeDiv(a, b) { return b > 0 ? a / b : null; }
+
+const DEFAULT_CONFIG = {
+  cfg_workdays_per_week: 5,
+  cfg_labor_cost_per_hour: null,
+  est_duration_factor: 2,
+  est_hrs_per_kloc: 2,
+};
+
+/* ── Estimation method definitions ── */
+const ESTIMATION_METHODS = [
+  { key: 'duration', label: 'Duration-Based (Merged)',
+    descFn: (cfg) => `${cfg.est_duration_factor || 2}× duration multiplier applied to merged PR session minutes`,
+    formulaFn: (cfg) => `hrs_saved = (merged_session_minutes / 60) × ${cfg.est_duration_factor || 2}`,
+    calc: (d, cfg) => ((d.merged_session_minutes || 0) / 60) * (cfg.est_duration_factor || 2) },
+  { key: 'loc', label: 'LoC-Based (Merged)',
+    descFn: (cfg) => `${cfg.est_hrs_per_kloc || 2} hours saved per 1,000 merged LoC added`,
+    formulaFn: (cfg) => `hrs_saved = (merged_loc_added / 1000) × ${cfg.est_hrs_per_kloc || 2}`,
+    calc: (d, cfg) => ((d.merged_loc_added || 0) / 1000) * (cfg.est_hrs_per_kloc || 2) },
+];
+
+function computeDerived(dayRows, config, selectedMethod) {
+  const method = ESTIMATION_METHODS.find(m => m.key === selectedMethod) || ESTIMATION_METHODS[0];
+  return dayRows.map(d => {
+    const devs = d.active_devs;
+
+    const estimates = {};
+    for (const m of ESTIMATION_METHODS) {
+      const raw = m.calc(d, config);
+      estimates['est_' + m.key + '_hrs_day'] = raw;
+      estimates['est_' + m.key + '_hrs_per_dev_day'] = safeDiv(raw, devs);
+    }
+
+    const selectedHrsDay = method.calc(d, config);
+    const selectedHrsPerDevDay = safeDiv(selectedHrsDay, devs);
+
+    return {
+      ...d,
+      ...estimates,
+      agent_session_hours: (d.agent_session_minutes || 0) / 60,
+      time_saved_hours_total_day: selectedHrsDay,
+      time_saved_hours_per_dev_per_day: selectedHrsPerDevDay,
+    };
+  });
+}
+
+/* ── Fill missing days with zeros across the full window ── */
+function fillDayGaps(dayRows, windowDays = 28) {
+  if (!dayRows.length) return dayRows;
+  const existing = {};
+  for (const r of dayRows) existing[r.day] = r;
+
+  const end = new Date();
+  end.setHours(0, 0, 0, 0);
+  const start = new Date(end);
+  start.setDate(start.getDate() - windowDays + 1);
+
+  const zeroRow = (day) => ({
+    day,
+    active_devs: 0,
+    total_agent_requests: 0, sessions_started: 0,
+    agent_prs_created: 0, agent_prs_merged: 0,
+    agent_loc_added: 0, agent_loc_deleted: 0,
+    agent_session_minutes: 0,
+    merged_loc_added: 0, merged_loc_deleted: 0, merged_session_minutes: 0,
+    requests_per_dev: 0, sessions_per_dev: 0,
+    prs_created_per_dev: 0, prs_merged_per_dev: 0,
+    loc_added_per_dev: 0, session_mins_per_dev: 0,
+    merge_rate: 0,
+  });
+
+  const result = [];
+  const cur = new Date(start);
+  while (cur <= end) {
+    const ds = cur.toISOString().substring(0, 10);
+    result.push(existing[ds] || zeroRow(ds));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return result;
+}
+
+/* ═══════════════════════════════════════════════════════
+   REACT COMPONENTS
+   ═══════════════════════════════════════════════════════ */
+const { useState, useEffect, useRef, useCallback } = React;
+
+/* ── Formatting helpers ── */
+const fmt = n => n == null ? '—' : Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+const fmtDec = (n, d=1) => n == null ? '—' : Number(n).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
+const fmtKloc = n => n == null ? '—' : fmtDec(n / 1000, 1) + 'K';
+const fmtCurrency = n => n == null ? '—' : '$' + Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+const fmtPct = n => n == null ? '—' : (n * 100).toFixed(1) + '%';
+const fmtCompact = n => {
+  if (n == null) return '—';
+  if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (Math.abs(n) >= 1e3) return (n / 1e3).toFixed(0) + 'K';
+  return fmt(n);
+};
+const fmtMin = n => n == null ? '—' : n < 60 ? fmt(n) + 'm' : fmtDec(n / 60, 1) + 'h';
+
+/* ── Highcharts wrapper ── */
+function Chart({ options, className = 'chart-container' }) {
+  const ref = useRef(null);
+  const chartRef = useRef(null);
+  useEffect(() => {
+    if (ref.current) {
+      chartRef.current = Highcharts.chart(ref.current, options);
+    }
+    return () => { if (chartRef.current) chartRef.current.destroy(); };
+  }, [JSON.stringify(options)]);
+  return <div ref={ref} className={className} />;
+}
+
+/* ── KPI Card ── */
+function KpiCard({ label, value, unit, sub, color, hero }) {
+  return (
+    <div className={`Box p-3 kpi-card${hero ? ' kpi-hero' : ''}`}>
+      <div className="kpi-label color-fg-muted">{label}</div>
+      <div className="kpi-value" style={color ? { color } : {}}>{value}{unit && <span className="kpi-unit">{unit}</span>}</div>
+      {sub && <div className="kpi-sub color-fg-muted">{sub}</div>}
+    </div>
+  );
+}
+
+/* ── Section Header ── */
+function SectionHeader({ title, desc }) {
+  return (
+    <div className="mb-3 pb-2" style={{ borderBottom: '1px solid var(--borderColor-default)', borderTop: '2px solid var(--borderColor-muted)', paddingTop: '12px' }}>
+      <h2 className="f2 color-fg-accent">{title}</h2>
+      <p className="f6 color-fg-muted">{desc}</p>
+    </div>
+  );
+}
+
+/* ── Source summary bar ── */
+function SourceSummary({ efficiency, sessions, days }) {
+  const profile = efficiency?.artifact?.profile || {};
+  const n = days.length;
+  const range = n > 0 ? `${days[0].day} → ${days[n-1].day}` : 'none';
+  const uniqueDevs = profile.unique_people || new Set((efficiency?._devDays || []).map(d => d.developer)).size;
+  const devDayCount = profile.detail_row_count || (efficiency?._devDays || []).length;
+  const sessionCount = sessions?.data?.length || 0;
+
+  return (
+    <div className="flash flash-success f6 mb-3">
+      ✅ Loaded <strong>agentic-efficiency-days</strong> · {n} days ({range}) · {fmt(uniqueDevs)} developers · {fmt(devDayCount)} dev-days · {fmt(sessionCount)} PR sessions
+    </div>
+  );
+}
+
+/* ── Developer Search ── */
+function DevSearch({ devDays, selectedUser, onSelect }) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const logins = React.useMemo(() => [...new Set(devDays.map(d => d.developer))].sort(), [devDays]);
+  const filtered = query ? logins.filter(l => l.toLowerCase().includes(query.toLowerCase())).slice(0, 10) : logins.slice(0, 10);
+
+  const select = (login) => { onSelect(login); setQuery(''); setOpen(false); };
+  const clear = () => { onSelect(null); setQuery(''); };
+
+  if (!logins.length) return null;
+
+  return (
+    <div className="d-flex flex-items-center mb-3" style={{ gap: '8px', position: 'relative' }}>
+      <span className="f6 color-fg-muted text-bold">Developer:</span>
+      <span className="f6 color-fg-muted" style={{ fontStyle: 'italic' }}>Overlay individual developer data to compare to Org averages</span>
+      {selectedUser ? (
+        <div className="d-flex flex-items-center" style={{ gap: '6px' }}>
+          <span className="Label Label--accent">{selectedUser}</span>
+          <button className="btn-octicon" onClick={clear} title="Clear" style={{ color: 'var(--fgColor-muted)', cursor: 'pointer', background: 'none', border: 'none', fontSize: '14px' }}>✕</button>
+        </div>
+      ) : (
+        <div style={{ position: 'relative', width: '220px' }}>
+          <input
+            type="text" className="form-control input-sm" placeholder="Search by login…"
+            value={query} onChange={e => { setQuery(e.target.value); setOpen(true); }}
+            onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
+          />
+          {open && filtered.length > 0 && (
+            <div className="Box color-shadow-large" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, maxHeight: '200px', overflow: 'auto' }}>
+              {filtered.map(l => (
+                <div key={l} className="Box-row px-3 py-1 f6" style={{ cursor: 'pointer' }} onMouseDown={() => select(l)}>
+                  {l}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {selectedUser && <span className="f6 color-fg-muted">(dashed lines on charts)</span>}
+    </div>
+  );
+}
+
+/* ── Config Panel (collapsible, bottom of page) ── */
+function ConfigPanel({ config, onApply, isOpen, onToggle }) {
+  const [factor, setFactor] = useState(config.est_duration_factor ?? 2);
+  const [hrsPerKloc, setHrsPerKloc] = useState(config.est_hrs_per_kloc ?? 2);
+  const [wdays, setWdays] = useState(config.cfg_workdays_per_week ?? 5);
+  const [cost, setCost] = useState(config.cfg_labor_cost_per_hour ?? '');
+
+  useEffect(() => {
+    setFactor(config.est_duration_factor ?? 2);
+    setHrsPerKloc(config.est_hrs_per_kloc ?? 2);
+    setWdays(config.cfg_workdays_per_week ?? 5);
+    setCost(config.cfg_labor_cost_per_hour ?? '');
+  }, [config]);
+
+  const apply = () => {
+    onApply({
+      cfg_workdays_per_week: parseFloat(wdays) || 5,
+      cfg_labor_cost_per_hour: parseFloat(cost) || null,
+      est_duration_factor: parseFloat(factor) || 2,
+      est_hrs_per_kloc: parseFloat(hrsPerKloc) || 2,
+    });
+  };
+
+  const summary = `${config.est_duration_factor || 2}× factor · ${config.est_hrs_per_kloc || 2} hrs/KLoC`
+    + (config.cfg_labor_cost_per_hour != null ? ` · $${config.cfg_labor_cost_per_hour}/hr` : '');
+
+  return (
+    <div className="Box mt-4" style={{ borderColor: isOpen ? 'var(--borderColor-accent-emphasis)' : undefined }}>
+      <div className="Box-header d-flex flex-items-center flex-justify-between" style={{ cursor: 'pointer' }} onClick={onToggle}>
+        <div className="d-flex flex-items-center" style={{ gap: '8px' }}>
+          <span style={{ transition: 'transform 0.15s', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', display: 'inline-block' }}>▶</span>
+          <h4 className="f5 mb-0">Configuration</h4>
+          <span className="Label Label--secondary f6">estimation params</span>
+        </div>
+        <span className="f6 color-fg-muted">{summary}</span>
+      </div>
+
+      {isOpen && (
+        <div className="Box-body">
+          <p className="f6 color-fg-muted mb-3">Edit the estimation parameters below. Changes take effect when you click Apply.</p>
+
+          <h5 className="f6 color-fg-muted text-bold mb-2">Estimation Constants</h5>
+          <div className="d-flex flex-wrap mb-3" style={{ gap: '12px', alignItems: 'flex-end' }}>
+            <div className="form-group mb-0" style={{ flex: '1 1 200px' }}>
+              <label className="f6 color-fg-muted">Duration Multiplier (×)</label>
+              <input type="number" className="form-control input-sm" step="0.5" min="0.5" value={factor} onChange={e => setFactor(e.target.value)} />
+            </div>
+            <div className="form-group mb-0" style={{ flex: '1 1 200px' }}>
+              <label className="f6 color-fg-muted">Hrs Saved per 1K LoC Added</label>
+              <input type="number" className="form-control input-sm" step="0.5" min="0" value={hrsPerKloc} onChange={e => setHrsPerKloc(e.target.value)} />
+            </div>
+          </div>
+
+          <h5 className="f6 color-fg-muted text-bold mb-2">Shared</h5>
+          <div className="d-flex flex-wrap" style={{ gap: '12px', alignItems: 'flex-end' }}>
+            <div className="form-group mb-0" style={{ flex: '1 1 120px' }}>
+              <label className="f6 color-fg-muted">Workdays / Week</label>
+              <input type="number" className="form-control input-sm" step="1" min="1" max="7" value={wdays} onChange={e => setWdays(e.target.value)} />
+            </div>
+            <div className="form-group mb-0" style={{ flex: '1 1 140px' }}>
+              <label className="f6 color-fg-muted">Labor Cost $/hr</label>
+              <input type="number" className="form-control input-sm" step="1" min="0" value={cost} onChange={e => setCost(e.target.value)} placeholder="75" />
+            </div>
+          </div>
+          <div className="d-flex flex-items-center mt-3" style={{ gap: '8px' }}>
+            <button className="btn btn-sm btn-primary" onClick={apply}>Apply &amp; Recalculate</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION A — IMPACT
+   ═══════════════════════════════════════════════════════ */
+function ImpactSection({ days, config, method, onMethodChange, devDays, selectedUser }) {
+  const n = days.length;
+  const methodDef = ESTIMATION_METHODS.find(m => m.key === method) || ESTIMATION_METHODS[0];
+
+  const totalHoursSaved = days.reduce((s, d) => s + (d.time_saved_hours_total_day || 0), 0);
+  const avgHrsPerDevDay = (() => { const v = days.map(d => d.time_saved_hours_per_dev_per_day).filter(v => v != null); return v.length ? v.reduce((a,b)=>a+b,0)/v.length : null; })();
+  const avgActiveDevs = Math.round(days.reduce((s, d) => s + (d.active_devs || 0), 0) / n);
+  const laborCost = config.cfg_labor_cost_per_hour != null ? totalHoursSaved * config.cfg_labor_cost_per_hour : null;
+  const orgHrsSavedPerDay = totalHoursSaved / n;
+  const fteEquiv = totalHoursSaved / (8 * n);
+  const wdays = config.cfg_workdays_per_week || 5;
+  const baselineHrsPerDay = (40) / wdays;
+  const pctTimeSavedPerDev = avgHrsPerDevDay != null ? avgHrsPerDevDay / baselineHrsPerDay : null;
+
+  // Build user overlay series for Impact chart
+  const userDayMap = {};
+  if (selectedUser && devDays) {
+    devDays.filter(u => u.developer === selectedUser).forEach(u => { userDayMap[u.date || u.day] = u; });
+  }
+  const hasUserData = Object.keys(userDayMap).length > 0;
+  const userHrsSeries = hasUserData ? days.map(d => {
+    const u = userDayMap[d.day];
+    if (!u) return null;
+    return methodDef.calc({ merged_session_minutes: u.agent_session_minutes || 0, merged_loc_added: u.agent_loc_added || 0 }, config);
+  }) : null;
+
+  const chartOpts = {
+    chart: { type: 'areaspline', height: 300 },
+    title: { text: null },
+    subtitle: { text: methodDef.label + ': ' + methodDef.descFn(config) },
+    xAxis: { categories: days.map(d => d.day), labels: { rotation: -45, style: { fontSize: '10px' } } },
+    yAxis: [
+      { title: { text: 'Hrs Saved / Dev / Day' }, min: 0 },
+      { title: { text: 'Total Hours Saved' }, opposite: true, min: 0 },
+    ],
+    tooltip: { shared: true, valueDecimals: 1 },
+    legend: { symbolWidth: 16 },
+    series: [
+      { name: 'Avg Hrs / Dev / Day', data: days.map(d => d.time_saved_hours_per_dev_per_day), yAxis: 0, color: '#58a6ff', fillOpacity: 0.08, marker: { radius: 3 } },
+      { name: 'Org Total Hrs', data: days.map(d => d.time_saved_hours_total_day != null ? Math.round(d.time_saved_hours_total_day * 10) / 10 : null), type: 'column', yAxis: 1, color: '#3fb950', opacity: 0.7, pointPadding: 0.1 },
+      ...(userHrsSeries ? [{ name: selectedUser + ' Hrs', data: userHrsSeries, type: 'spline', yAxis: 0, color: '#f78166', dashStyle: 'ShortDash', marker: { radius: 4, symbol: 'diamond', lineWidth: 1, lineColor: '#f78166', fillColor: '#0d1117' }, lineWidth: 2.5 }] : []),
+    ],
+  };
+
+  return (
+    <div className="section-row">
+      <div className="mb-3 pb-2 d-flex flex-items-end flex-justify-between" style={{ borderBottom: '1px solid var(--borderColor-default)', borderTop: '2px solid var(--borderColor-muted)', paddingTop: '12px' }}>
+        <div>
+          <h2 className="f2 color-fg-accent">Impact</h2>
+          <p className="f6 color-fg-muted">Estimated Individual and Total Agent Efficiency Impact for your organization</p>
+        </div>
+        <div className="d-flex flex-items-center" style={{ gap: '8px' }}>
+          <span className="f6 color-fg-muted">Method:</span>
+          <select className="form-select form-select-sm" value={method} onChange={e => onMethodChange(e.target.value)} style={{ width: 'auto', background: 'var(--bgColor-muted)', color: 'var(--fgColor-default)', border: '1px solid var(--borderColor-default)' }}>
+            {ESTIMATION_METHODS.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* Hero card + supporting cards */}
+      <div className="d-flex flex-wrap mb-3" style={{ gap: '12px', alignItems: 'stretch' }}>
+        <div style={{ flex: '0 0 200px' }}><KpiCard hero label="Human Hrs Saved" value={fmtDec(totalHoursSaved, 0)} unit="hrs" sub={`across ${n} days`} color="#58a6ff" /></div>
+        <div style={{ flex: '1 1 0', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px' }}>
+          <KpiCard label="Org Hrs / Day" value={fmtDec(orgHrsSavedPerDay, 1)} unit="hrs" sub={`${avgActiveDevs} devs avg`} />
+          <KpiCard label="Hrs / Dev / Day" value={fmtDec(avgHrsPerDevDay, 2)} unit="hrs" sub={pctTimeSavedPerDev != null ? fmtPct(pctTimeSavedPerDev) + ` of ${baselineHrsPerDay.toFixed(0)}h workday` : 'per active developer'} />
+          <KpiCard label="Economic Value" value={fmtCurrency(laborCost)} sub={laborCost != null ? `at $${config.cfg_labor_cost_per_hour}/hr` : 'set labor cost in config'} color="#3fb950" />
+        </div>
+      </div>
+
+      <div className="Box p-3">
+        <Chart options={chartOpts} />
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION B — DRIVERS
+   ═══════════════════════════════════════════════════════ */
+
+const DRIVER_SERIES = [
+  { key: 'sessions_started', perDev: 'sessions_per_dev', label: 'Sessions', color: '#58a6ff' },
+  { key: 'agent_prs_created', perDev: 'prs_created_per_dev', label: 'PRs Created', color: '#3fb950' },
+  { key: 'agent_prs_merged', perDev: 'prs_merged_per_dev', label: 'PRs Merged', color: '#d29922' },
+  { key: 'agent_loc_added', perDev: 'loc_added_per_dev', label: 'LoC Added/100', color: '#bc8cff', scale: 100 },
+  { key: 'agent_session_minutes', perDev: 'session_mins_per_dev', label: 'Session Mins', color: '#f778ba' },
+  { key: 'total_agent_requests', perDev: 'requests_per_dev', label: 'Requests', color: '#79c0ff' },
+];
+
+function DriversSection({ days, devDays, selectedUser }) {
+  const [toggles, setToggles] = useState(() => {
+    const t = {};
+    DRIVER_SERIES.forEach(s => t[s.key] = true);
+    return t;
+  });
+  const [viewMode, setViewMode] = useState('combined');
+
+  const n = days.length;
+  const labels = days.map(d => d.day);
+  const sum = (k) => days.reduce((s, d) => s + (d[k] || 0), 0);
+  const avgDevs = days.reduce((s, d) => s + (d.active_devs || 0), 0) / n;
+
+  const totalPRsCreated = sum('agent_prs_created');
+  const totalPRsMerged = sum('agent_prs_merged');
+  const mergeRate = safeDiv(totalPRsMerged, totalPRsCreated);
+
+  // Build user day map from devDays
+  const userDayMap = {};
+  if (selectedUser && devDays) {
+    devDays.filter(u => u.developer === selectedUser).forEach(u => { userDayMap[u.date || u.day] = u; });
+  }
+  const hasUserData = Object.keys(userDayMap).length > 0;
+
+  const activeDrivers = DRIVER_SERIES.filter(s => s.perDev && toggles[s.key] && sum(s.key) > 0);
+  const toggle = (key) => setToggles(prev => ({ ...prev, [key]: !prev[key] }));
+
+  // User field mapping for overlay
+  const USER_FIELDS = [
+    { key: 'sessions_started', driverKey: 'sessions_started', label: 'Sessions', color: '#58a6ff', scale: 1 },
+    { key: 'agent_prs_created', driverKey: 'agent_prs_created', label: 'PRs Created', color: '#3fb950', scale: 1 },
+    { key: 'agent_prs_merged', driverKey: 'agent_prs_merged', label: 'PRs Merged', color: '#d29922', scale: 1 },
+    { key: 'agent_loc_added', driverKey: 'agent_loc_added', label: 'LoC/100', color: '#bc8cff', scale: 100 },
+    { key: 'agent_session_minutes', driverKey: 'agent_session_minutes', label: 'Sess Mins', color: '#f778ba', scale: 1 },
+    { key: 'total_agent_requests', driverKey: 'total_agent_requests', label: 'Requests', color: '#79c0ff', scale: 1 },
+  ];
+
+  // === COMBINED VIEW ===
+  function renderCombinedView() {
+    const perDevSeries = activeDrivers.map(s => ({
+      name: s.label + ' / Dev',
+      data: days.map(d => d[s.perDev] != null ? Math.round(d[s.perDev] * 100) / 100 : null),
+      color: s.color,
+    }));
+
+    // User overlay series (dashed)
+    if (hasUserData) {
+      for (const s of activeDrivers) {
+        const uf = USER_FIELDS.find(f => f.driverKey === s.key);
+        if (!uf) continue;
+        perDevSeries.push({
+          name: selectedUser + ' ' + s.label,
+          data: days.map(d => {
+            const u = userDayMap[d.day];
+            if (!u) return null;
+            return Math.round(((u[uf.key] || 0) / (uf.scale || 1)) * 100) / 100;
+          }),
+          color: s.color,
+          dashStyle: 'Dash',
+          marker: { radius: 3, symbol: 'diamond' },
+          lineWidth: 2,
+        });
+      }
+    }
+
+    const trendOpts = {
+      chart: { type: 'spline', height: 320 },
+      title: { text: null },
+      xAxis: { categories: labels, labels: { rotation: -45, style: { fontSize: '10px' } } },
+      yAxis: { title: { text: 'Per Active Dev' }, min: 0 },
+      tooltip: { shared: true, valueDecimals: 2 },
+      series: perDevSeries,
+    };
+
+    // Activity profile bar
+    const avgPerDevData = activeDrivers.map(s => {
+      const vals = days.map(d => d[s.perDev]).filter(v => v != null);
+      return vals.length ? Math.round((vals.reduce((a,b) => a+b, 0) / vals.length) * 100) / 100 : 0;
+    });
+
+    const userAvgData = hasUserData ? activeDrivers.map(s => {
+      const uf = USER_FIELDS.find(f => f.driverKey === s.key);
+      const userDays = days.map(d => userDayMap[d.day]).filter(Boolean);
+      if (!userDays.length || !uf) return 0;
+      const vals = userDays.map(u => (u[uf.key] || 0) / (uf.scale || 1));
+      return Math.round((vals.reduce((a,b) => a+b, 0) / vals.length) * 100) / 100;
+    }) : null;
+
+    const profileSeries = [
+      { name: 'Org Avg / Dev / Day', data: avgPerDevData.map((y, i) => ({ y, color: activeDrivers[i].color })) },
+    ];
+    if (userAvgData) {
+      profileSeries.push({
+        name: selectedUser + ' Avg / Day',
+        data: userAvgData.map((y, i) => ({ y, color: 'transparent', borderColor: activeDrivers[i].color })),
+        borderWidth: 2,
+        dashStyle: 'Dash',
+      });
+    }
+
+    const barHeight = Math.max(200, activeDrivers.length * (hasUserData ? 60 : 44) + 80);
+    const totalsOpts = {
+      chart: { type: 'bar', height: barHeight },
+      title: { text: null },
+      xAxis: { categories: activeDrivers.map(s => s.label), labels: { style: { fontSize: '12px' } } },
+      yAxis: { title: { text: 'Daily Avg' } },
+      tooltip: { shared: true, valueSuffix: ' / day', valueDecimals: 1 },
+      plotOptions: { bar: { borderRadius: 3, groupPadding: 0.15, dataLabels: { enabled: true, format: '{y:,.1f}', style: { color: '#e6edf3', textOutline: 'none', fontSize: '11px' } } } },
+      series: profileSeries,
+    };
+
+    return (
+      <div className="d-flex flex-wrap" style={{ gap: '16px' }}>
+        <div className="Box p-3" style={{ flex: '2 1 480px' }}>
+          <h4 className="f6 color-fg-muted mb-1">Daily Trend — Per Active Developer</h4>
+          <Chart options={trendOpts} />
+        </div>
+        <div className="Box p-3" style={{ flex: '1 1 300px' }}>
+          <h4 className="f6 color-fg-muted mb-1">Daily Avg / Dev{selectedUser ? ` vs ${selectedUser}` : ''}</h4>
+          <Chart options={totalsOpts} />
+        </div>
+      </div>
+    );
+  }
+
+  // === GRID VIEW ===
+  function renderGridView() {
+    return (
+      <div className="drivers-grid">
+        {activeDrivers.map(s => {
+          const series = [
+            {
+              name: s.label + ' / Dev',
+              data: days.map(d => d[s.perDev] != null ? Math.round(d[s.perDev] * 100) / 100 : null),
+              color: s.color,
+            },
+          ];
+
+          if (hasUserData) {
+            const uf = USER_FIELDS.find(f => f.driverKey === s.key);
+            if (uf) {
+              series.push({
+                name: selectedUser + ' ' + s.label,
+                data: days.map(d => {
+                  const u = userDayMap[d.day];
+                  if (!u) return null;
+                  return Math.round(((u[uf.key] || 0) / (uf.scale || 1)) * 100) / 100;
+                }),
+                color: s.color,
+                dashStyle: 'Dash',
+                marker: { radius: 3, symbol: 'diamond' },
+                lineWidth: 2,
+              });
+            }
+          }
+
+          const chartOpts = {
+            chart: { type: 'spline', height: 220 },
+            title: { text: s.label, style: { fontSize: '13px' } },
+            xAxis: { categories: labels, labels: { rotation: -45, style: { fontSize: '9px' } }, tickInterval: Math.max(1, Math.floor(labels.length / 6)) },
+            yAxis: { title: { text: null }, min: 0 },
+            tooltip: { shared: true, valueDecimals: 2 },
+            legend: { enabled: hasUserData, itemStyle: { fontSize: '10px' } },
+            series,
+          };
+
+          return (
+            <div key={s.key} className="Box p-3">
+              <Chart options={chartOpts} className="chart-container-sm" />
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  return (
+    <div className="section-row">
+      <SectionHeader title="Drivers" desc="Activity Levels for Upstream Drivers" />
+
+      {/* KPIs */}
+      <div className="d-flex flex-wrap mb-3" style={{ gap: '12px' }}>
+        <div style={{ flex: '1 1 150px' }}><KpiCard label="Active Devs / Day" value={fmt(Math.round(avgDevs))} unit="avg" sub={`across ${n} days`} /></div>
+        <div style={{ flex: '1 1 150px' }}><KpiCard label="PRs Created" value={fmtCompact(totalPRsCreated)} sub={fmtDec(safeDiv(totalPRsCreated, n), 1) + ' / day'} /></div>
+        <div style={{ flex: '1 1 150px' }}><KpiCard label="PRs Merged" value={fmtCompact(totalPRsMerged)} sub={mergeRate != null ? fmtPct(mergeRate) + ' merge rate' : ''} color="#3fb950" /></div>
+      </div>
+
+      {/* Toggle checkboxes + view mode toggle */}
+      <div className="d-flex flex-items-center flex-wrap mb-3 px-2" style={{ gap: '12px' }}>
+        <span className="f6 color-fg-muted text-bold">Show:</span>
+        <div className="driver-toggles">
+          {DRIVER_SERIES.filter(s => s.perDev && sum(s.key) > 0).map(s => (
+            <label key={s.key} className="color-fg-default">
+              <input type="checkbox" checked={toggles[s.key]} onChange={() => toggle(s.key)} />
+              <span className="ml-1" style={{ color: s.color }}>●</span> {s.label}
+            </label>
+          ))}
+        </div>
+        <div className="view-toggle ml-auto">
+          <button className={viewMode === 'combined' ? 'active' : ''} onClick={() => setViewMode('combined')}>Combined</button>
+          <button className={viewMode === 'grid' ? 'active' : ''} onClick={() => setViewMode('grid')}>Grid</button>
+        </div>
+      </div>
+
+      {/* Charts */}
+      {viewMode === 'combined' ? renderCombinedView() : renderGridView()}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION C — CONFIDENCE (SIMPLIFIED)
+   ═══════════════════════════════════════════════════════ */
+function ConfidenceSection({ days, config, method, onMethodChange }) {
+  const n = days.length;
+  const methodDef = ESTIMATION_METHODS.find(m => m.key === method) || ESTIMATION_METHODS[0];
+
+  // All-methods comparison
+  const methodComparison = ESTIMATION_METHODS.map(m => {
+    const field = 'est_' + m.key + '_hrs_per_dev_day';
+    const vals = days.map(d => d[field]).filter(v => v != null);
+    const avg = vals.length ? vals.reduce((a,b) => a+b, 0) / vals.length : null;
+    const totalField = 'est_' + m.key + '_hrs_day';
+    const totalHrs = days.reduce((s, d) => s + (d[totalField] || 0), 0);
+    return { ...m, avgPerDevDay: avg, totalHrs, isSelected: m.key === method };
+  });
+
+  return (
+    <div className="section-row">
+      <SectionHeader title="Confidence" desc="How the estimate is made and what it assumes." />
+      <div className="d-flex flex-wrap" style={{ gap: '16px' }}>
+
+        {/* Left — Method & Assumptions */}
+        <div className="Box p-3" style={{ flex: '1 1 380px' }}>
+          <h4 className="f5 mb-2">Estimation Method</h4>
+
+          <div className="d-flex flex-items-center mb-2" style={{ gap: '8px' }}>
+            <span className="Label Label--accent">{methodDef.key}</span>
+            <span className="f6 color-fg-muted">{methodDef.descFn(config)}</span>
+          </div>
+          <p className="f6 color-fg-muted mb-3" style={{ fontFamily: 'monospace', background: 'var(--bgColor-muted)', padding: '8px', borderRadius: '6px' }}>
+            {methodDef.formulaFn(config)}
+          </p>
+
+          <h5 className="f6 color-fg-muted text-bold mt-3 mb-1">Shared Configuration</h5>
+          <table className="width-full f6">
+            <tbody>
+              <tr><td className="color-fg-muted py-1">Workdays / Week</td><td className="py-1 text-bold">{config.cfg_workdays_per_week ?? 5}</td></tr>
+              <tr><td className="color-fg-muted py-1">Labor Cost / Hour</td><td className="py-1 text-bold">{config.cfg_labor_cost_per_hour != null ? fmtCurrency(config.cfg_labor_cost_per_hour) : '—'}</td></tr>
+            </tbody>
+          </table>
+
+          <h5 className="f6 color-fg-muted text-bold mt-3 mb-1">Definitions</h5>
+          <p className="f6 color-fg-muted"><strong>Duration-Based (Merged):</strong> Multiplies merged PR session hours by a duration factor (default {config.est_duration_factor || 2}×). Only counts sessions that resulted in a merged PR.</p>
+          <p className="f6 color-fg-muted"><strong>LoC-Based (Merged):</strong> {config.est_hrs_per_kloc || 2} hours of time saved per 1,000 lines of merged code added by agent PRs.</p>
+          <p className="f6 color-fg-muted"><strong>Active Dev:</strong> Developer with agent activity for that day.</p>
+        </div>
+
+        {/* Right — Method Comparison */}
+        <div className="Box p-3" style={{ flex: '1 1 380px' }}>
+          <h4 className="f5 mb-2">Method Comparison</h4>
+          <table className="width-full f6 mb-3">
+            <thead>
+              <tr>
+                <th className="color-fg-muted py-1 f6" style={{ fontWeight: 500 }}>Method</th>
+                <th className="color-fg-muted py-1 f6 text-right" style={{ fontWeight: 500 }}>Avg Hrs/Dev/Day</th>
+                <th className="color-fg-muted py-1 f6 text-right" style={{ fontWeight: 500 }}>Total Hrs ({n}d)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {methodComparison.map(m => (
+                <tr key={m.key} className={m.isSelected ? 'method-row-selected' : ''}>
+                  <td className="py-1" style={{ paddingLeft: m.isSelected ? '9px' : '12px' }}>
+                    {m.isSelected && <span style={{ color: '#58a6ff', marginRight: '4px' }}>●</span>}
+                    {m.label}
+                  </td>
+                  <td className="py-1 text-right text-bold">{fmtDec(m.avgPerDevDay, 2)}</td>
+                  <td className="py-1 text-right">{fmtDec(m.totalHrs, 0)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   APP
+   ═══════════════════════════════════════════════════════ */
+function App() {
+  const [artifacts, setArtifacts] = useState(null);
+  const [data, setData] = useState(null);
+  const [config, setConfig] = useState({ ...DEFAULT_CONFIG });
+  const [configOpen, setConfigOpen] = useState(false);
+  const [method, setMethod] = useState('duration');
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const recompute = useCallback((baseDays, cfg, m) => {
+    return computeDerived(baseDays, cfg, m);
+  }, []);
+
+  // Auto-load materialized artifacts on mount
+  useEffect(() => {
+    fetchArtifacts().then(arts => {
+      if (!arts || !arts.efficiency || !arts.efficiency.data || !arts.efficiency.data.length) {
+        setError('Materialized artifact not found or empty.');
+        setLoading(false);
+        return;
+      }
+      setArtifacts(arts);
+
+      const eff = arts.efficiency;
+      const sess = arts.sessions;
+
+      // Ensure merged_session_minutes and merged_loc_added exist on day rows
+      // If missing, compute from PR sessions
+      let baseDays = eff.data.sort((a, b) => (a.day || '').localeCompare(b.day || ''));
+      const needsMergedFields = baseDays.length > 0 &&
+        baseDays[0].merged_session_minutes == null &&
+        baseDays[0].merged_loc_added == null;
+
+      if (needsMergedFields && sess && sess.data) {
+        const mergedByDay = {};
+        for (const pr of sess.data) {
+          if (!pr.merged) continue;
+          const day = pr.day || '';
+          if (!day) continue;
+          if (!mergedByDay[day]) mergedByDay[day] = { mins: 0, loc: 0 };
+          mergedByDay[day].mins += (pr.duration_minutes || 0);
+          mergedByDay[day].loc += (pr.additions || 0);
+        }
+        baseDays = baseDays.map(d => ({
+          ...d,
+          merged_session_minutes: d.merged_session_minutes ?? (mergedByDay[d.day]?.mins || 0),
+          merged_loc_added: d.merged_loc_added ?? (mergedByDay[d.day]?.loc || 0),
+        }));
+      }
+
+      const devDays = eff._devDays || [];
+      const enriched = computeDerived(baseDays, DEFAULT_CONFIG, 'duration');
+
+      setData({ enterprise: enriched, baseDays, devDays });
+      setLoading(false);
+    }).catch(e => {
+      console.error('Artifact load error:', e);
+      setError('Failed to load artifact: ' + e.message);
+      setLoading(false);
+    });
+  }, []);
+
+  const handleMethodChange = useCallback((newMethod) => {
+    setMethod(newMethod);
+    if (data) {
+      const enriched = recompute(data.baseDays, config, newMethod);
+      setData(prev => ({ ...prev, enterprise: enriched }));
+    }
+  }, [data, config, recompute]);
+
+  const handleConfigApply = useCallback((newCfg) => {
+    setConfig(newCfg);
+    if (data) {
+      const enriched = recompute(data.baseDays, newCfg, method);
+      setData(prev => ({ ...prev, enterprise: enriched }));
+    }
+  }, [data, method, recompute]);
+
+  return (
+    <div className="efficiency-page">
+      <div className="mb-4">
+        <h1 className="f1">Agentic AI Coding — Efficiency <span className="Label Label--accent ml-2" style={{ verticalAlign: 'middle', fontSize: '0.5em' }}>v2</span></h1>
+        <p className="f4 color-fg-muted">Understand how Agent Efficiency is improving</p>
+      </div>
+
+      {loading && (
+        <div className="Box p-4 text-center color-fg-muted">
+          <p className="f3 mb-2">⏳</p>
+          <p className="f5">Loading materialized artifacts…</p>
+        </div>
+      )}
+
+      {error && (
+        <div className="flash flash-warn f5 mb-3">
+          ⚠️ {error}
+          <p className="f6 mt-2 color-fg-muted">Run the pipeline: <code>./scripts/collect-and-materialize.sh</code></p>
+        </div>
+      )}
+
+      {data && (
+        <>
+          <SourceSummary efficiency={artifacts.efficiency} sessions={artifacts.sessions} days={data.enterprise} />
+          <DevSearch devDays={data.devDays} selectedUser={selectedUser} onSelect={setSelectedUser} />
+          <ImpactSection days={data.enterprise} config={config} method={method} onMethodChange={handleMethodChange} devDays={data.devDays} selectedUser={selectedUser} />
+          <DriversSection days={data.enterprise} devDays={data.devDays} selectedUser={selectedUser} />
+          <ConfidenceSection days={data.enterprise} config={config} method={method} onMethodChange={handleMethodChange} />
+          <ConfigPanel config={config} onApply={handleConfigApply} isOpen={configOpen} onToggle={() => setConfigOpen(o => !o)} />
+        </>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
