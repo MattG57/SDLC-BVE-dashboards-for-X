@@ -1,0 +1,1237 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark" data-dark-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BVE — Integrated Dashboard (v2)</title>
+
+<!-- Primer CSS -->
+<link rel="stylesheet" href="https://unpkg.com/@primer/css@21.3.1/dist/primer.css">
+
+<!-- Highcharts -->
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/highcharts.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/highcharts-more.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/modules/accessibility.js"></script>
+
+<!-- React -->
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<style>
+  body { background: var(--bgColor-default); }
+  .integrated-page { max-width: 1280px; margin: 0 auto; padding: 24px 16px; }
+
+  .kpi-card { text-align: center; }
+  .kpi-value { font-size: 2rem; font-weight: 600; line-height: 1.2; }
+  .kpi-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; }
+  .kpi-sub { font-size: 0.75rem; }
+  .kpi-unit { font-size: 1.1rem; font-weight: 400; opacity: 0.65; margin-left: 2px; }
+
+  .kpi-hero .kpi-value { font-size: 3rem; }
+  .kpi-hero .kpi-label { font-size: 0.85rem; }
+  .kpi-hero .kpi-sub { font-size: 0.85rem; }
+  .kpi-hero { border-top: 3px solid var(--borderColor-accent-emphasis); }
+
+  .section-row { margin-bottom: 32px; padding-top: 8px; }
+
+  .chart-container { min-height: 320px; }
+  .chart-container-sm { min-height: 240px; }
+
+  .view-toggle { display: inline-flex; border: 1px solid var(--borderColor-default); border-radius: 6px; overflow: hidden; }
+  .view-toggle button {
+    padding: 2px 10px; font-size: 0.75rem; border: none; cursor: pointer;
+    background: var(--bgColor-muted); color: var(--fgColor-muted); transition: all 0.15s;
+  }
+  .view-toggle button + button { border-left: 1px solid var(--borderColor-default); }
+  .view-toggle button.active { background: var(--bgColor-accent-muted); color: var(--fgColor-accent); font-weight: 600; }
+
+  .tab-toggle { display: inline-flex; border: 1px solid var(--borderColor-default); border-radius: 6px; overflow: hidden; }
+  .tab-toggle button {
+    padding: 4px 16px; font-size: 0.85rem; border: none; cursor: pointer;
+    background: var(--bgColor-muted); color: var(--fgColor-muted); transition: all 0.15s;
+  }
+  .tab-toggle button + button { border-left: 1px solid var(--borderColor-default); }
+  .tab-toggle button.active { background: var(--bgColor-accent-muted); color: var(--fgColor-accent); font-weight: 600; }
+
+  .mode-btn { min-width: 100px; }
+  .mode-btn.active { box-shadow: inset 0 0 0 2px var(--color-accent-fg); }
+
+  .method-row-selected { border-left: 3px solid #58a6ff; background: rgba(88,166,255,0.06); }
+
+  .drivers-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 768px) { .drivers-grid { grid-template-columns: 1fr; } }
+
+  .highcharts-background { fill: transparent !important; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-type="module">
+
+/* ═══════════════════════════════════════════════════════
+   HIGHCHARTS DARK THEME (GitHub-aligned)
+   ═══════════════════════════════════════════════════════ */
+Highcharts.setOptions({
+  chart: { backgroundColor: 'transparent', style: { fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif' } },
+  colors: ['#58a6ff', '#3fb950', '#d29922', '#f85149', '#bc8cff', '#f778ba', '#79c0ff', '#56d364'],
+  title: { style: { color: '#e6edf3', fontSize: '14px', fontWeight: '600' } },
+  subtitle: { style: { color: '#8b949e', fontSize: '12px' } },
+  xAxis: { labels: { style: { color: '#8b949e' } }, gridLineColor: '#30363d', lineColor: '#30363d', tickColor: '#30363d' },
+  yAxis: { labels: { style: { color: '#8b949e' } }, gridLineColor: '#30363d', title: { style: { color: '#8b949e' } } },
+  legend: { itemStyle: { color: '#e6edf3' }, itemHoverStyle: { color: '#58a6ff' } },
+  tooltip: { backgroundColor: '#161b22', borderColor: '#30363d', style: { color: '#e6edf3' } },
+  plotOptions: { series: { animation: { duration: 400 } } },
+  credits: { enabled: false },
+});
+
+
+/* ═══════════════════════════════════════════════════════
+   DATA LOADING — MATERIALIZED ARTIFACTS ONLY
+   ═══════════════════════════════════════════════════════ */
+
+async function fetchArtifacts() {
+  const bases = ['../../dataflow/data/', '../dataflow/data/'];
+  for (const base of bases) {
+    try {
+      const r = await fetch(base + 'pipeline-manifest.json');
+      if (!r.ok) continue;
+      const manifest = await r.json();
+      const dir = base + 'materialized/';
+      const find = prefix => (manifest.artifacts || []).find(f => f.startsWith(prefix));
+      const files = {
+        aiEff: find('ai-assisted-efficiency-days'),
+        aiStr: find('ai-assisted-structural-days'),
+        agEff: find('agentic-efficiency-days'),
+        agSess: find('agentic-pr-sessions'),
+      };
+      if (!files.aiEff && !files.agEff) continue;
+      const results = {};
+      for (const [key, file] of Object.entries(files)) {
+        if (file) results[key] = await fetch(dir + file).then(r => r.ok ? r.json() : null);
+      }
+      if (results.aiEff || results.agEff) return results;
+    } catch(e) {}
+  }
+  return null;
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   DATA PROCESSING LAYER
+   ═══════════════════════════════════════════════════════ */
+
+function safeDiv(a, b) { return b > 0 ? a / b : null; }
+function mean(arr) { const v = arr.filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; }
+
+function dayOffset(dayStr, offset) {
+  const d = new Date(dayStr + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() + offset);
+  return d.toISOString().slice(0, 10);
+}
+
+function isWeekend(dayStr) {
+  const d = new Date(dayStr + 'T12:00:00Z');
+  const dow = d.getUTCDay();
+  return dow === 0 || dow === 6;
+}
+
+const DEFAULT_CONFIG = {
+  cfg_total_developers: 100,
+  cfg_total_repos: null,
+  cfg_workdays_per_week: 5,
+  cfg_labor_cost_per_hour: null,
+  est_interactions_per_hour: 20,
+  est_hrs_per_kloc: 2,
+  est_duration_factor: 2,
+  cfg_pr_assist_lookback_days: 3,
+  cfg_projection_cap_ai: 5,
+  cfg_projection_cap_agentic: 9,
+};
+
+
+/* ── AI-Assisted Estimation Methods ── */
+const AI_ESTIMATION_METHODS = [
+  { key: 'interactions', label: 'Interactions-Based',
+    descFn: (cfg) => `1 hour saved per ${cfg.est_interactions_per_hour || 20} interactions`,
+    formulaFn: (cfg) => `hrs_saved_day = interactions / ${cfg.est_interactions_per_hour || 20}`,
+    calc: (d, cfg) => (d.user_initiated_interaction_count || 0) / (cfg.est_interactions_per_hour || 20) },
+  { key: 'loc', label: 'LoC-Based',
+    descFn: (cfg) => `${cfg.est_hrs_per_kloc || 2} hours saved per 1,000 LoC added`,
+    formulaFn: (cfg) => `hrs_saved_day = (loc_added / 1000) × ${cfg.est_hrs_per_kloc || 2}`,
+    calc: (d, cfg) => ((d.loc_added_sum || 0) / 1000) * (cfg.est_hrs_per_kloc || 2) },
+  { key: 'manual_daily_pct', label: 'Manual Daily %',
+    descFn: (cfg) => `${cfg.cfg_time_saved_pct_day != null ? (cfg.cfg_time_saved_pct_day * 100).toFixed(1) + '%' : '—'} × ${((cfg.cfg_pct_time_coding || 0.5) * 100).toFixed(0)}% coding time`,
+    formulaFn: () => 'hrs_saved_day = pct × coding_pct × baseline_hrs / workdays × active_devs',
+    calc: (d, cfg) => {
+      const p = cfg.cfg_time_saved_pct_day, b = cfg.cfg_baseline_hours_per_dev_per_week, w = cfg.cfg_workdays_per_week || 5;
+      const c = cfg.cfg_pct_time_coding || 0.5;
+      return (p != null && b != null) ? (p * c * b / w) * (d.daily_active_users || 0) : null;
+    }},
+];
+
+
+/* ── Agentic Estimation Methods ── */
+const AGENTIC_ESTIMATION_METHODS = [
+  { key: 'duration', label: 'Duration-Based',
+    descFn: (cfg) => `Agent PR duration × ${cfg.est_duration_factor || 2}`,
+    formulaFn: (cfg) => `hrs_saved = (merged_session_minutes / 60) × ${cfg.est_duration_factor || 2}`,
+    calc: (d, cfg) => ((d.merged_session_minutes || 0) / 60) * (cfg.est_duration_factor || 2),
+    calcTotal: (prSessions, cfg) => {
+      const multiplier = cfg.est_duration_factor || 2;
+      const totalMinutes = prSessions
+        .filter(pr => pr.duration_minutes != null)
+        .reduce((s, pr) => s + pr.duration_minutes, 0);
+      return totalMinutes * multiplier / 60;
+    }},
+  { key: 'loc', label: 'LoC-Based',
+    descFn: (cfg) => `${cfg.est_hrs_per_kloc || 2} hours per 1,000 LoC merged`,
+    formulaFn: (cfg) => `hrs_saved = (merged_loc_added / 1000) × ${cfg.est_hrs_per_kloc || 2}`,
+    calc: (d, cfg) => ((d.merged_loc_added || 0) / 1000) * (cfg.est_hrs_per_kloc || 2),
+    calcTotal: (prSessions, cfg) => {
+      const rate = cfg.est_hrs_per_kloc || 2;
+      return prSessions
+        .filter(pr => pr.merged)
+        .reduce((s, pr) => s + ((pr.additions || 0) + (pr.deletions || 0)) / 1000 * rate, 0);
+    }},
+];
+
+
+/* ── computeDerived — AI-Assisted days ── */
+function computeDerived(days, config, selectedMethod) {
+  const method = AI_ESTIMATION_METHODS.find(m => m.key === selectedMethod) || AI_ESTIMATION_METHODS[0];
+  return days.map(d => {
+    const dau = d.daily_active_users || 0;
+    const estimates = {};
+    for (const m of AI_ESTIMATION_METHODS) {
+      const raw = m.calc(d, config);
+      estimates['est_' + m.key + '_hrs_day'] = raw;
+      estimates['est_' + m.key + '_hrs_per_dev_day'] = safeDiv(raw, dau);
+    }
+    const selectedHrsDay = method.calc(d, config);
+    return {
+      ...d, ...estimates,
+      acceptance_rate: safeDiv(d.code_acceptance_activity_count, d.code_generation_activity_count),
+      time_saved_hours_total_day: selectedHrsDay,
+      time_saved_hours_per_dev_per_day: safeDiv(selectedHrsDay, dau),
+    };
+  });
+}
+
+
+/* ── computeAgenticDerived — Agentic days ── */
+function computeAgenticDerived(dayRows, config, selectedMethod) {
+  const method = AGENTIC_ESTIMATION_METHODS.find(m => m.key === selectedMethod) || AGENTIC_ESTIMATION_METHODS[0];
+  return dayRows.map(d => {
+    const devs = d.active_devs;
+    const estimates = {};
+    for (const m of AGENTIC_ESTIMATION_METHODS) {
+      const raw = m.calc(d, config);
+      estimates['est_' + m.key + '_hrs_day'] = raw;
+      estimates['est_' + m.key + '_hrs_per_dev_day'] = safeDiv(raw, devs);
+    }
+    const selectedHrsDay = method.calc(d, config);
+    return {
+      ...d, ...estimates,
+      agent_session_hours: (d.agent_session_minutes || 0) / 60,
+      time_saved_hours_total_day: selectedHrsDay,
+      time_saved_hours_per_dev_per_day: safeDiv(selectedHrsDay, devs),
+    };
+  });
+}
+
+
+/* ── computeAiAssistedMetrics — aggregate metrics ── */
+function computeAiAssistedMetrics(enrichedDays, structuralArt, config, aiMethod) {
+  if (!enrichedDays || !enrichedDays.length) return null;
+  const days = enrichedDays;
+  const n = days.length;
+  const totalDevs = config.cfg_total_developers || 100;
+  const pctTimeCoding = config.cfg_pct_time_coding || 0.5;
+  const avgDau = mean(days.map(d => d.daily_active_users));
+
+  const activeDevHours = days.reduce((s, d) => s + (d.daily_active_users || 0) * pctTimeCoding * 8, 0);
+
+  const strData = structuralArt?.data || [];
+  const hasPrData = strData.some(d => d.has_pr_data || d.total_prs > 0);
+  const totalCompletions = hasPrData
+    ? strData.reduce((s, d) => s + (d.total_prs || 0), 0)
+    : days.reduce((s, d) => s + (d.pr_total_created || 0), 0);
+
+  const method = AI_ESTIMATION_METHODS.find(m => m.key === aiMethod) || AI_ESTIMATION_METHODS[0];
+  const timeSaved = days.reduce((s, d) => s + (d['est_' + method.key + '_hrs_day'] || 0), 0);
+
+  const adoptionPct = safeDiv(avgDau, totalDevs);
+  const avgPrsAssisted = structuralArt?._periodPrsAssistedPct ?? mean(strData.map(d => d.prs_assisted_pct));
+  const avgLocPct = structuralArt?._periodLocAssistedPct ?? mean(strData.map(d => d.ai_assisted_loc_pct));
+
+  const factors = [
+    { key: 'adoption', label: 'Adoption', current: adoptionPct },
+    { key: 'prs_assisted', label: '% PRs Assisted', current: avgPrsAssisted },
+    { key: 'loc_assisted', label: '% AI-Assisted LOC', current: avgLocPct },
+  ];
+
+  return { activeDevHours, totalCompletions, timeSaved, factors, avgDau, n };
+}
+
+
+/* ── computeAgenticMetrics — aggregate metrics ── */
+function computeAgenticMetrics(enrichedDays, prSessions, config, agenticMethod) {
+  if (!enrichedDays || !enrichedDays.length) return null;
+  const days = enrichedDays;
+  const sessions = prSessions || [];
+  const n = days.length;
+  const totalDevs = config.cfg_total_developers || 100;
+  const totalRepos = config.cfg_total_repos;
+
+  const estMethod = AGENTIC_ESTIMATION_METHODS.find(m => m.key === agenticMethod) || AGENTIC_ESTIMATION_METHODS[0];
+
+  // Use PR sessions for total calculation when available, else day-level data
+  const activeDevHours = sessions.length > 0
+    ? estMethod.calcTotal(sessions, config)
+    : days.reduce((s, d) => s + (d['est_' + estMethod.key + '_hrs_day'] || 0), 0);
+
+  const totalMerged = sessions.length > 0
+    ? sessions.filter(pr => pr.merged).length
+    : days.reduce((s, d) => s + (d.agent_prs_merged || 0), 0);
+  const totalCreated = sessions.length > 0
+    ? sessions.length
+    : days.reduce((s, d) => s + (d.agent_prs_created || 0), 0);
+  const totalCompletions = totalMerged;
+
+  const avgActiveDevs = mean(days.map(d => d.active_devs));
+  const adoptionPct = safeDiv(avgActiveDevs, totalDevs);
+  const overallMergeRate = safeDiv(totalMerged, totalCreated);
+  const activeRepos = sessions.length > 0
+    ? new Set(sessions.map(pr => pr.repo).filter(Boolean)).size
+    : null;
+  const repoCoverage = totalRepos && activeRepos ? safeDiv(activeRepos, totalRepos) : null;
+
+  const factors = [
+    { key: 'adoption', label: 'Adoption', current: adoptionPct },
+    { key: 'merge_rate', label: 'Merge Rate', current: overallMergeRate },
+    { key: 'coverage', label: 'Repo Coverage', current: repoCoverage },
+  ];
+
+  return { activeDevHours, totalCompletions, timeSaved: activeDevHours, factors, totalMerged, totalCreated, avgActiveDevs, n };
+}
+
+
+/* ── computeElementAtMode — combined leverage projection ── */
+function computeElementAtMode(mode, aiMetrics, agenticMetrics, config) {
+  const elements = [];
+  const projCapAi = config.cfg_projection_cap_ai || 5;
+  const projCapAgentic = config.cfg_projection_cap_agentic || 9;
+
+  if (aiMetrics) {
+    let devHours, completions, chosenFactor = null;
+    const currentLeverage = safeDiv(aiMetrics.totalCompletions, aiMetrics.activeDevHours);
+    const leverageCap = (currentLeverage || 0) * projCapAi;
+
+    if (mode === 'none' || mode === 'current') {
+      devHours = aiMetrics.activeDevHours;
+      completions = aiMetrics.totalCompletions;
+    } else if (mode === 'unimproved') {
+      devHours = aiMetrics.activeDevHours + aiMetrics.timeSaved;
+      completions = aiMetrics.totalCompletions;
+    } else if (mode === 'projected_conservative' || mode === 'projected_aggressive') {
+      const validFactors = aiMetrics.factors.filter(f => f.current != null && f.current > 0 && f.current < 1);
+      if (validFactors.length > 0) {
+        const projections = validFactors.map(f => {
+          const potentialAdditional = aiMetrics.timeSaved * ((1 / f.current) - 1);
+          const improvedHours = Math.max(aiMetrics.activeDevHours - potentialAdditional, 0);
+          const leverage = safeDiv(aiMetrics.totalCompletions, improvedHours);
+          return { factor: f, potentialAdditional, improvedHours, leverage: leverage || 0 };
+        });
+        projections.sort((a, b) => a.leverage - b.leverage);
+        const capped = projections.filter(p => p.leverage <= leverageCap);
+        let pick;
+        if (mode === 'projected_conservative') {
+          pick = (capped.length > 0 ? capped[0] : projections[0]);
+        } else {
+          pick = (capped.length > 0 ? capped[capped.length - 1] : projections[0]);
+        }
+        devHours = pick.improvedHours;
+        completions = aiMetrics.totalCompletions;
+        chosenFactor = pick.factor.label;
+      } else {
+        devHours = aiMetrics.activeDevHours;
+        completions = aiMetrics.totalCompletions;
+      }
+    }
+    elements.push({ name: 'AI-Assisted Coding', color: '#58a6ff', rgbaFill: 'rgba(88,166,255,0.18)', devHours, completions, chosenFactor });
+  }
+
+  if (agenticMetrics) {
+    let devHours, completions, chosenFactor = null;
+    const currentLeverage = safeDiv(agenticMetrics.totalCompletions, agenticMetrics.activeDevHours);
+    const leverageCap = (currentLeverage || 0) * projCapAi;
+
+    if (mode === 'none' || mode === 'current') {
+      devHours = agenticMetrics.activeDevHours;
+      completions = agenticMetrics.totalCompletions;
+    } else if (mode === 'unimproved') {
+      devHours = 0;
+      completions = 0;
+    } else if (mode === 'projected_conservative' || mode === 'projected_aggressive') {
+      const validFactors = agenticMetrics.factors.filter(f => f.current != null && f.current > 0 && f.current < 1);
+      if (validFactors.length > 0) {
+        const projections = validFactors.map(f => {
+          const scaleFactor = 1 / f.current;
+          const projectedCompletions = Math.round(agenticMetrics.totalCompletions * scaleFactor);
+          const projectedDevHours = agenticMetrics.activeDevHours * scaleFactor;
+          const leverage = safeDiv(projectedCompletions, projectedDevHours);
+          return { factor: f, scaleFactor, projectedCompletions, projectedDevHours, leverage: leverage || 0 };
+        });
+        projections.sort((a, b) => a.scaleFactor - b.scaleFactor);
+        const capped = projections.filter(p => p.scaleFactor <= projCapAgentic);
+        let pick;
+        if (mode === 'projected_conservative') {
+          pick = (capped.length > 0 ? capped[0] : projections[0]);
+        } else {
+          pick = (capped.length > 0 ? capped[capped.length - 1] : projections[0]);
+        }
+        devHours = pick.projectedDevHours;
+        completions = pick.projectedCompletions;
+        chosenFactor = pick.factor.label;
+      } else {
+        devHours = agenticMetrics.activeDevHours;
+        completions = agenticMetrics.totalCompletions;
+      }
+    }
+    elements.push({ name: 'Agentic AI Coding', color: '#3fb950', rgbaFill: 'rgba(63,185,80,0.18)', devHours, completions, chosenFactor });
+  }
+
+  return elements;
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   REACT COMPONENTS
+   ═══════════════════════════════════════════════════════ */
+const { useState, useEffect, useRef, useMemo, useCallback } = React;
+
+/* ── Formatting helpers ── */
+const fmt = n => n == null ? '—' : Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+const fmtDec = (n, d=1) => n == null ? '—' : Number(n).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
+const fmtPct = n => n == null ? '—' : (n * 100).toFixed(1) + '%';
+const fmtPct0 = n => n == null ? '—' : Math.round(n * 100) + '%';
+const fmtCompact = n => {
+  if (n == null) return '—';
+  if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (Math.abs(n) >= 1e3) return (n / 1e3).toFixed(1) + 'k';
+  return Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+};
+const fmtCurrency = n => {
+  if (n == null) return '—';
+  if (Math.abs(n) >= 1e6) return '$' + (n / 1e6).toFixed(1) + 'M';
+  if (Math.abs(n) >= 1e3) return '$' + (n / 1e3).toFixed(1) + 'k';
+  return '$' + Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+};
+
+/* ── Highcharts wrapper ── */
+function Chart({ options, className = 'chart-container' }) {
+  const ref = useRef(null);
+  const chartRef = useRef(null);
+  useEffect(() => {
+    if (ref.current) chartRef.current = Highcharts.chart(ref.current, options);
+    return () => { if (chartRef.current) chartRef.current.destroy(); };
+  }, [JSON.stringify(options)]);
+  return <div ref={ref} className={className} />;
+}
+
+/* ── KPI Card ── */
+function KpiCard({ label, value, unit, sub, color, hero }) {
+  return (
+    <div className={`Box p-3 kpi-card${hero ? ' kpi-hero' : ''}`}>
+      <div className="kpi-label color-fg-muted mb-1">{label}</div>
+      <div className="kpi-value" style={color ? { color } : {}}>
+        {value}{unit && <span className="kpi-unit">{unit}</span>}
+      </div>
+      {sub && <div className="kpi-sub color-fg-muted mt-1">{sub}</div>}
+    </div>
+  );
+}
+
+/* ── Section Header ── */
+function SectionHeader({ title, desc, right }) {
+  return (
+    <div className="mb-3 pb-2 d-flex flex-items-end flex-justify-between" style={{ borderBottom: '1px solid var(--borderColor-default)', borderTop: '2px solid var(--borderColor-muted)', paddingTop: '12px' }}>
+      <div>
+        <h2 className="f2 color-fg-accent">{title}</h2>
+        {desc && <p className="f6 color-fg-muted">{desc}</p>}
+      </div>
+      {right && <div>{right}</div>}
+    </div>
+  );
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   SOURCE SUMMARY
+   ═══════════════════════════════════════════════════════ */
+function SourceSummary({ aiEff, aiStr, agEff, agSess }) {
+  const parts = [];
+  const missing = [];
+
+  if (aiEff?.data?.length) {
+    const n = aiEff.data.length;
+    const sorted = [...aiEff.data].sort((a,b) => (a.day||'').localeCompare(b.day||''));
+    parts.push(`AI-Assisted Efficiency: ${n} days (${sorted[0].day} → ${sorted[n-1].day})`);
+  } else { missing.push('AI-Assisted Efficiency'); }
+
+  if (aiStr?.data?.length) {
+    parts.push(`Structural: ${aiStr.data.length} days`);
+  } else { missing.push('AI-Assisted Structural'); }
+
+  if (agEff?.data?.length) {
+    const n = agEff.data.length;
+    const sorted = [...agEff.data].sort((a,b) => (a.day||'').localeCompare(b.day||''));
+    parts.push(`Agentic: ${n} days (${sorted[0].day} → ${sorted[n-1].day})`);
+  } else { missing.push('Agentic Efficiency'); }
+
+  if (agSess?.data?.length) {
+    parts.push(`${agSess.data.length} PR sessions`);
+  } else { missing.push('Agentic PR Sessions'); }
+
+  return (
+    <div className={`flash ${missing.length ? 'flash-warn' : 'flash-success'} f6 mb-3`}>
+      {missing.length === 0 ? '✅' : '⚠️'} Artifacts loaded · {parts.join(' · ')}
+      {missing.length > 0 && <span className="color-fg-attention"> · Missing: {missing.join(', ')}</span>}
+    </div>
+  );
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   SUMMARY KPIs
+   ═══════════════════════════════════════════════════════ */
+function SummarySection({ aiDays, agDays, config, aiMethod, agenticMethod }) {
+  const aiTotal = aiDays ? aiDays.reduce((s, d) => s + (d.time_saved_hours_total_day || 0), 0) : 0;
+  const agTotal = agDays ? agDays.reduce((s, d) => s + (d.time_saved_hours_total_day || 0), 0) : 0;
+  const combined = aiTotal + agTotal;
+  const laborCost = config.cfg_labor_cost_per_hour != null ? combined * config.cfg_labor_cost_per_hour : null;
+
+  const aiN = aiDays?.length || 0;
+  const agN = agDays?.length || 0;
+  const aiAvgDau = aiDays ? mean(aiDays.map(d => d.daily_active_users)) : null;
+  const agAvgDevs = agDays ? mean(agDays.map(d => d.active_devs)) : null;
+
+  return (
+    <div className="section-row">
+      <SectionHeader title="Summary" desc="Combined efficiency impact across AI-assisted and agentic coding" />
+      <div className="d-flex flex-wrap" style={{ gap: '12px', alignItems: 'stretch' }}>
+        <div style={{ flex: '0 0 220px' }}>
+          <KpiCard hero label="Combined Hours Saved" value={fmtDec(combined, 0)} unit="hrs"
+            sub={laborCost != null ? `${fmtCurrency(laborCost)} economic value` : 'set labor cost in config'} color="#3fb950" />
+        </div>
+        <div style={{ flex: '1 1 0', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px' }}>
+          <KpiCard label="AI-Assisted Hrs" value={fmtDec(aiTotal, 0)} unit="hrs"
+            sub={aiN > 0 ? `${aiN} days · ${fmt(Math.round(aiAvgDau || 0))} avg devs` : 'no data'} color="#58a6ff" />
+          <KpiCard label="Agentic Hrs" value={fmtDec(agTotal, 0)} unit="hrs"
+            sub={agN > 0 ? `${agN} days · ${fmt(Math.round(agAvgDevs || 0))} avg devs` : 'no data'} color="#3fb950" />
+          <KpiCard label="AI-Assisted Share" value={fmtPct0(safeDiv(aiTotal, combined))}
+            sub={`vs ${fmtPct0(safeDiv(agTotal, combined))} agentic`} />
+          <KpiCard label="Economic Value" value={fmtCurrency(laborCost)}
+            sub={laborCost != null ? `at $${config.cfg_labor_cost_per_hour}/hr` : 'set labor cost in config'} color="#d29922" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   AI-ASSISTED TAB
+   ═══════════════════════════════════════════════════════ */
+function AiAssistedTab({ days, structuralArt, config, method, onMethodChange }) {
+  if (!days || !days.length) return <div className="Box p-4 text-center color-fg-muted f5">No AI-Assisted data available</div>;
+
+  const n = days.length;
+  const methodDef = AI_ESTIMATION_METHODS.find(m => m.key === method) || AI_ESTIMATION_METHODS[0];
+  const needsCfg = method === 'manual_daily_pct' && (config.cfg_time_saved_pct_day == null || config.cfg_baseline_hours_per_dev_per_week == null);
+
+  const totalHrs = days.reduce((s, d) => s + (d.time_saved_hours_total_day || 0), 0);
+  const avgHrsPerDev = (() => { const v = days.map(d => d.time_saved_hours_per_dev_per_day).filter(v => v != null); return v.length ? v.reduce((a,b)=>a+b,0)/v.length : null; })();
+  const avgDau = Math.round(days.reduce((s, d) => s + (d.daily_active_users || 0), 0) / n);
+  const laborCost = config.cfg_labor_cost_per_hour != null ? totalHrs * config.cfg_labor_cost_per_hour : null;
+
+  // Structural metrics from artifact
+  const strData = structuralArt?.data || [];
+  const totalDevs = config.cfg_total_developers || 100;
+  const adoptionPct = safeDiv(avgDau, totalDevs);
+  const prsAssistedPct = structuralArt?._periodPrsAssistedPct ?? mean(strData.map(d => d.prs_assisted_pct));
+  const locAssistedPct = structuralArt?._periodLocAssistedPct ?? mean(strData.map(d => d.ai_assisted_loc_pct));
+
+  const chartOpts = needsCfg ? null : {
+    chart: { type: 'areaspline', height: 280 },
+    title: { text: null },
+    subtitle: { text: methodDef.label + ': ' + methodDef.descFn(config) },
+    xAxis: { categories: days.map(d => d.day), labels: { rotation: -45, style: { fontSize: '10px' } } },
+    yAxis: [
+      { title: { text: 'Hrs / Dev / Day' }, min: 0 },
+      { title: { text: 'Total Hrs' }, opposite: true, min: 0 },
+    ],
+    tooltip: { shared: true, valueDecimals: 1 },
+    legend: { symbolWidth: 16 },
+    series: [
+      { name: 'Avg Hrs / Dev / Day', data: days.map(d => d.time_saved_hours_per_dev_per_day), yAxis: 0, color: '#58a6ff', fillOpacity: 0.08, marker: { radius: 2 } },
+      { name: 'Org Total Hrs', data: days.map(d => d.time_saved_hours_total_day != null ? Math.round(d.time_saved_hours_total_day * 10) / 10 : null), type: 'column', yAxis: 1, color: '#3fb950', opacity: 0.7, pointPadding: 0.1 },
+    ],
+  };
+
+  return (
+    <div>
+      {/* KPIs */}
+      <div className="d-flex flex-wrap mb-3" style={{ gap: '12px', alignItems: 'stretch' }}>
+        <div style={{ flex: '1 1 140px' }}><KpiCard label="Total Hrs Saved" value={fmtDec(totalHrs, 0)} unit="hrs" sub={`${n} days`} color="#58a6ff" /></div>
+        <div style={{ flex: '1 1 140px' }}><KpiCard label="Hrs / Dev / Day" value={fmtDec(avgHrsPerDev, 2)} unit="hrs" sub={`${avgDau} avg DAU`} /></div>
+        <div style={{ flex: '1 1 140px' }}><KpiCard label="Adoption" value={fmtPct(adoptionPct)} sub={`${avgDau} of ${totalDevs} devs`} /></div>
+        <div style={{ flex: '1 1 140px' }}><KpiCard label="PRs Assisted" value={fmtPct(prsAssistedPct)} sub="period aggregate" color="#d29922" /></div>
+        <div style={{ flex: '1 1 140px' }}><KpiCard label="LoC Assisted" value={fmtPct(locAssistedPct)} sub="period aggregate" color="#bc8cff" /></div>
+      </div>
+
+      {/* Method selector */}
+      <div className="d-flex flex-items-center mb-3" style={{ gap: '8px' }}>
+        <span className="f6 color-fg-muted">Method:</span>
+        <select className="form-select form-select-sm" value={method} onChange={e => onMethodChange(e.target.value)}
+          style={{ width: 'auto', background: 'var(--bgColor-muted)', color: 'var(--fgColor-default)', border: '1px solid var(--borderColor-default)' }}>
+          {AI_ESTIMATION_METHODS.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
+        </select>
+      </div>
+
+      {/* Chart */}
+      {needsCfg ? (
+        <div className="Box p-4 text-center">
+          <p className="f5 color-fg-muted">Manual Daily % method requires configuration. Open the Configuration panel or switch methods.</p>
+        </div>
+      ) : (
+        <div className="Box p-3"><Chart options={chartOpts} className="chart-container-sm" /></div>
+      )}
+    </div>
+  );
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   AGENTIC TAB
+   ═══════════════════════════════════════════════════════ */
+function AgenticTab({ days, prSessions, config, method, onMethodChange }) {
+  if (!days || !days.length) return <div className="Box p-4 text-center color-fg-muted f5">No Agentic data available</div>;
+
+  const n = days.length;
+  const methodDef = AGENTIC_ESTIMATION_METHODS.find(m => m.key === method) || AGENTIC_ESTIMATION_METHODS[0];
+
+  const totalHrs = days.reduce((s, d) => s + (d.time_saved_hours_total_day || 0), 0);
+  const avgHrsPerDev = (() => { const v = days.map(d => d.time_saved_hours_per_dev_per_day).filter(v => v != null); return v.length ? v.reduce((a,b)=>a+b,0)/v.length : null; })();
+  const avgDevs = Math.round(days.reduce((s, d) => s + (d.active_devs || 0), 0) / n);
+
+  const sessions = prSessions || [];
+  const totalMerged = sessions.length > 0
+    ? sessions.filter(pr => pr.merged).length
+    : days.reduce((s, d) => s + (d.agent_prs_merged || 0), 0);
+  const totalCreated = sessions.length > 0
+    ? sessions.length
+    : days.reduce((s, d) => s + (d.agent_prs_created || 0), 0);
+  const mergeRate = safeDiv(totalMerged, totalCreated);
+
+  const chartOpts = {
+    chart: { type: 'areaspline', height: 280 },
+    title: { text: null },
+    subtitle: { text: methodDef.label + ': ' + methodDef.descFn(config) },
+    xAxis: { categories: days.map(d => d.day), labels: { rotation: -45, style: { fontSize: '10px' } } },
+    yAxis: [
+      { title: { text: 'Hrs / Dev / Day' }, min: 0 },
+      { title: { text: 'Total Hrs' }, opposite: true, min: 0 },
+    ],
+    tooltip: { shared: true, valueDecimals: 1 },
+    legend: { symbolWidth: 16 },
+    series: [
+      { name: 'Avg Hrs / Dev / Day', data: days.map(d => d.time_saved_hours_per_dev_per_day), yAxis: 0, color: '#3fb950', fillOpacity: 0.08, marker: { radius: 2 } },
+      { name: 'Org Total Hrs', data: days.map(d => d.time_saved_hours_total_day != null ? Math.round(d.time_saved_hours_total_day * 10) / 10 : null), type: 'column', yAxis: 1, color: '#58a6ff', opacity: 0.7, pointPadding: 0.1 },
+    ],
+  };
+
+  return (
+    <div>
+      {/* KPIs */}
+      <div className="d-flex flex-wrap mb-3" style={{ gap: '12px', alignItems: 'stretch' }}>
+        <div style={{ flex: '1 1 140px' }}><KpiCard label="Human Hrs Saved" value={fmtDec(totalHrs, 0)} unit="hrs" sub={`${n} days`} color="#3fb950" /></div>
+        <div style={{ flex: '1 1 140px' }}><KpiCard label="Hrs / Dev / Day" value={fmtDec(avgHrsPerDev, 2)} unit="hrs" sub={`${avgDevs} avg devs`} /></div>
+        <div style={{ flex: '1 1 140px' }}><KpiCard label="PRs Created" value={fmtCompact(totalCreated)} sub={fmtDec(safeDiv(totalCreated, n), 1) + ' / day'} /></div>
+        <div style={{ flex: '1 1 140px' }}><KpiCard label="PRs Merged" value={fmtCompact(totalMerged)} sub={mergeRate != null ? fmtPct(mergeRate) + ' merge rate' : ''} color="#d29922" /></div>
+      </div>
+
+      {/* Method selector */}
+      <div className="d-flex flex-items-center mb-3" style={{ gap: '8px' }}>
+        <span className="f6 color-fg-muted">Method:</span>
+        <select className="form-select form-select-sm" value={method} onChange={e => onMethodChange(e.target.value)}
+          style={{ width: 'auto', background: 'var(--bgColor-muted)', color: 'var(--fgColor-default)', border: '1px solid var(--borderColor-default)' }}>
+          {AGENTIC_ESTIMATION_METHODS.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
+        </select>
+      </div>
+
+      {/* Chart */}
+      <div className="Box p-3"><Chart options={chartOpts} className="chart-container-sm" /></div>
+    </div>
+  );
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   COMBINED IMPACT — overlay chart
+   ═══════════════════════════════════════════════════════ */
+function CombinedImpactSection({ aiDays, agDays }) {
+  const [viewMode, setViewMode] = useState('combined');
+  const hasAi = aiDays && aiDays.length > 0;
+  const hasAg = agDays && agDays.length > 0;
+  if (!hasAi && !hasAg) return null;
+
+  // Build union of dates
+  const dateSet = new Set();
+  if (hasAi) aiDays.forEach(d => dateSet.add(d.day));
+  if (hasAg) agDays.forEach(d => dateSet.add(d.day));
+  const allDates = [...dateSet].sort();
+
+  const aiByDay = {};
+  const agByDay = {};
+  if (hasAi) aiDays.forEach(d => { aiByDay[d.day] = d; });
+  if (hasAg) agDays.forEach(d => { agByDay[d.day] = d; });
+
+  function renderCombinedView() {
+    const series = [];
+    if (hasAi) {
+      series.push({
+        name: 'AI-Assisted Hrs Saved',
+        data: allDates.map(d => aiByDay[d]?.time_saved_hours_total_day ?? null),
+        color: '#58a6ff', type: 'areaspline', fillOpacity: 0.08, marker: { radius: 2 },
+      });
+    }
+    if (hasAg) {
+      series.push({
+        name: 'Agentic Hrs Saved',
+        data: allDates.map(d => agByDay[d]?.time_saved_hours_total_day ?? null),
+        color: '#3fb950', type: 'areaspline', fillOpacity: 0.08, marker: { radius: 2 },
+      });
+    }
+    if (hasAi && hasAg) {
+      series.push({
+        name: 'Combined Total',
+        data: allDates.map(d => {
+          const ai = aiByDay[d]?.time_saved_hours_total_day;
+          const ag = agByDay[d]?.time_saved_hours_total_day;
+          if (ai == null && ag == null) return null;
+          return (ai || 0) + (ag || 0);
+        }),
+        color: '#d29922', type: 'spline', dashStyle: 'ShortDash', lineWidth: 2, marker: { radius: 3, symbol: 'diamond' },
+      });
+    }
+
+    return (
+      <div className="Box p-3">
+        <Chart options={{
+          chart: { type: 'spline', height: 340 },
+          title: { text: null },
+          subtitle: { text: 'Daily hours saved from both AI-assisted and agentic coding' },
+          xAxis: { categories: allDates, labels: { rotation: -45, style: { fontSize: '10px' } } },
+          yAxis: { title: { text: 'Hours Saved' }, min: 0 },
+          tooltip: { shared: true, valueDecimals: 1 },
+          legend: { symbolWidth: 16 },
+          series,
+        }} />
+      </div>
+    );
+  }
+
+  function renderGridView() {
+    const charts = [];
+    if (hasAi) {
+      charts.push(
+        <div key="ai" className="Box p-3">
+          <Chart options={{
+            chart: { type: 'areaspline', height: 220 },
+            title: { text: 'AI-Assisted Hrs Saved', style: { fontSize: '13px' } },
+            xAxis: { categories: aiDays.map(d => d.day), labels: { rotation: -45, style: { fontSize: '9px' } }, tickInterval: Math.max(1, Math.floor(aiDays.length / 8)) },
+            yAxis: { title: { text: null }, min: 0 },
+            tooltip: { shared: true, valueDecimals: 1 },
+            legend: { enabled: false },
+            series: [{ name: 'Hrs Saved', data: aiDays.map(d => d.time_saved_hours_total_day), color: '#58a6ff', fillOpacity: 0.08, marker: { radius: 2 } }],
+          }} className="chart-container-sm" />
+        </div>
+      );
+    }
+    if (hasAg) {
+      charts.push(
+        <div key="ag" className="Box p-3">
+          <Chart options={{
+            chart: { type: 'areaspline', height: 220 },
+            title: { text: 'Agentic Hrs Saved', style: { fontSize: '13px' } },
+            xAxis: { categories: agDays.map(d => d.day), labels: { rotation: -45, style: { fontSize: '9px' } }, tickInterval: Math.max(1, Math.floor(agDays.length / 8)) },
+            yAxis: { title: { text: null }, min: 0 },
+            tooltip: { shared: true, valueDecimals: 1 },
+            legend: { enabled: false },
+            series: [{ name: 'Hrs Saved', data: agDays.map(d => d.time_saved_hours_total_day), color: '#3fb950', fillOpacity: 0.08, marker: { radius: 2 } }],
+          }} className="chart-container-sm" />
+        </div>
+      );
+    }
+    return <div className="drivers-grid">{charts}</div>;
+  }
+
+  return (
+    <div className="section-row">
+      <SectionHeader title="Combined Impact" desc="AI-assisted and agentic time savings on the same timeline"
+        right={
+          <div className="view-toggle">
+            <button className={viewMode === 'combined' ? 'active' : ''} onClick={() => setViewMode('combined')}>Combined</button>
+            <button className={viewMode === 'grid' ? 'active' : ''} onClick={() => setViewMode('grid')}>Grid</button>
+          </div>
+        } />
+      {viewMode === 'combined' ? renderCombinedView() : renderGridView()}
+    </div>
+  );
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   ELEMENT VIEW — Leverage Rectangle
+   ═══════════════════════════════════════════════════════ */
+
+const MODES = [
+  { key: 'none', label: 'Current Only' },
+  { key: 'unimproved', label: 'Unimproved' },
+  { key: 'current', label: 'Current' },
+  { key: 'projected_conservative', label: 'Projected (Conservative)' },
+  { key: 'projected_aggressive', label: 'Projected (Aggressive)' },
+];
+
+function ModeSelector({ mode, onModeChange }) {
+  return (
+    <div className="d-flex flex-wrap mb-3" style={{ gap: '8px' }}>
+      {MODES.map(m => (
+        <button key={m.key}
+          className={`btn mode-btn${m.key === mode ? ' btn-primary' : ''}`}
+          onClick={() => onModeChange(m.key)}>
+          {m.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ElementSection({ aiDays, agDays, structuralArt, prSessions, config, aiMethod, agenticMethod }) {
+  const [mode, setMode] = useState('none');
+
+  const aiMetrics = useMemo(() => computeAiAssistedMetrics(aiDays, structuralArt, config, aiMethod), [aiDays, structuralArt, config, aiMethod]);
+  const agenticMetrics = useMemo(() => computeAgenticMetrics(agDays, prSessions, config, agenticMethod), [agDays, prSessions, config, agenticMethod]);
+
+  const elements = useMemo(() => computeElementAtMode(mode, aiMetrics, agenticMetrics, config), [mode, aiMetrics, agenticMetrics, config]);
+
+  // Fixed axis scales across all modes
+  const { fixedXMax, fixedYMax } = useMemo(() => {
+    const allModes = ['none', 'current', 'unimproved', 'projected_conservative', 'projected_aggressive'];
+    let maxW = 0, maxH = 0;
+    for (const m of allModes) {
+      const els = computeElementAtMode(m, aiMetrics, agenticMetrics, config);
+      const w = els.reduce((s, e) => s + (e.devHours || 0), 0);
+      const h = els.reduce((s, e) => s + (e.completions || 0), 0);
+      if (w > maxW) maxW = w;
+      if (h > maxH) maxH = h;
+    }
+    return { fixedXMax: maxW > 0 ? maxW * 1.1 : 10, fixedYMax: maxH > 0 ? maxH * 1.1 : 10 };
+  }, [aiMetrics, agenticMetrics, config]);
+
+  const totalDevHours = elements.reduce((s, e) => s + (e.devHours || 0), 0);
+  const totalCompletions = elements.reduce((s, e) => s + (e.completions || 0), 0);
+  const integratedLeverage = safeDiv(totalCompletions, totalDevHours);
+  const modeLabel = MODES.find(m => m.key === mode)?.label || mode;
+
+  // Build chart series
+  const series = [];
+
+  if (mode === 'none') {
+    if (totalDevHours > 0 && totalCompletions > 0) {
+      series.push({
+        type: 'polygon', name: 'Integrated Leverage',
+        data: [[0, 0], [totalDevHours, 0], [totalDevHours, totalCompletions], [0, totalCompletions]],
+        color: 'rgba(88,166,255,0.12)', lineWidth: 2, lineColor: '#58a6ff',
+        enableMouseTracking: true,
+        tooltip: { headerFormat: '', pointFormat: `<b>Integrated</b><br/>Dev-Hours: ${fmtCompact(totalDevHours)}<br/>Completions: ${fmtCompact(totalCompletions)}<br/>Leverage: ${fmtDec(integratedLeverage, 3)}` },
+      });
+      series.push({
+        type: 'line', name: `Leverage = ${fmtDec(integratedLeverage, 3)}`,
+        data: [[0, 0], [totalDevHours, totalCompletions]],
+        color: '#d29922', dashStyle: 'Dash', lineWidth: 2,
+        marker: { enabled: true, radius: 5, symbol: 'circle' },
+        enableMouseTracking: false,
+      });
+    }
+  } else {
+    // Integrated outer rectangle
+    if (totalDevHours > 0 && totalCompletions > 0) {
+      series.push({
+        type: 'polygon', name: 'Integrated boundary',
+        data: [[0, 0], [totalDevHours, 0], [totalDevHours, totalCompletions], [0, totalCompletions]],
+        color: 'rgba(255,255,255,0.02)', lineWidth: 2, lineColor: '#8b949e', dashStyle: 'ShortDash',
+        enableMouseTracking: false,
+      });
+    }
+
+    // Element sub-rectangles side-by-side
+    let xOffset = 0;
+    for (const elem of elements) {
+      const w = elem.devHours || 0;
+      const h = elem.completions || 0;
+      if (w > 0 && h > 0) {
+        series.push({
+          type: 'polygon', name: elem.name,
+          data: [[xOffset, 0], [xOffset + w, 0], [xOffset + w, h], [xOffset, h]],
+          color: elem.rgbaFill, lineWidth: 2, lineColor: elem.color,
+          enableMouseTracking: true,
+          tooltip: { headerFormat: '', pointFormat: `<b>${elem.name}</b><br/>Dev-Hours: ${fmtCompact(w)}<br/>Completions: ${fmtCompact(h)}<br/>Leverage: ${fmtDec(safeDiv(h, w), 3)}${elem.chosenFactor ? '<br/>Structural factor: ' + elem.chosenFactor + ' → 100%' : ''}` },
+        });
+        const elemLev = safeDiv(h, w);
+        series.push({
+          type: 'line', name: `${elem.name} leverage = ${fmtDec(elemLev, 3)}`,
+          data: [[xOffset, 0], [xOffset + w, h]],
+          color: elem.color, dashStyle: 'ShortDot', lineWidth: 1,
+          marker: { enabled: true, radius: 3, symbol: 'diamond' },
+          enableMouseTracking: false,
+        });
+      } else if (w === 0 && h === 0 && mode === 'unimproved' && elem.name === 'Agentic AI Coding') {
+        series.push({
+          type: 'scatter', name: `${elem.name} (counterfactual: zero)`,
+          data: [{ x: xOffset, y: 0 }],
+          color: elem.color,
+          marker: { radius: 8, symbol: 'circle', lineWidth: 2, lineColor: elem.color, fillColor: 'rgba(63,185,80,0.3)' },
+          tooltip: { headerFormat: '', pointFormat: `<b>${elem.name} (Counterfactual)</b><br/>Without the agent: 0 completions, 0 dev-hours<br/>This is purely additive capacity.` },
+        });
+      }
+      xOffset += w;
+    }
+
+    // Combined leverage slope
+    if (totalDevHours > 0 && totalCompletions > 0) {
+      series.push({
+        type: 'line', name: `Combined leverage = ${fmtDec(integratedLeverage, 3)}`,
+        data: [[0, 0], [totalDevHours, totalCompletions]],
+        color: '#d29922', dashStyle: 'Dash', lineWidth: 2,
+        marker: { enabled: true, radius: 5, symbol: 'circle' },
+        enableMouseTracking: false,
+      });
+    }
+  }
+
+  const chartOpts = {
+    chart: { type: 'scatter', height: 500 },
+    title: { text: 'Integrated Leverage Rectangle' },
+    subtitle: { text: `Mode: ${modeLabel} · Element sub-rectangles positioned side-by-side` },
+    xAxis: {
+      title: { text: 'Dev-Hours (width)', style: { fontSize: '13px', fontWeight: '600' } },
+      min: 0, max: fixedXMax > 0 ? fixedXMax : 10, gridLineWidth: 1,
+      labels: { formatter: function() { return fmtCompact(this.value); } },
+    },
+    yAxis: {
+      title: { text: 'Completions (height)', style: { fontSize: '13px', fontWeight: '600' } },
+      min: 0, max: fixedYMax > 0 ? fixedYMax : 10,
+      labels: { formatter: function() { return fmtCompact(this.value); } },
+    },
+    tooltip: { useHTML: true, headerFormat: '' },
+    legend: { enabled: true, align: 'center', verticalAlign: 'bottom' },
+    plotOptions: { series: { animation: { duration: 600 }, states: { inactive: { opacity: 0.6 } } } },
+    series,
+  };
+
+  return (
+    <div className="section-row">
+      <SectionHeader title="Element View" desc="Leverage rectangle — completions per dev-hour across projection modes" />
+
+      <ModeSelector mode={mode} onModeChange={setMode} />
+
+      {/* KPI row */}
+      <div className="d-flex flex-wrap mb-3" style={{ gap: '12px' }}>
+        <div style={{ flex: '1 1 140px' }}><KpiCard label="Total Dev-Hours" value={fmtCompact(totalDevHours)} sub="sum across elements" /></div>
+        <div style={{ flex: '1 1 140px' }}><KpiCard label="Total Completions" value={fmtCompact(totalCompletions)} sub="sum across elements" /></div>
+        <div style={{ flex: '0 0 200px' }}>
+          <KpiCard hero label="Integrated Leverage" value={fmtDec(integratedLeverage, 3)} sub="total completions / dev-hours" color="#3fb950" />
+        </div>
+        <div style={{ flex: '1 1 140px' }}><KpiCard label="Mode" value={modeLabel} sub="current view" /></div>
+        {elements.map(e => (
+          <div key={e.name} style={{ flex: '1 1 140px' }}>
+            <KpiCard label={e.name} value={fmtCompact(e.completions || 0)} unit="comp"
+              sub={`${fmtCompact(e.devHours || 0)} hrs · lev ${fmtDec(safeDiv(e.completions, e.devHours), 3)}`}
+              color={e.color} />
+          </div>
+        ))}
+      </div>
+
+      {/* Chart */}
+      <div className="Box p-3">
+        <Chart options={chartOpts} />
+      </div>
+    </div>
+  );
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   CONFIG PANEL
+   ═══════════════════════════════════════════════════════ */
+function ConfigPanel({ config, onApply, isOpen, onToggle, aiMethod, onAiMethodChange, agenticMethod, onAgenticMethodChange }) {
+  const [cfg, setCfg] = useState(config);
+  useEffect(() => setCfg(config), [config]);
+  const set = (k, v) => setCfg(prev => ({ ...prev, [k]: v }));
+  const apply = () => onApply(cfg);
+
+  const fields = [
+    { section: 'Organization', items: [
+      { key: 'cfg_total_developers', label: 'Total Developers', type: 'number' },
+      { key: 'cfg_labor_cost_per_hour', label: 'Labor Cost $/hr', type: 'number' },
+      { key: 'cfg_workdays_per_week', label: 'Workdays / Week', type: 'number' },
+      { key: 'cfg_total_repos', label: 'Total Repos', type: 'number' },
+    ]},
+    { section: 'AI-Assisted Estimation', items: [
+      { key: 'est_interactions_per_hour', label: 'Interactions per Hour Saved', type: 'number' },
+      { key: 'est_hrs_per_kloc', label: 'Hrs Saved per 1K LoC', type: 'number', step: '0.5' },
+    ]},
+    { section: 'Manual Daily % Parameters', items: [
+      { key: 'cfg_time_saved_pct_day', label: 'Time Saved % (0–1)', type: 'number', step: '0.01' },
+      { key: 'cfg_baseline_hours_per_dev_per_week', label: 'Baseline Hrs / Dev / Week', type: 'number' },
+      { key: 'cfg_pct_time_coding', label: '% Time Coding (0–1)', type: 'number', step: '0.05' },
+    ]},
+    { section: 'Agentic Estimation', items: [
+      { key: 'est_duration_factor', label: 'Duration Multiplier (agent→human hours)', type: 'number', step: '1' },
+    ]},
+    { section: 'Projection Caps', items: [
+      { key: 'cfg_projection_cap_ai', label: 'AI Leverage Cap (×)', type: 'number', step: '1' },
+      { key: 'cfg_projection_cap_agentic', label: 'Agentic Scale Cap (×)', type: 'number', step: '1' },
+    ]},
+  ];
+
+  const summary = `${cfg.cfg_total_developers} devs · ×${cfg.est_duration_factor || 2} agent · ${cfg.est_interactions_per_hour || 20} int/hr`;
+
+  return (
+    <div className="Box mt-4" style={{ borderColor: isOpen ? 'var(--borderColor-accent-emphasis)' : undefined }}>
+      <div className="Box-header d-flex flex-items-center flex-justify-between" style={{ cursor: 'pointer' }} onClick={onToggle}>
+        <div className="d-flex flex-items-center" style={{ gap: '8px' }}>
+          <span style={{ transition: 'transform 0.15s', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', display: 'inline-block' }}>▶</span>
+          <h4 className="f5 mb-0">Configuration</h4>
+        </div>
+        <span className="f6 color-fg-muted">{summary}</span>
+      </div>
+      {isOpen && (
+        <div className="Box-body">
+          {fields.map(section => (
+            <div key={section.section} className="mb-3">
+              <h5 className="f6 color-fg-muted text-bold mb-2">{section.section}</h5>
+              <div className="d-flex flex-wrap" style={{ gap: '12px', alignItems: 'flex-end' }}>
+                {section.items.map(f => (
+                  <div key={f.key} className="form-group mb-0" style={{ flex: '1 1 160px' }}>
+                    <label className="f6 color-fg-muted">{f.label}</label>
+                    <input type={f.type} className="form-control input-sm" step={f.step || '1'}
+                      value={cfg[f.key] ?? ''} onChange={e => set(f.key, e.target.value === '' ? null : parseFloat(e.target.value))} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          <div className="mb-3">
+            <h5 className="f6 color-fg-muted text-bold mb-2">AI-Assisted Time Saved Method</h5>
+            <div className="d-flex flex-wrap" style={{ gap: '8px' }}>
+              {AI_ESTIMATION_METHODS.map(m => (
+                <button key={m.key} className={`btn btn-sm${m.key === aiMethod ? ' btn-primary' : ''}`}
+                  onClick={() => onAiMethodChange(m.key)}>{m.label}</button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mb-3">
+            <h5 className="f6 color-fg-muted text-bold mb-2">Agentic Dev-Hours Method</h5>
+            <div className="d-flex flex-wrap" style={{ gap: '8px' }}>
+              {AGENTIC_ESTIMATION_METHODS.map(m => (
+                <button key={m.key} className={`btn btn-sm${m.key === agenticMethod ? ' btn-primary' : ''}`}
+                  onClick={() => onAgenticMethodChange(m.key)}>{m.label}</button>
+              ))}
+            </div>
+          </div>
+
+          <div className="d-flex flex-items-center mt-3" style={{ gap: '8px' }}>
+            <button className="btn btn-sm btn-primary" onClick={apply}>Apply & Recalculate</button>
+            <button className="btn btn-sm btn-outline" onClick={() => {
+              const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: 'application/json' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a'); a.href = url; a.download = 'integrated-config.json'; a.click();
+              URL.revokeObjectURL(url);
+            }}>💾 Save config.json</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   APP
+   ═══════════════════════════════════════════════════════ */
+function App() {
+  const [rawArts, setRawArts] = useState(null);
+  const [aiDays, setAiDays] = useState(null);
+  const [aiBaseDays, setAiBaseDays] = useState(null);
+  const [agDays, setAgDays] = useState(null);
+  const [agBaseDays, setAgBaseDays] = useState(null);
+  const [config, setConfig] = useState({ ...DEFAULT_CONFIG });
+  const [configOpen, setConfigOpen] = useState(false);
+  const [aiMethod, setAiMethod] = useState('interactions');
+  const [agenticMethod, setAgenticMethod] = useState('duration');
+  const [activeTab, setActiveTab] = useState('ai');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Auto-load materialized artifacts on mount
+  useEffect(() => {
+    fetchArtifacts().then(arts => {
+      if (!arts) {
+        setError('No materialized artifacts found.');
+        setLoading(false);
+        return;
+      }
+      setRawArts(arts);
+
+      // AI-Assisted efficiency days
+      let baseDaysAi = null;
+      if (arts.aiEff?.data?.length) {
+        baseDaysAi = [...arts.aiEff.data].sort((a, b) => (a.day||'').localeCompare(b.day||''));
+        const enriched = computeDerived(baseDaysAi, DEFAULT_CONFIG, 'interactions');
+        setAiBaseDays(baseDaysAi);
+        setAiDays(enriched);
+      }
+
+      // Agentic efficiency days
+      let baseDaysAg = null;
+      if (arts.agEff?.data?.length) {
+        baseDaysAg = [...arts.agEff.data].sort((a, b) => (a.day||'').localeCompare(b.day||''));
+
+        // Ensure merged fields exist; compute from PR sessions if needed
+        const needsMerged = baseDaysAg.length > 0 &&
+          baseDaysAg[0].merged_session_minutes == null &&
+          baseDaysAg[0].merged_loc_added == null;
+        if (needsMerged && arts.agSess?.data) {
+          const mergedByDay = {};
+          for (const pr of arts.agSess.data) {
+            if (!pr.merged) continue;
+            const day = pr.day || '';
+            if (!day) continue;
+            if (!mergedByDay[day]) mergedByDay[day] = { mins: 0, loc: 0 };
+            mergedByDay[day].mins += (pr.duration_minutes || 0);
+            mergedByDay[day].loc += (pr.additions || 0);
+          }
+          baseDaysAg = baseDaysAg.map(d => ({
+            ...d,
+            merged_session_minutes: d.merged_session_minutes ?? (mergedByDay[d.day]?.mins || 0),
+            merged_loc_added: d.merged_loc_added ?? (mergedByDay[d.day]?.loc || 0),
+          }));
+        }
+
+        const enriched = computeAgenticDerived(baseDaysAg, DEFAULT_CONFIG, 'duration');
+        setAgBaseDays(baseDaysAg);
+        setAgDays(enriched);
+      }
+
+      if (!baseDaysAi && !baseDaysAg) {
+        setError('No data found in artifacts.');
+      }
+      // Default to whichever tab has data
+      if (!baseDaysAi && baseDaysAg) setActiveTab('agentic');
+
+      setLoading(false);
+    }).catch(e => {
+      console.error('Artifact load error:', e);
+      setError('Failed to load artifacts: ' + e.message);
+      setLoading(false);
+    });
+  }, []);
+
+  const handleAiMethodChange = useCallback((m) => {
+    setAiMethod(m);
+    if (aiBaseDays) setAiDays(computeDerived(aiBaseDays, config, m));
+  }, [aiBaseDays, config]);
+
+  const handleAgenticMethodChange = useCallback((m) => {
+    setAgenticMethod(m);
+    if (agBaseDays) setAgDays(computeAgenticDerived(agBaseDays, config, m));
+  }, [agBaseDays, config]);
+
+  const handleConfigApply = useCallback((cfg) => {
+    setConfig(cfg);
+    if (aiBaseDays) setAiDays(computeDerived(aiBaseDays, cfg, aiMethod));
+    if (agBaseDays) setAgDays(computeAgenticDerived(agBaseDays, cfg, agenticMethod));
+  }, [aiBaseDays, agBaseDays, aiMethod, agenticMethod]);
+
+  const hasData = aiDays || agDays;
+
+  return (
+    <div className="integrated-page">
+      <div className="mb-4">
+        <h1 className="f1">BVE — Integrated Dashboard <span className="Label Label--accent ml-2" style={{ verticalAlign: 'middle', fontSize: '0.5em' }}>v2</span></h1>
+        <p className="f4 color-fg-muted">Combined view across AI-assisted and agentic coding</p>
+      </div>
+
+      {loading && (
+        <div className="Box p-4 text-center color-fg-muted">
+          <p className="f3 mb-2">⏳</p>
+          <p className="f5">Loading materialized artifacts…</p>
+        </div>
+      )}
+
+      {error && !hasData && (
+        <div className="flash flash-warn f5 mb-3">
+          ⚠️ {error}
+          <p className="f6 mt-2 color-fg-muted">Run the pipeline: <code>./scripts/collect-and-materialize.sh</code></p>
+        </div>
+      )}
+
+      {hasData && (
+        <>
+          <SourceSummary aiEff={rawArts?.aiEff} aiStr={rawArts?.aiStr} agEff={rawArts?.agEff} agSess={rawArts?.agSess} />
+
+          {/* ── Summary KPIs ── */}
+          <SummarySection aiDays={aiDays} agDays={agDays} config={config} aiMethod={aiMethod} agenticMethod={agenticMethod} />
+
+          {/* ── Tabbed AI-Assisted / Agentic views ── */}
+          <div className="section-row">
+            <SectionHeader title="Efficiency Detail" desc="Per-element efficiency with method selection"
+              right={
+                <div className="tab-toggle">
+                  <button className={activeTab === 'ai' ? 'active' : ''} onClick={() => setActiveTab('ai')}>AI-Assisted</button>
+                  <button className={activeTab === 'agentic' ? 'active' : ''} onClick={() => setActiveTab('agentic')}>Agentic</button>
+                </div>
+              } />
+            {activeTab === 'ai'
+              ? <AiAssistedTab days={aiDays} structuralArt={rawArts?.aiStr} config={config} method={aiMethod} onMethodChange={handleAiMethodChange} />
+              : <AgenticTab days={agDays} prSessions={rawArts?.agSess?.data} config={config} method={agenticMethod} onMethodChange={handleAgenticMethodChange} />
+            }
+          </div>
+
+          {/* ── Combined Impact ── */}
+          <CombinedImpactSection aiDays={aiDays} agDays={agDays} />
+
+          {/* ── Element View ── */}
+          <ElementSection aiDays={aiDays} agDays={agDays} structuralArt={rawArts?.aiStr}
+            prSessions={rawArts?.agSess?.data} config={config} aiMethod={aiMethod} agenticMethod={agenticMethod} />
+
+          {/* ── Config Panel ── */}
+          <ConfigPanel config={config} onApply={handleConfigApply} isOpen={configOpen} onToggle={() => setConfigOpen(o => !o)}
+            aiMethod={aiMethod} onAiMethodChange={handleAiMethodChange}
+            agenticMethod={agenticMethod} onAgenticMethodChange={handleAgenticMethodChange} />
+        </>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
