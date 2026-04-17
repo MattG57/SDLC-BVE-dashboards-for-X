@@ -5,16 +5,34 @@
  * This artifact feeds: AI-Assisted Efficiency, AI-Assisted Element, Integrated.
  *
  * Pipeline: raw copilot-metrics → flattenDayTotal → dedup → computeDayRatios
- *           raw copilot-metrics → flattenUserReport → dedup
- *           enterprise × users → reconciliation
+ *           raw copilot-metrics → flattenUserReport → dedup → slimUserRecord
  */
 
 import {
   flattenDayTotal, flattenUserReport,
   dedupEnterpriseDays, dedupUserDays,
-  computeDayRatios, computeReconciliation,
+  computeDayRatios,
   isCopilotMetricsSource,
 } from '../sources/copilot-metrics.js';
+
+// Fields kept on each user record for dashboard overlays.
+// Drops totals_by_ide/feature/language_*/model_* (30MB of nested arrays).
+const USER_OVERLAY_FIELDS = [
+  'day', 'user_login', 'user_id',
+  'user_initiated_interaction_count',
+  'code_generation_activity_count', 'code_acceptance_activity_count',
+  'loc_suggested_to_add_sum', 'loc_suggested_to_delete_sum',
+  'loc_added_sum', 'loc_deleted_sum',
+  'used_agent', 'used_chat', 'used_cli', 'used_copilot_coding_agent',
+];
+
+function slimUserRecord(u) {
+  const slim = {};
+  for (const k of USER_OVERLAY_FIELDS) {
+    if (k in u) slim[k] = u[k];
+  }
+  return slim;
+}
 
 /**
  * Materialize the ai-assisted-efficiency-days artifact.
@@ -42,8 +60,8 @@ export function materializeAiAssistedEfficiencyDays(rawData, options = {}) {
     ...computeDayRatios(d),
   }));
 
-  // Reconciliation
-  const recon = computeReconciliation(entResult.data, userResult.data);
+  // Slim user records for overlay (drops ~30MB of nested totals_by_* arrays)
+  const slimUsers = userResult.data.map(slimUserRecord);
 
   // Date range
   const days = data.map(d => d.day).sort();
@@ -57,7 +75,7 @@ export function materializeAiAssistedEfficiencyDays(rawData, options = {}) {
     artifact: {
       stage: 'materialized',
       name: 'ai-assisted-efficiency-days',
-      version: '1.0.0',
+      version: '1.1.0',
       computed_at: new Date().toISOString(),
       compute_ms: Math.round(elapsed),
       inputs: (options.inputFiles || (options.inputFile ? [{
@@ -71,7 +89,7 @@ export function materializeAiAssistedEfficiencyDays(rawData, options = {}) {
       })),
       profile: {
         record_count: data.length,
-        detail_row_count: userResult.data.length,
+        detail_row_count: slimUsers.length,
         detail_label: 'user-days',
         unique_people: userResult.profile.unique_logins || 0,
         people_label: 'users',
@@ -79,17 +97,9 @@ export function materializeAiAssistedEfficiencyDays(rawData, options = {}) {
         date_range: dateRange,
         enterprise_dedup: entResult.profile,
         user_dedup: userResult.profile,
-        reconciliation_summary: summarizeRecon(recon),
       },
     },
     data,
-    _users: userResult.data,
-    _recon: recon,
+    _users: slimUsers,
   };
-}
-
-function summarizeRecon(recon) {
-  const counts = { match: 0, minor_difference: 0, material_difference: 0, missing_user_data: 0 };
-  for (const r of recon) counts[r.status] = (counts[r.status] || 0) + 1;
-  return counts;
 }
