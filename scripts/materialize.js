@@ -28,6 +28,7 @@ import { materializeAiAssistedEfficiencyDays } from '../shared/materializers/ai-
 import { materializeAiAssistedStructuralDays } from '../shared/materializers/ai-assisted-structural-days.js';
 import { materializeAgenticEfficiencyDays } from '../shared/materializers/agentic-efficiency-days.js';
 import { materializeAgenticPrSessions } from '../shared/materializers/agentic-pr-sessions.js';
+import { materializeLeverageSummary } from '../shared/materializers/leverage-summary.js';
 import { isCopilotMetricsSource } from '../shared/sources/copilot-metrics.js';
 import { isAgenticSource } from '../shared/sources/agentic.js';
 import { isPrReviewData } from '../shared/sources/pr-review.js';
@@ -181,7 +182,9 @@ function writeArtifact(name, artifact) {
   const filepath = join(OUTPUT_DIR, `${tsName}.json`);
   writeFileSync(filepath, JSON.stringify(artifact, null, 2));
   const size = readFileSync(filepath).length;
-  console.log(`  ✅ ${tsName}.json (${(size / 1024).toFixed(1)} KB, ${artifact.data?.length ?? artifact.artifact?.profile?.record_count ?? '?'} records)`);
+  const count = artifact.data?.length ?? artifact.elements?.length ?? artifact.artifact?.profile?.record_count ?? '?';
+  const unit = artifact.elements ? 'elements' : 'records';
+  console.log(`  ✅ ${tsName}.json (${(size / 1024).toFixed(1)} KB, ${count} ${unit})`);
   return `${tsName}.json`;
 }
 
@@ -260,6 +263,49 @@ function main() {
     artifactFiles.push(fname);
     artifactMap['agentic-pr-sessions'] = fname;
     fileInfo.agentic.forEach(f => edges.push({ from: f.file, to: fname }));
+  }
+
+  // Leverage Summary — reads from the 4 artifacts above
+  const leverageInputArtifacts = {};
+  if (artifactMap['ai-assisted-efficiency-days']) {
+    leverageInputArtifacts.aiEfficiency = JSON.parse(
+      readFileSync(join(OUTPUT_DIR, artifactMap['ai-assisted-efficiency-days']), 'utf-8')
+    );
+  }
+  if (artifactMap['ai-assisted-structural-days']) {
+    leverageInputArtifacts.aiStructural = JSON.parse(
+      readFileSync(join(OUTPUT_DIR, artifactMap['ai-assisted-structural-days']), 'utf-8')
+    );
+  }
+  if (artifactMap['agentic-efficiency-days']) {
+    leverageInputArtifacts.agenticEfficiency = JSON.parse(
+      readFileSync(join(OUTPUT_DIR, artifactMap['agentic-efficiency-days']), 'utf-8')
+    );
+  }
+  if (artifactMap['agentic-pr-sessions']) {
+    leverageInputArtifacts.agenticSessions = JSON.parse(
+      readFileSync(join(OUTPUT_DIR, artifactMap['agentic-pr-sessions']), 'utf-8')
+    );
+  }
+
+  if (Object.keys(leverageInputArtifacts).length > 0) {
+    // Read org config if available
+    const configPath = join(ROOT, 'dashboard-config.json');
+    let orgConfig = {};
+    if (existsSync(configPath)) {
+      try { orgConfig = JSON.parse(readFileSync(configPath, 'utf-8')); } catch(e) {}
+    }
+
+    const leverageResult = materializeLeverageSummary(leverageInputArtifacts, orgConfig, {
+      inputFiles: Object.entries(artifactMap).map(([name, file]) => ({ file, artifact: name })),
+    });
+    const fname = writeArtifact('leverage-summary', leverageResult);
+    artifactFiles.push(fname);
+    artifactMap['leverage-summary'] = fname;
+    // Edges: each upstream artifact → leverage-summary
+    for (const [, artFile] of Object.entries(artifactMap)) {
+      if (artFile !== fname) edges.push({ from: artFile, to: fname });
+    }
   }
 
   // Collect all unique raw files for the manifest
