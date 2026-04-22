@@ -251,14 +251,26 @@ function buildAiAssistedElement(effArt, strArt, config, selections) {
 function buildAgenticElement(effArt, sessArt, config, selections) {
   if (!effArt?.data?.length) return null;
 
-  const days = effArt.data;
-  const sessions = sessArt?.data || [];
-  const n = days.length;
+  const allDays = effArt.data;
+  const allSessions = sessArt?.data || [];
   const totalDevs = config.cfg_total_developers || 100;
   const totalRepos = config.cfg_total_repos;
   const defaultWindowDays = config.cfg_window_days || 28;
 
-  // Date range (actual data)
+  // Filter to most recent N days to match the time window
+  const sortedAllDays = allDays.map(d => d.day).sort();
+  const latestDay = sortedAllDays[sortedAllDays.length - 1];
+  const cutoffDate = new Date(latestDay);
+  cutoffDate.setDate(cutoffDate.getDate() - defaultWindowDays);
+  const cutoff = cutoffDate.toISOString().slice(0, 10);
+
+  const days = allDays.filter(d => d.day >= cutoff);
+  const sessions = allSessions.filter(s => s.day >= cutoff);
+  const n = days.length;
+
+  if (n === 0) return null;
+
+  // Date range (filtered data)
   const sortedDays = days.map(d => d.day).sort();
   const dateRange = {
     first: sortedDays[0],
