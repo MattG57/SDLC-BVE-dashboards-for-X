@@ -110,7 +110,7 @@ describe('leverage-summary materializer', () => {
       expect(p.element_count).toBe(2);
       expect(p.total_time_saved_hours).toBeGreaterThan(0);
       expect(p.total_completions).toBeGreaterThan(0);
-      expect(p.integrated_yield).toBeGreaterThan(0);
+      expect(p.integrated_leverage).toBeGreaterThan(0);
     });
 
     it('records config_used and selections_used', () => {
@@ -148,8 +148,8 @@ describe('leverage-summary materializer', () => {
       const result = materializeLeverageSummary(allArtifacts(), BASE_CONFIG);
       const requiredFields = [
         'area', 'attemptType', 'attempts', 'completionType', 'completionCount',
-        'wipDelta', 'timeSpentHours', 'timeSavedHours', 'currentYield',
-        'projTimeSavedHours', 'projYield', 'modeNote',
+        'wipPlus', 'wipMinus', 'wipDelta', 'timeSpentHours', 'timeSavedHours',
+        'currentYield', 'leverage', 'projTimeSavedHours', 'projYield', 'modeNote',
       ];
       for (const e of result.elements) {
         for (const f of requiredFields) {
@@ -197,12 +197,15 @@ describe('leverage-summary materializer', () => {
   });
 
   describe('attempts and WIP Delta', () => {
-    it('AI-assisted: attempts = total PRs, wipDelta computed from PR states', () => {
+    it('AI-assisted: attempts = completions = assistedPRs, yield = 100%', () => {
       const result = materializeLeverageSummary(allArtifacts(), BASE_CONFIG);
       const ai = result.elements.find(e => e.elementKey === 'ai-assisted-coding');
-      expect(ai.row.attempts).toBe(22); // 10 + 12 from structural fixture
+      expect(ai.row.attempts).toBe(14); // 6 + 8 assisted_prs from structural fixture
+      expect(ai.row.completionCount).toBe(14); // same as attempts
       expect(ai.row.attemptType).toBe('PRs Created');
-      expect(typeof ai.row.wipDelta).toBe('number');
+      expect(ai.row.completionType).toBe('PRs Created');
+      expect(ai.row.currentYield).toBe(1.0);
+      expect(ai.row.wipDelta).toBe(0);
     });
 
     it('Agentic: attempts = total sessions, wipDelta from session states', () => {
@@ -213,18 +216,23 @@ describe('leverage-summary materializer', () => {
       expect(typeof ag.row.wipDelta).toBe('number');
     });
 
-    it('wipDelta = open items - pre-window completions', () => {
+    it('wipDelta = wipPlus - wipMinus (agentic has both components)', () => {
       const result = materializeLeverageSummary(allArtifacts(), BASE_CONFIG);
       const ag = result.elements.find(e => e.elementKey === 'agentic-ai-coding');
       // Fixture: 1 open session (pr_number 2), no pre-window completions
+      expect(ag.row.wipPlus).toBe(1);
+      expect(ag.row.wipMinus).toBe(0);
       expect(ag.row.wipDelta).toBe(1); // 1 open - 0 pre-window
     });
 
-    it('factSummary includes attempts and wipDelta', () => {
+    it('factSummary includes wipPlus, wipMinus, wipDelta, and leverage', () => {
       const result = materializeLeverageSummary(allArtifacts(), BASE_CONFIG);
       for (const e of result.elements) {
         expect(e.worksheet.factSummary).toHaveProperty('attempts');
+        expect(e.worksheet.factSummary).toHaveProperty('wipPlus');
+        expect(e.worksheet.factSummary).toHaveProperty('wipMinus');
         expect(e.worksheet.factSummary).toHaveProperty('wipDelta');
+        expect(e.worksheet.factSummary).toHaveProperty('leverage');
         expect(e.worksheet.factSummary).toHaveProperty('attemptType');
       }
     });

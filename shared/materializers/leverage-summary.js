@@ -53,21 +53,22 @@ function buildAiAssistedElement(effArt, strArt, config, selections) {
   // Time spent = active dev hours in the coding context
   const timeSpentHours = days.reduce((s, d) => s + (d.daily_active_users || 0) * pctTimeCoding * hrsPerDay, 0);
 
-  // Attempts, completions, WIP Delta
-  const attempts = totalPRs;
+  // Attempts = Completions = assisted PRs (Copilot usage within 3 days before PR opened)
+  const attempts = assistedPRs;
   const attemptType = 'PRs Created';
-  const mergedPRs = prRecords.filter(p => p.merged);
-  const completionCount = mergedPRs.length > 0 ? mergedPRs.length : strData.reduce((s, d) => s + (d.assisted_prs || 0), 0);
-  const completionType = 'PRs Merged';
+  const completionCount = assistedPRs;
+  const completionType = 'PRs Created';
+  const mergedPRCount = prRecords.filter(p => p.merged).length;
 
-  // WIP Delta: open PRs in window - completions from before window
-  const windowStart = dateRange.first;
-  const unfinished = prRecords.filter(p => p.state === 'open').length;
-  const preWindowCompletions = prRecords.filter(p => p.merged && p.day < windowStart).length;
-  const wipDelta = unfinished - preWindowCompletions;
+  // WIP not applicable — attempt and completion are the same event
+  const wipPlus = 0;
+  const wipMinus = 0;
+  const wipDelta = 0;
 
-  // Yield
-  const currentYield = safeDiv(completionCount, timeSpentHours);
+  // Yield = 100% (every assisted PR is both attempt and completion)
+  const currentYield = assistedPRs > 0 ? 1.0 : null;
+  // Leverage = completions per dev-hour
+  const leverage = safeDiv(completionCount, timeSpentHours);
 
   // ── Improvement estimates ──
   const estimates = [];
@@ -147,7 +148,7 @@ function buildAiAssistedElement(effArt, strArt, config, selections) {
       formula: `proj_saved = time_saved × (1 / adoption_pct) = ${Math.round(timeSavedHours)} × ${(scaleFactor).toFixed(2)}`,
       projTimeSavedHours: projSaved,
       projCompletionGain: null,
-      projYield: safeDiv(completionCount, timeSpentHours - projSaved + timeSavedHours),
+      projYield: currentYield,
     });
   }
 
@@ -165,7 +166,7 @@ function buildAiAssistedElement(effArt, strArt, config, selections) {
       formula: `proj_saved = time_saved × (1 / prs_assisted_pct) = ${Math.round(timeSavedHours)} × ${(scaleFactor).toFixed(2)}`,
       projTimeSavedHours: projSaved,
       projCompletionGain: null,
-      projYield: safeDiv(completionCount, timeSpentHours - projSaved + timeSavedHours),
+      projYield: currentYield,
     });
   }
 
@@ -183,7 +184,7 @@ function buildAiAssistedElement(effArt, strArt, config, selections) {
       formula: `proj_saved = time_saved × (1 / loc_assisted_pct) = ${Math.round(timeSavedHours)} × ${(scaleFactor).toFixed(2)}`,
       projTimeSavedHours: projSaved,
       projCompletionGain: null,
-      projYield: safeDiv(completionCount, timeSpentHours - projSaved + timeSavedHours),
+      projYield: currentYield,
     });
   }
 
@@ -200,10 +201,13 @@ function buildAiAssistedElement(effArt, strArt, config, selections) {
       attempts,
       completionType,
       completionCount,
+      wipPlus,
+      wipMinus,
       wipDelta,
       timeSpentHours: Math.round(timeSpentHours),
       timeSavedHours: Math.round(timeSavedHours),
       currentYield,
+      leverage,
       projTimeSavedHours: selectedProjection ? Math.round(selectedProjection.projTimeSavedHours) : null,
       projCompletionGain: selectedProjection?.projCompletionGain ?? null,
       projYield: selectedProjection?.projYield ?? null,
@@ -211,10 +215,10 @@ function buildAiAssistedElement(effArt, strArt, config, selections) {
     },
     worksheet: {
       definitions: {
-        attempt: 'PR created by a Copilot-active author within the time window',
-        failure: 'PR closed without merge',
-        completion: 'PR merged',
-        yield: 'Completions / attempts within the time window',
+        attempt: 'Active developer-day (Copilot-active author on a given day)',
+        failure: 'Active dev-day that does not result in a PR',
+        completion: 'PR created by a Copilot-active author within the time window',
+        yield: 'PRs created / active dev-days',
       },
       timeWindow: { label: `Previous ${defaultWindowDays} Days`, days: defaultWindowDays },
       dateRange,
@@ -223,16 +227,20 @@ function buildAiAssistedElement(effArt, strArt, config, selections) {
         completionType,
         attempts,
         attemptType,
+        wipPlus,
+        wipMinus,
         wipDelta,
         timeSpentHours: Math.round(timeSpentHours),
         timeSpentBasis: `${Math.round(avgDau)} active devs × ${n}d × ${pctTimeCoding} coding × ${hrsPerDay}h`,
         currentYield,
+        leverage,
         totalDevs,
         activeDevs: Math.round(avgDau),
         adoptionPct,
         totalInteractions,
         totalLocAdded,
         totalPRs,
+        mergedPRCount,
         assistedPRs,
         prsAssistedPct,
         locAssistedPct,
@@ -309,11 +317,20 @@ function buildAgenticElement(effArt, sessArt, config, selections) {
   const completionCount = totalPRsMerged;
   const completionType = 'PRs Merged';
 
-  // WIP Delta: open sessions in window - completions from before window
+  // WIP components
   const windowStart = dateRange.first;
-  const unfinished = sessions.filter(p => p.state === 'open').length;
-  const preWindowCompletions = sessions.filter(p => p.merged && p.day < windowStart).length;
-  const wipDelta = unfinished - preWindowCompletions;
+  const wipPlus = sessions.filter(p => p.state === 'open').length;
+  const wipMinus = sessions.filter(p => p.merged && p.day < windowStart).length;
+  const wipDelta = wipPlus - wipMinus;
+
+  // Time spent = observed session duration (all sessions)
+  const timeSpentHours = totalSessionMins / 60;
+
+  // Yield (window-bound) and Leverage
+  const windowBoundAttempts = attempts - wipPlus;
+  const windowBoundCompletions = completionCount - wipMinus;
+  const currentYield = safeDiv(windowBoundCompletions, windowBoundAttempts);
+  const leverage = safeDiv(completionCount, timeSpentHours);
 
   // ── Improvement estimates ──
   const estimates = [];
@@ -354,8 +371,6 @@ function buildAgenticElement(effArt, sessArt, config, selections) {
     ? estimates.find(e => e.estimateId === selections.estimateId)
     : null) || estimates[0];
   const timeSavedHours = selectedEstimate?.timeSavedHours || 0;
-  const timeSpentHours = timeSavedHours; // Agentic: time spent = time saved (purely additive)
-  const currentYield = safeDiv(completionCount, timeSpentHours);
 
   // ── Projected improvements ──
   const projections = [];
@@ -379,7 +394,8 @@ function buildAgenticElement(effArt, sessArt, config, selections) {
 
   // 2. Merge rate → 100%
   if (mergeRate != null && mergeRate > 0 && mergeRate < 1) {
-    const scaleFactor = 1 / mergeRate;
+    const estDurationFactor = config.est_duration_factor || 2;
+    const projTimeSaved = estDurationFactor * timeSpentHours * (1 - (currentYield || 0));
     projections.push({
       projectionId: 'merge_rate',
       name: 'Full Merge Rate',
@@ -387,10 +403,10 @@ function buildAgenticElement(effArt, sessArt, config, selections) {
       structuralFactor: 'merge_rate',
       currentValue: mergeRate,
       targetValue: 1.0,
-      formula: `scale = 1 / merge_rate(${(mergeRate*100).toFixed(1)}%) = ${scaleFactor.toFixed(1)}× → completions = attempts(${attempts})`,
-      projTimeSavedHours: Math.round(timeSavedHours * scaleFactor),
-      projCompletionGain: Math.round(completionCount * (scaleFactor - 1)),
-      projYield: safeDiv(totalPRsCreated, timeSpentHours * scaleFactor),
+      formula: `proj_saved = duration_factor(${estDurationFactor}) × time_spent(${Math.round(timeSpentHours)}h) × (1 - yield(${currentYield != null ? (currentYield*100).toFixed(1) : '0'}%))`,
+      projTimeSavedHours: Math.round(projTimeSaved),
+      projCompletionGain: attempts - completionCount,
+      projYield: 1.0,
     });
   }
 
@@ -423,10 +439,13 @@ function buildAgenticElement(effArt, sessArt, config, selections) {
       attempts,
       completionType,
       completionCount,
+      wipPlus,
+      wipMinus,
       wipDelta,
       timeSpentHours: Math.round(timeSpentHours),
       timeSavedHours: Math.round(timeSavedHours),
       currentYield,
+      leverage,
       projTimeSavedHours: selectedProjection ? Math.round(selectedProjection.projTimeSavedHours) : null,
       projCompletionGain: selectedProjection?.projCompletionGain ?? null,
       projYield: selectedProjection?.projYield ?? null,
@@ -437,7 +456,7 @@ function buildAgenticElement(effArt, sessArt, config, selections) {
         attempt: 'Agent PR session started (issue assignment or PR follow-up)',
         failure: 'PR closed without merge (excludes idle/open sessions)',
         completion: 'PR merged',
-        yield: 'Completions / attempts within the time window',
+        yield: 'Window-bound completions / window-bound attempts',
       },
       timeWindow: { label: `Previous ${defaultWindowDays} Days`, days: defaultWindowDays },
       dateRange,
@@ -446,10 +465,13 @@ function buildAgenticElement(effArt, sessArt, config, selections) {
         completionType,
         attempts,
         attemptType,
+        wipPlus,
+        wipMinus,
         wipDelta,
         timeSpentHours: Math.round(timeSpentHours),
-        timeSpentBasis: `${Math.round(avgActiveDevs)} active devs × ${n}d (agent time, purely additive)`,
+        timeSpentBasis: `${Math.round(totalSessionMins)} session-mins / 60 (observed agent running time)`,
         currentYield,
+        leverage,
         totalDevs,
         activeDevs: Math.round(avgActiveDevs),
         adoptionPct,
@@ -551,7 +573,7 @@ export function materializeLeverageSummary(artifacts, config = {}, options = {})
         total_time_saved_hours: Math.round(totalTimeSaved),
         total_completions: totalCompletions,
         total_time_spent_hours: Math.round(totalTimeSpent),
-        integrated_yield: safeDiv(totalCompletions, totalTimeSpent),
+        integrated_leverage: safeDiv(totalCompletions, totalTimeSpent),
         date_range: window,
         config_used: {
           cfg_total_developers: mergedConfig.cfg_total_developers,

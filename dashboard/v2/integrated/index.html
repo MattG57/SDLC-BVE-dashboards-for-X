@@ -131,29 +131,30 @@ function recomputeRow(element, selectedEstimateId, selectedProjectionId) {
     || element.worksheet.projectedImprovements[0] || null;
 
   const timeSaved = est?.timeSavedHours || 0;
-  const timeSpent = element.worksheet.factSummary.timeSpentHours;
-  const completions = element.worksheet.factSummary.completionCount;
+  const fs = element.worksheet.factSummary;
+  const completions = fs.completionCount;
+  const attempts = fs.attempts;
+  const timeSpent = fs.timeSpentHours;
+  const wipPlus = fs.wipPlus || 0;
+  const wipMinus = fs.wipMinus || 0;
 
-  let projTimeSaved = null, projCompletionGain = null, projYield = null;
-  if (proj && proj.currentValue > 0) {
-    const scale = 1 / proj.currentValue;
-    projTimeSaved = Math.round(timeSaved * scale);
-    if (proj.improvementType === 'mixed' || proj.improvementType === 'completion') {
-      projCompletionGain = Math.round(completions * (scale - 1));
-    }
-    projYield = safeDiv(completions + (projCompletionGain || 0), timeSpent + projTimeSaved - timeSaved);
-  }
+  // Yield = window-bound completions / window-bound attempts
+  const wbAttempts = attempts - wipPlus;
+  const wbCompletions = completions - wipMinus;
+  const currentYield = safeDiv(wbCompletions, wbAttempts);
+  // Leverage = completions / dev-hours
+  const leverage = safeDiv(completions, timeSpent);
 
   return {
     ...element.row,
-    // attempts, attemptType, wipDelta pass through from element.row
     timeSavedHours: Math.round(timeSaved),
-    currentYield: safeDiv(completions, timeSpent),
-    projTimeSavedHours: projTimeSaved,
-    projCompletionGain: projCompletionGain,
-    projYield: projYield,
+    currentYield,
+    leverage,
+    projTimeSavedHours: proj?.projTimeSavedHours ?? null,
+    projCompletionGain: proj?.projCompletionGain ?? null,
+    projYield: proj?.projYield ?? null,
     modeNote: proj?.name || 'no projection',
-    timeSpentBasis: element.worksheet.factSummary?.timeSpentBasis || null,
+    timeSpentBasis: fs?.timeSpentBasis || null,
     estimateName: est?.name || null,
   };
 }
@@ -230,15 +231,17 @@ function SectionHeader({ title, desc }) {
    MODE DEFINITIONS
    ═══════════════════════════════════════════════════════ */
 const MODES = [
-  { key: 'aperture', label: 'Aperture' },
+  { key: 'current', label: 'Current' },
   { key: 'unimproved', label: 'Unimproved' },
+  { key: 'composite', label: 'Current Composite' },
   { key: 'projected', label: 'Projected' },
 ];
 
 const MODE_DESCRIPTIONS = {
-  aperture: 'Shows total organizational capacity vs the portion currently measured. The aperture is the fraction of dev-hours covered.',
+  current: 'Current modeled leverage for each element, shown against total organizational capacity.',
   unimproved: 'Counterfactual: AI-assisted time saved is added back to dev-hours. Agentic capacity would not exist without the agent.',
-  projected: 'Projects current leverage to full structural coverage — adoption, assist %, and merge rate all at 100%.',
+  composite: 'Current modeled leverage rectangles for each element only, without org capacity reference.',
+  projected: 'Projects current leverage using the selected projection for each element.',
 };
 
 
@@ -301,12 +304,14 @@ function SummarySection({ profile, rows, elements }) {
    SECTION 2 — EVIDENCE TABLE + LEVERAGE RECTANGLE
    ═══════════════════════════════════════════════════════ */
 
-function wipLabel(val) {
-  if (val == null) return { text: '—', cls: 'wip-neutral', sub: '' };
-  const sign = val > 0 ? '+' : val < 0 ? '' : '';
-  const word = val > 0 ? 'growing' : val < 0 ? 'shrinking' : 'stable';
-  const cls = val > 0 ? 'wip-growing' : val < 0 ? 'wip-shrinking' : 'wip-neutral';
-  return { text: `${sign}${fmt(val)}`, cls, sub: `${sign}${fmt(val)} ${word}` };
+function wipLabel(row) {
+  const wp = row.wipPlus ?? 0;
+  const wm = row.wipMinus ?? 0;
+  const delta = row.wipDelta ?? (wp - wm);
+  if (delta == null && wp === 0 && wm === 0) return { text: '—', cls: 'wip-neutral', sub: '' };
+  const sign = delta > 0 ? '+' : delta < 0 ? '' : '';
+  const cls = delta > 0 ? 'wip-growing' : delta < 0 ? 'wip-shrinking' : 'wip-neutral';
+  return { text: `${sign}${fmt(delta)}`, cls, sub: `WIP+ ${fmt(wp)} / WIP− ${fmt(wm)}` };
 }
 
 function EvidenceTable({ elements, rows, selections, onSelectionChange, selectedKey, onRowClick }) {
@@ -322,7 +327,9 @@ function EvidenceTable({ elements, rows, selections, onSelectionChange, selected
             <th>Time Spent</th>
             <th>Time Saved</th>
             <th>Yield</th>
+            <th>Leverage</th>
             <th>Proj. Savings</th>
+            <th>Proj. Completions</th>
             <th>Proj. Yield</th>
             <th>Mode</th>
             <th>Estimate</th>
@@ -333,7 +340,7 @@ function EvidenceTable({ elements, rows, selections, onSelectionChange, selected
           {elements.map((el, i) => {
             const r = rows[i];
             const sel = selections[el.elementKey] || {};
-            const wip = wipLabel(r.wipDelta);
+            const wip = wipLabel(r);
             return (
               <tr key={el.elementKey}
                   className={`clickable${selectedKey === el.elementKey ? ' selected' : ''}`}
@@ -345,7 +352,10 @@ function EvidenceTable({ elements, rows, selections, onSelectionChange, selected
                   {fmt(r.attempts)}
                   <span className="cell-sublabel">{r.attemptType || ''}</span>
                 </td>
-                <td>{fmt(r.completionCount)}</td>
+                <td>
+                  {fmt(r.completionCount)}
+                  <span className="cell-sublabel">{r.completionType || ''}</span>
+                </td>
                 <td className={wip.cls}>
                   {wip.text}
                   <span className="cell-sublabel">{wip.sub}</span>
@@ -359,11 +369,16 @@ function EvidenceTable({ elements, rows, selections, onSelectionChange, selected
                   {r.estimateName && <span className="cell-sublabel">{r.estimateName}</span>}
                 </td>
                 <td>
-                  {fmtDec(r.currentYield, 3)}
+                  {fmtPct(r.currentYield)}
+                  <span className="cell-sublabel">completions / attempts</span>
+                </td>
+                <td>
+                  {fmtDec(r.leverage, 3)}
                   <span className="cell-sublabel">completions / dev-hrs</span>
                 </td>
                 <td>{r.projTimeSavedHours != null ? fmt(r.projTimeSavedHours) + ' hrs' : '—'}</td>
-                <td>{fmtDec(r.projYield, 3)}</td>
+                <td>{r.projCompletionGain != null ? '+' + fmt(r.projCompletionGain) : '—'}</td>
+                <td>{r.projYield != null ? fmtPct(r.projYield) : '—'}</td>
                 <td className="color-fg-muted" style={{ fontSize: '0.75rem' }}>{r.modeNote}</td>
                 <td onClick={e => e.stopPropagation()}>
                   <select value={sel.estimateId || ''} onChange={e => onSelectionChange(el.elementKey, 'estimateId', e.target.value)}>
@@ -404,7 +419,7 @@ function LeverageRectangle({ elements, rows, profile, mode }) {
       const isAgentic = el.elementKey === 'agentic-ai-coding';
       let devHours, completions;
 
-      if (mode === 'aperture') {
+      if (mode === 'current' || mode === 'composite') {
         devHours = r.timeSpentHours || 0;
         completions = r.completionCount || 0;
       } else if (mode === 'unimproved') {
@@ -423,8 +438,9 @@ function LeverageRectangle({ elements, rows, profile, mode }) {
     });
   }, [elements, rows, mode]);
 
+  // Org capacity shown only in 'current' mode
   const capacity = useMemo(() => {
-    if (mode !== 'aperture' || windowDays === 0) return null;
+    if (mode !== 'current' || windowDays === 0) return null;
     const totalOrgDevHours = (cfg.cfg_total_developers || 100) * windowDays * (cfg.cfg_hrs_per_dev_per_day || 8);
     const totalCompletions = rectData.reduce((s, e) => s + e.completions, 0);
     return { devHours: totalOrgDevHours, completions: totalCompletions };
@@ -433,7 +449,7 @@ function LeverageRectangle({ elements, rows, profile, mode }) {
   // Fixed axis scales across all modes
   const { fixedXMax, fixedYMax } = useMemo(() => {
     let maxW = 0, maxH = 0;
-    for (const m of ['aperture', 'unimproved', 'projected']) {
+    for (const m of ['current', 'unimproved', 'composite', 'projected']) {
       let w = 0, h = 0;
       for (let i = 0; i < elements.length; i++) {
         const r = rows[i];
@@ -445,7 +461,7 @@ function LeverageRectangle({ elements, rows, profile, mode }) {
         const c = m === 'projected' ? (r.completionCount || 0) + (r.projCompletionGain || 0) : (r.completionCount || 0);
         w += dh; h += c;
       }
-      if (m === 'aperture' && windowDays > 0) {
+      if (m === 'current' && windowDays > 0) {
         const orgW = (cfg.cfg_total_developers || 100) * windowDays * (cfg.cfg_hrs_per_dev_per_day || 8);
         w = Math.max(w, orgW);
       }
@@ -462,6 +478,7 @@ function LeverageRectangle({ elements, rows, profile, mode }) {
 
   const series = [];
 
+  // Org capacity rectangle (current mode only)
   if (capacity && capacity.devHours > 0 && capacity.completions > 0) {
     series.push({
       type: 'polygon', name: 'Org Capacity',
@@ -529,7 +546,7 @@ function LeverageRectangle({ elements, rows, profile, mode }) {
         <div style={{ flex: '0 0 200px' }}>
           <KpiCard hero label="Integrated Leverage" value={fmtDec(integratedLeverage, 3)} sub="completions / dev-hours" color="#3fb950" />
         </div>
-        {mode === 'aperture' && (
+        {mode === 'current' && aperturePct != null && (
           <div style={{ flex: '1 1 140px' }}>
             <KpiCard label="Aperture" value={fmtPct(aperturePct)} sub="modeled / capacity" color="#d29922" />
           </div>
@@ -556,8 +573,8 @@ function WorksheetDrilldown({ element, selections }) {
   const elColor = (ELEMENT_COLORS[element.elementKey] || {}).color || '#58a6ff';
 
   // Group facts by dimension
-  const completionFacts = ['completionCount', 'completionType', 'attempts', 'attemptType', 'wipDelta'];
-  const timeFacts = ['timeSpentHours', 'currentYield'];
+  const completionFacts = ['completionCount', 'completionType', 'attempts', 'attemptType', 'wipPlus', 'wipMinus', 'wipDelta'];
+  const timeFacts = ['timeSpentHours', 'currentYield', 'leverage'];
   const peopleFacts = ['totalDevs', 'activeDevs', 'adoptionPct'];
   const activityFacts = Object.keys(fs).filter(k =>
     !completionFacts.includes(k) && !timeFacts.includes(k) && !peopleFacts.includes(k) && k !== 'timeSpentBasis'
@@ -587,7 +604,7 @@ function WorksheetDrilldown({ element, selections }) {
     <div className="drill-panel">
       <div className="drill-header">
         <h3 className="f3 mb-0" style={{ color: elColor }}>
-          {element.row.area} — Worksheet
+          {element.row.area} — {element.row.completionType} Worksheet
         </h3>
       </div>
       <div className="drill-body">
@@ -775,7 +792,7 @@ function App() {
   const [selections, setSelections] = useState({});
   const [configOpen, setConfigOpen] = useState(false);
   const [selectedKey, setSelectedKey] = useState(null);
-  const [rectMode, setRectMode] = useState('aperture');
+  const [rectMode, setRectMode] = useState('current');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
