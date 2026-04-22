@@ -553,14 +553,40 @@ function WorksheetDrilldown({ element, selections }) {
   const defs = ws.definitions || null;
   const timeWindow = ws.timeWindow || null;
   const dateRange = ws.dateRange || null;
+  const elColor = (ELEMENT_COLORS[element.elementKey] || {}).color || '#58a6ff';
 
-  const HIDDEN_FACT_KEYS = new Set(['completionType', 'windowLabel', 'windowFirst', 'windowLast', 'windowDays']);
-  const factEntries = Object.entries(fs).filter(([k]) => !HIDDEN_FACT_KEYS.has(k) && k !== 'timeSpentBasis');
+  // Group facts by dimension
+  const completionFacts = ['completionCount', 'completionType', 'attempts', 'attemptType', 'wipDelta'];
+  const timeFacts = ['timeSpentHours', 'currentYield'];
+  const peopleFacts = ['totalDevs', 'activeDevs', 'adoptionPct'];
+  const activityFacts = Object.keys(fs).filter(k =>
+    !completionFacts.includes(k) && !timeFacts.includes(k) && !peopleFacts.includes(k) && k !== 'timeSpentBasis'
+  );
+
+  const DIMENSION_GROUPS = [
+    { label: 'Completions', color: '#3fb950', keys: completionFacts },
+    { label: 'Time', color: '#58a6ff', keys: timeFacts },
+    { label: 'People', color: '#d29922', keys: peopleFacts },
+    { label: 'Activity', color: '#bc8cff', keys: activityFacts },
+  ];
+
+  function renderFact(k, v) {
+    const display = typeof v === 'number'
+      ? (v < 1 && v > 0 ? fmtPct(v) : fmtDec(v, 1))
+      : String(v ?? '—');
+    return (
+      <div key={k} className="Box p-2" style={{ flex: '0 0 auto', minWidth: '110px' }}>
+        <div className="f6 color-fg-muted">{k.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())}</div>
+        <div className="f5 text-bold">{display}</div>
+        {k === 'timeSpentHours' && fs.timeSpentBasis && <div className="basis-note">{fs.timeSpentBasis}</div>}
+      </div>
+    );
+  }
 
   return (
     <div className="drill-panel">
       <div className="drill-header">
-        <h3 className="f4 mb-0" style={{ color: (ELEMENT_COLORS[element.elementKey] || {}).color }}>
+        <h3 className="f3 mb-0" style={{ color: elColor }}>
           {element.row.area} — Worksheet
         </h3>
       </div>
@@ -580,7 +606,7 @@ function WorksheetDrilldown({ element, selections }) {
         {/* Definitions */}
         {defs && (
           <>
-            <h4 className="f5 color-fg-muted mb-2">Definitions</h4>
+            <h4 className="f4 color-fg-default mb-2" style={{ fontWeight: 600 }}>Definitions</h4>
             <table className="def-table">
               <thead><tr><th>Concept</th><th>Definition</th></tr></thead>
               <tbody>
@@ -593,22 +619,25 @@ function WorksheetDrilldown({ element, selections }) {
           </>
         )}
 
-        {/* Facts */}
-        <h4 className="f5 color-fg-muted mb-2">Facts</h4>
-        <div className="d-flex flex-wrap mb-3" style={{ gap: '8px' }}>
-          {factEntries.map(([k, v]) => (
-            <div key={k} className="Box p-2" style={{ flex: '0 0 auto', minWidth: '120px' }}>
-              <div className="f6 color-fg-muted">{k.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())}</div>
-              <div className="f5 text-bold">{typeof v === 'number' ? (v < 1 && v > 0 ? fmtPct(v) : fmtDec(v, 1)) : String(v ?? '—')}</div>
-              {k === 'timeSpentHours' && fs.timeSpentBasis && (
-                <div className="basis-note">{fs.timeSpentBasis}</div>
-              )}
+        {/* Facts — grouped by dimension */}
+        <h4 className="f4 color-fg-default mb-2" style={{ fontWeight: 600 }}>Facts</h4>
+        {DIMENSION_GROUPS.map(group => {
+          const entries = group.keys.filter(k => k in fs);
+          if (entries.length === 0) return null;
+          return (
+            <div key={group.label} className="mb-3">
+              <div className="f6 text-bold mb-1" style={{ color: group.color, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '0.7rem' }}>
+                {group.label}
+              </div>
+              <div className="d-flex flex-wrap" style={{ gap: '8px' }}>
+                {entries.map(k => renderFact(k, fs[k]))}
+              </div>
             </div>
-          ))}
-        </div>
+          );
+        })}
 
         {/* Estimates */}
-        <h4 className="f5 color-fg-muted mb-2">Improvement Estimates</h4>
+        <h4 className="f4 color-fg-default mb-2" style={{ fontWeight: 600 }}>Improvement Estimates</h4>
         <table className="drill-table">
           <thead>
             <tr><th>Name</th><th>Method</th><th>Formula</th><th>Time Saved (hrs)</th><th>Per Dev/Day</th></tr>
@@ -629,13 +658,13 @@ function WorksheetDrilldown({ element, selections }) {
         </table>
 
         {/* Projections */}
-        <h4 className="f5 color-fg-muted mb-2">Projected Improvements</h4>
+        <h4 className="f4 color-fg-default mb-2" style={{ fontWeight: 600 }}>Projected Improvements</h4>
         {ws.projectedImprovements.length === 0 ? (
           <p className="f6 color-fg-muted">No projections available for this element.</p>
         ) : (
           <table className="drill-table">
             <thead>
-              <tr><th>Name</th><th>Factor</th><th>Current</th><th>Target</th><th>Proj. Saved (hrs)</th><th>Proj. Completions</th><th>Proj. Yield</th></tr>
+              <tr><th>Name</th><th>Factor</th><th>Current</th><th>Target</th><th>Formula</th><th>Proj. Saved (hrs)</th><th>Proj. Completions</th><th>Proj. Yield</th></tr>
             </thead>
             <tbody>
               {ws.projectedImprovements.map(p => (
@@ -646,6 +675,7 @@ function WorksheetDrilldown({ element, selections }) {
                   <td className="color-fg-muted">{p.structuralFactor}</td>
                   <td>{fmtPct(p.currentValue)}</td>
                   <td>{fmtPct(p.targetValue)}</td>
+                  <td className="color-fg-muted" style={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>{p.formula || '—'}</td>
                   <td>{fmt(p.projTimeSavedHours)}</td>
                   <td>{p.projCompletionGain != null ? '+' + fmt(p.projCompletionGain) : '—'}</td>
                   <td>{fmtDec(p.projYield, 3)}</td>
