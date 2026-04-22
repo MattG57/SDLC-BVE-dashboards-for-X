@@ -45,6 +45,22 @@
   .mode-toggle button.active { background: var(--bgColor-accent-muted); color: var(--fgColor-accent); font-weight: 600; }
 
   .highcharts-background { fill: transparent !important; }
+
+  .evidence-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .evidence-table th { text-align: left; padding: 8px 10px; border-bottom: 2px solid var(--borderColor-default); color: var(--fgColor-muted); font-weight: 600; white-space: nowrap; }
+  .evidence-table td { padding: 6px 10px; border-bottom: 1px solid var(--borderColor-muted); }
+  .evidence-table tr.clickable { cursor: pointer; }
+  .evidence-table tr.clickable:hover { background: var(--bgColor-muted); }
+  .evidence-table tr.selected { background: var(--bgColor-accent-muted); }
+  .evidence-table select { background: var(--bgColor-muted); color: var(--fgColor-default); border: 1px solid var(--borderColor-default); border-radius: 4px; padding: 2px 4px; font-size: 0.8rem; max-width: 150px; }
+
+  .drill-panel { border: 1px solid var(--borderColor-accent-emphasis); border-radius: 6px; margin-top: 12px; }
+  .drill-panel .drill-header { padding: 12px 16px; border-bottom: 1px solid var(--borderColor-default); display: flex; justify-content: space-between; align-items: center; }
+  .drill-panel .drill-body { padding: 16px; }
+  .drill-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin-bottom: 12px; }
+  .drill-table th { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--borderColor-default); color: var(--fgColor-muted); }
+  .drill-table td { padding: 4px 8px; border-bottom: 1px solid var(--borderColor-muted); }
+  .drill-table tr.active-row { background: var(--bgColor-accent-muted); }
 </style>
 </head>
 <body>
@@ -69,30 +85,20 @@ Highcharts.setOptions({
 
 
 /* ═══════════════════════════════════════════════════════
-   DATA LOADING — MATERIALIZED ARTIFACTS ONLY
+   DATA LOADING — SINGLE LEVERAGE-SUMMARY ARTIFACT
    ═══════════════════════════════════════════════════════ */
 
-async function fetchArtifacts() {
+async function fetchLeverageSummary() {
   const bases = ['../../dataflow/data/', '../dataflow/data/'];
   for (const base of bases) {
     try {
       const r = await fetch(base + 'pipeline-manifest.json');
       if (!r.ok) continue;
       const manifest = await r.json();
-      const dir = base + 'materialized/';
-      const find = prefix => (manifest.artifacts || []).find(f => f.startsWith(prefix));
-      const files = {
-        aiEff: find('ai-assisted-efficiency-days'),
-        aiStr: find('ai-assisted-structural-days'),
-        agEff: find('agentic-efficiency-days'),
-        agSess: find('agentic-pr-sessions'),
-      };
-      if (!files.aiEff && !files.agEff) continue;
-      const results = {};
-      for (const [key, file] of Object.entries(files)) {
-        if (file) results[key] = await fetch(dir + file).then(r => r.ok ? r.json() : null);
-      }
-      if (results.aiEff || results.agEff) return results;
+      const artFile = (manifest.artifacts || []).find(f => f.startsWith('leverage-summary'));
+      if (!artFile) continue;
+      const art = await fetch(base + 'materialized/' + artFile).then(r => r.ok ? r.json() : null);
+      if (art) return art;
     } catch(e) {}
   }
   return null;
@@ -100,267 +106,46 @@ async function fetchArtifacts() {
 
 
 /* ═══════════════════════════════════════════════════════
-   DATA PROCESSING LAYER
+   HELPERS
    ═══════════════════════════════════════════════════════ */
 
 function safeDiv(a, b) { return b > 0 ? a / b : null; }
-function mean(arr) { const v = arr.filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; }
 
-const DEFAULT_CONFIG = {
-  cfg_total_developers: 100,
-  cfg_hrs_per_dev_per_day: 8,
-  cfg_total_repos: null,
-  cfg_workdays_per_week: 5,
-  cfg_labor_cost_per_hour: null,
-  cfg_pct_time_coding: 0.5,
-  est_interactions_per_hour: 20,
-  est_hrs_per_kloc: 2,
-  est_duration_factor: 2,
-  cfg_projection_cap_ai: 5,
-  cfg_projection_cap_agentic: 9,
+function recomputeRow(element, selectedEstimateId, selectedProjectionId) {
+  const est = element.worksheet.improvementEstimates.find(e => e.estimateId === selectedEstimateId)
+    || element.worksheet.improvementEstimates[0];
+  const proj = element.worksheet.projectedImprovements.find(p => p.projectionId === selectedProjectionId)
+    || element.worksheet.projectedImprovements[0] || null;
+
+  const timeSaved = est?.timeSavedHours || 0;
+  const timeSpent = element.worksheet.factSummary.timeSpentHours;
+  const completions = element.worksheet.factSummary.completionCount;
+
+  let projTimeSaved = null, projCompletionGain = null, projYield = null;
+  if (proj && proj.currentValue > 0) {
+    const scale = 1 / proj.currentValue;
+    projTimeSaved = Math.round(timeSaved * scale);
+    if (proj.improvementType === 'mixed' || proj.improvementType === 'completion') {
+      projCompletionGain = Math.round(completions * (scale - 1));
+    }
+    projYield = safeDiv(completions + (projCompletionGain || 0), timeSpent + projTimeSaved - timeSaved);
+  }
+
+  return {
+    ...element.row,
+    timeSavedHours: Math.round(timeSaved),
+    currentYield: safeDiv(completions, timeSpent),
+    projTimeSavedHours: projTimeSaved,
+    projCompletionGain: projCompletionGain,
+    projYield: projYield,
+    modeNote: proj?.name || 'no projection',
+  };
+}
+
+const ELEMENT_COLORS = {
+  'ai-assisted-coding': { color: '#58a6ff', rgbaFill: 'rgba(88,166,255,0.18)' },
+  'agentic-ai-coding':  { color: '#3fb950', rgbaFill: 'rgba(63,185,80,0.18)' },
 };
-
-
-/* ── AI-Assisted Estimation Methods ── */
-const AI_ESTIMATION_METHODS = [
-  { key: 'interactions', label: 'Interactions-Based',
-    descFn: (cfg) => `1 hour saved per ${cfg.est_interactions_per_hour || 20} interactions`,
-    calc: (d, cfg) => (d.user_initiated_interaction_count || 0) / (cfg.est_interactions_per_hour || 20) },
-  { key: 'loc', label: 'LoC-Based',
-    descFn: (cfg) => `${cfg.est_hrs_per_kloc || 2} hours saved per 1,000 LoC added`,
-    calc: (d, cfg) => ((d.loc_added_sum || 0) / 1000) * (cfg.est_hrs_per_kloc || 2) },
-  { key: 'manual_daily_pct', label: 'Manual Daily %',
-    descFn: (cfg) => `${cfg.cfg_time_saved_pct_day != null ? (cfg.cfg_time_saved_pct_day * 100).toFixed(1) + '%' : '—'} × ${((cfg.cfg_pct_time_coding || 0.5) * 100).toFixed(0)}% coding time`,
-    calc: (d, cfg) => {
-      const p = cfg.cfg_time_saved_pct_day, b = cfg.cfg_baseline_hours_per_dev_per_week, w = cfg.cfg_workdays_per_week || 5;
-      const c = cfg.cfg_pct_time_coding || 0.5;
-      return (p != null && b != null) ? (p * c * b / w) * (d.daily_active_users || 0) : null;
-    }},
-];
-
-
-/* ── Agentic Estimation Methods ── */
-const AGENTIC_ESTIMATION_METHODS = [
-  { key: 'duration', label: 'Duration-Based',
-    descFn: (cfg) => `Agent PR duration × ${cfg.est_duration_factor || 2}`,
-    calc: (d, cfg) => ((d.merged_session_minutes || 0) / 60) * (cfg.est_duration_factor || 2),
-    calcTotal: (prSessions, cfg) => {
-      const multiplier = cfg.est_duration_factor || 2;
-      return prSessions.filter(pr => pr.duration_minutes != null).reduce((s, pr) => s + pr.duration_minutes, 0) * multiplier / 60;
-    }},
-  { key: 'loc', label: 'LoC-Based',
-    descFn: (cfg) => `${cfg.est_hrs_per_kloc || 2} hours per 1,000 LoC merged`,
-    calc: (d, cfg) => ((d.merged_loc_added || 0) / 1000) * (cfg.est_hrs_per_kloc || 2),
-    calcTotal: (prSessions, cfg) => {
-      const rate = cfg.est_hrs_per_kloc || 2;
-      return prSessions.filter(pr => pr.merged).reduce((s, pr) => s + ((pr.additions || 0) + (pr.deletions || 0)) / 1000 * rate, 0);
-    }},
-];
-
-
-/* ── computeDerived — AI-Assisted days ── */
-function computeDerived(days, config, selectedMethod) {
-  const method = AI_ESTIMATION_METHODS.find(m => m.key === selectedMethod) || AI_ESTIMATION_METHODS[0];
-  return days.map(d => {
-    const dau = d.daily_active_users || 0;
-    const estimates = {};
-    for (const m of AI_ESTIMATION_METHODS) {
-      const raw = m.calc(d, config);
-      estimates['est_' + m.key + '_hrs_day'] = raw;
-      estimates['est_' + m.key + '_hrs_per_dev_day'] = safeDiv(raw, dau);
-    }
-    const selectedHrsDay = method.calc(d, config);
-    return {
-      ...d, ...estimates,
-      acceptance_rate: safeDiv(d.code_acceptance_activity_count, d.code_generation_activity_count),
-      time_saved_hours_total_day: selectedHrsDay,
-      time_saved_hours_per_dev_per_day: safeDiv(selectedHrsDay, dau),
-    };
-  });
-}
-
-
-/* ── computeAgenticDerived — Agentic days ── */
-function computeAgenticDerived(dayRows, config, selectedMethod) {
-  const method = AGENTIC_ESTIMATION_METHODS.find(m => m.key === selectedMethod) || AGENTIC_ESTIMATION_METHODS[0];
-  return dayRows.map(d => {
-    const devs = d.active_devs;
-    const estimates = {};
-    for (const m of AGENTIC_ESTIMATION_METHODS) {
-      const raw = m.calc(d, config);
-      estimates['est_' + m.key + '_hrs_day'] = raw;
-      estimates['est_' + m.key + '_hrs_per_dev_day'] = safeDiv(raw, devs);
-    }
-    const selectedHrsDay = method.calc(d, config);
-    return {
-      ...d, ...estimates,
-      agent_session_hours: (d.agent_session_minutes || 0) / 60,
-      time_saved_hours_total_day: selectedHrsDay,
-      time_saved_hours_per_dev_per_day: safeDiv(selectedHrsDay, devs),
-    };
-  });
-}
-
-
-/* ── computeAiAssistedMetrics — aggregate metrics ── */
-function computeAiAssistedMetrics(enrichedDays, structuralArt, config, aiMethod) {
-  if (!enrichedDays || !enrichedDays.length) return null;
-  const days = enrichedDays;
-  const n = days.length;
-  const totalDevs = config.cfg_total_developers || 100;
-  const pctTimeCoding = config.cfg_pct_time_coding || 0.5;
-  const avgDau = mean(days.map(d => d.daily_active_users));
-
-  const activeDevHours = days.reduce((s, d) => s + (d.daily_active_users || 0) * pctTimeCoding * 8, 0);
-
-  const strData = structuralArt?.data || [];
-  const hasPrData = strData.some(d => d.has_pr_data || d.total_prs > 0);
-  const totalCompletions = hasPrData
-    ? strData.reduce((s, d) => s + (d.total_prs || 0), 0)
-    : days.reduce((s, d) => s + (d.pr_total_created || 0), 0);
-
-  const method = AI_ESTIMATION_METHODS.find(m => m.key === aiMethod) || AI_ESTIMATION_METHODS[0];
-  const timeSaved = days.reduce((s, d) => s + (d['est_' + method.key + '_hrs_day'] || 0), 0);
-
-  const adoptionPct = safeDiv(avgDau, totalDevs);
-  const avgPrsAssisted = structuralArt?._periodPrsAssistedPct ?? mean(strData.map(d => d.prs_assisted_pct));
-  const avgLocPct = structuralArt?._periodLocAssistedPct ?? mean(strData.map(d => d.ai_assisted_loc_pct));
-
-  const factors = [
-    { key: 'adoption', label: 'Adoption', current: adoptionPct },
-    { key: 'prs_assisted', label: '% PRs Assisted', current: avgPrsAssisted },
-    { key: 'loc_assisted', label: '% AI-Assisted LOC', current: avgLocPct },
-  ];
-
-  return { activeDevHours, totalCompletions, timeSaved, factors, avgDau, n };
-}
-
-
-/* ── computeAgenticMetrics — aggregate metrics ── */
-function computeAgenticMetrics(enrichedDays, prSessions, config, agenticMethod) {
-  if (!enrichedDays || !enrichedDays.length) return null;
-  const days = enrichedDays;
-  const sessions = prSessions || [];
-  const n = days.length;
-  const totalDevs = config.cfg_total_developers || 100;
-  const totalRepos = config.cfg_total_repos;
-
-  const estMethod = AGENTIC_ESTIMATION_METHODS.find(m => m.key === agenticMethod) || AGENTIC_ESTIMATION_METHODS[0];
-
-  const activeDevHours = sessions.length > 0
-    ? estMethod.calcTotal(sessions, config)
-    : days.reduce((s, d) => s + (d['est_' + estMethod.key + '_hrs_day'] || 0), 0);
-
-  const totalMerged = sessions.length > 0
-    ? sessions.filter(pr => pr.merged).length
-    : days.reduce((s, d) => s + (d.agent_prs_merged || 0), 0);
-  const totalCreated = sessions.length > 0
-    ? sessions.length
-    : days.reduce((s, d) => s + (d.agent_prs_created || 0), 0);
-  const totalCompletions = totalMerged;
-
-  const avgActiveDevs = mean(days.map(d => d.active_devs));
-  const adoptionPct = safeDiv(avgActiveDevs, totalDevs);
-  const overallMergeRate = safeDiv(totalMerged, totalCreated);
-  const activeRepos = sessions.length > 0
-    ? new Set(sessions.map(pr => pr.repo).filter(Boolean)).size
-    : null;
-  const repoCoverage = totalRepos && activeRepos ? safeDiv(activeRepos, totalRepos) : null;
-
-  const factors = [
-    { key: 'adoption', label: 'Adoption', current: adoptionPct },
-    { key: 'merge_rate', label: 'Merge Rate', current: overallMergeRate },
-    { key: 'coverage', label: 'Repo Coverage', current: repoCoverage },
-  ];
-
-  return { activeDevHours, totalCompletions, timeSaved: activeDevHours, factors, totalMerged, totalCreated, avgActiveDevs, n };
-}
-
-
-/* ── computeElementAtMode — returns { elements, capacity } ── */
-function computeElementAtMode(mode, aiMetrics, agenticMetrics, config, daysInRange) {
-  const elements = [];
-  let capacity = null;
-  const projCapAi = config.cfg_projection_cap_ai || 5;
-  const projCapAgentic = config.cfg_projection_cap_agentic || 9;
-
-  if (aiMetrics) {
-    let devHours, completions, chosenFactor = null;
-    const currentLeverage = safeDiv(aiMetrics.totalCompletions, aiMetrics.activeDevHours);
-    const leverageCap = (currentLeverage || 0) * projCapAi;
-
-    if (mode === 'aperture' || mode === 'current') {
-      devHours = aiMetrics.activeDevHours;
-      completions = aiMetrics.totalCompletions;
-    } else if (mode === 'unimproved') {
-      devHours = aiMetrics.activeDevHours + aiMetrics.timeSaved;
-      completions = aiMetrics.totalCompletions;
-    } else if (mode === 'projected') {
-      const validFactors = aiMetrics.factors.filter(f => f.current != null && f.current > 0 && f.current < 1);
-      if (validFactors.length > 0) {
-        const projections = validFactors.map(f => {
-          const potentialAdditional = aiMetrics.timeSaved * ((1 / f.current) - 1);
-          const improvedHours = Math.max(aiMetrics.activeDevHours - potentialAdditional, 0);
-          const leverage = safeDiv(aiMetrics.totalCompletions, improvedHours);
-          return { factor: f, potentialAdditional, improvedHours, leverage: leverage || 0 };
-        });
-        projections.sort((a, b) => a.leverage - b.leverage);
-        const capped = projections.filter(p => p.leverage <= leverageCap);
-        const pick = capped.length > 0 ? capped[capped.length - 1] : projections[0];
-        devHours = pick.improvedHours;
-        completions = aiMetrics.totalCompletions;
-        chosenFactor = pick.factor.label;
-      } else {
-        devHours = aiMetrics.activeDevHours;
-        completions = aiMetrics.totalCompletions;
-      }
-    }
-    elements.push({ name: 'AI-Assisted', color: '#58a6ff', rgbaFill: 'rgba(88,166,255,0.18)', devHours, completions, chosenFactor });
-  }
-
-  if (agenticMetrics) {
-    let devHours, completions, chosenFactor = null;
-    const currentLeverage = safeDiv(agenticMetrics.totalCompletions, agenticMetrics.activeDevHours);
-    const leverageCap = (currentLeverage || 0) * projCapAgentic;
-
-    if (mode === 'aperture' || mode === 'current') {
-      devHours = agenticMetrics.activeDevHours;
-      completions = agenticMetrics.totalCompletions;
-    } else if (mode === 'unimproved') {
-      devHours = 0;
-      completions = 0;
-    } else if (mode === 'projected') {
-      const validFactors = agenticMetrics.factors.filter(f => f.current != null && f.current > 0 && f.current < 1);
-      if (validFactors.length > 0) {
-        const projections = validFactors.map(f => {
-          const scaleFactor = 1 / f.current;
-          const projectedCompletions = Math.round(agenticMetrics.totalCompletions * scaleFactor);
-          const projectedDevHours = agenticMetrics.activeDevHours * scaleFactor;
-          return { factor: f, scaleFactor, projectedCompletions, projectedDevHours };
-        });
-        projections.sort((a, b) => a.scaleFactor - b.scaleFactor);
-        const capped = projections.filter(p => p.scaleFactor <= projCapAgentic);
-        const pick = capped.length > 0 ? capped[capped.length - 1] : projections[0];
-        devHours = pick.projectedDevHours;
-        completions = pick.projectedCompletions;
-        chosenFactor = pick.factor.label;
-      } else {
-        devHours = agenticMetrics.activeDevHours;
-        completions = agenticMetrics.totalCompletions;
-      }
-    }
-    elements.push({ name: 'Agentic', color: '#3fb950', rgbaFill: 'rgba(63,185,80,0.18)', devHours, completions, chosenFactor });
-  }
-
-  // Aperture mode: include org capacity rectangle
-  if (mode === 'aperture' && daysInRange > 0) {
-    const totalOrgDevHours = (config.cfg_total_developers || 100) * daysInRange * (config.cfg_hrs_per_dev_per_day || 8);
-    const totalCompletions = elements.reduce((s, e) => s + (e.completions || 0), 0);
-    capacity = { devHours: totalOrgDevHours, completions: totalCompletions };
-  }
-
-  return { elements, capacity };
-}
 
 
 /* ═══════════════════════════════════════════════════════
@@ -372,7 +157,6 @@ const { useState, useEffect, useRef, useMemo, useCallback } = React;
 const fmt = n => n == null ? '—' : Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
 const fmtDec = (n, d=1) => n == null ? '—' : Number(n).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
 const fmtPct = n => n == null ? '—' : (n * 100).toFixed(1) + '%';
-const fmtPct0 = n => n == null ? '—' : Math.round(n * 100) + '%';
 const fmtCompact = n => {
   if (n == null) return '—';
   if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(1) + 'M';
@@ -445,17 +229,23 @@ const MODE_DESCRIPTIONS = {
 /* ═══════════════════════════════════════════════════════
    SECTION 1 — SUMMARY
    ═══════════════════════════════════════════════════════ */
-function SummarySection({ aiDays, agDays, config, aiMetrics, agenticMetrics }) {
-  const allDays = [...(aiDays || []).map(d => d.day), ...(agDays || []).map(d => d.day)].filter(Boolean).sort();
-  const firstDay = allDays[0];
-  const lastDay = allDays[allDays.length - 1];
-  const daysInRange = allDays.length > 0 ? Math.round((new Date(lastDay) - new Date(firstDay)) / 86400000) + 1 : 0;
+function SummarySection({ profile, rows }) {
+  const cfg = profile.config_used;
+  const dr = profile.date_range || {};
+  const firstDay = dr.first;
+  const lastDay = dr.last;
+  const daysInRange = firstDay && lastDay
+    ? Math.round((new Date(lastDay) - new Date(firstDay)) / 86400000) + 1 : 0;
 
-  const totalOrgDevHours = (config.cfg_total_developers || 100) * daysInRange * (config.cfg_hrs_per_dev_per_day || 8);
-  const modeledDevHours = (aiMetrics?.activeDevHours || 0) + (agenticMetrics?.activeDevHours || 0);
+  const totalDevs = cfg.cfg_total_developers || 100;
+  const hrsPerDay = cfg.cfg_hrs_per_dev_per_day || 8;
+  const totalOrgDevHours = totalDevs * daysInRange * hrsPerDay;
+
+  const modeledDevHours = rows.reduce((s, r) => s + (r.timeSpentHours || 0), 0);
+  const totalHoursSaved = rows.reduce((s, r) => s + (r.timeSavedHours || 0), 0);
   const aperture = safeDiv(modeledDevHours, totalOrgDevHours);
-  const totalHoursSaved = (aiMetrics?.timeSaved || 0) + (agenticMetrics?.timeSaved || 0);
-  const economicValue = config.cfg_labor_cost_per_hour != null ? totalHoursSaved * config.cfg_labor_cost_per_hour : null;
+  const laborCost = cfg.cfg_labor_cost_per_hour;
+  const economicValue = laborCost != null ? totalHoursSaved * laborCost : null;
 
   return (
     <div className="section-row">
@@ -466,7 +256,7 @@ function SummarySection({ aiDays, agDays, config, aiMetrics, agenticMetrics }) {
           value={firstDay ? `${fmtShortDate(firstDay)} – ${fmtShortDate(lastDay)}` : '—'}
           sub={daysInRange > 0 ? `${daysInRange} days` : 'no data'} />
         <KpiCard label="Org Capacity" value={fmtCompact(totalOrgDevHours)} unit="hrs"
-          sub={`${config.cfg_total_developers} devs × ${daysInRange}d × ${config.cfg_hrs_per_dev_per_day || 8}h`} />
+          sub={`${totalDevs} devs × ${daysInRange}d × ${hrsPerDay}h`} />
         <KpiCard label="Modeled Dev-Hours" value={fmtCompact(modeledDevHours)} unit="hrs"
           sub="observed across elements" color="#58a6ff" />
         <KpiCard label="Aperture" value={fmtPct(aperture)}
@@ -475,7 +265,7 @@ function SummarySection({ aiDays, agDays, config, aiMetrics, agenticMetrics }) {
           sub="AI-assisted + agentic" color="#3fb950" />
         <KpiCard label="Economic Value"
           value={economicValue != null ? fmtCurrency(economicValue) : '—'}
-          sub={economicValue != null ? `at $${config.cfg_labor_cost_per_hour}/hr` : 'set in config'}
+          sub={economicValue != null ? `at $${laborCost}/hr` : 'set in config'}
           color={economicValue != null ? '#d29922' : undefined} />
       </div>
     </div>
@@ -484,46 +274,145 @@ function SummarySection({ aiDays, agDays, config, aiMetrics, agenticMetrics }) {
 
 
 /* ═══════════════════════════════════════════════════════
-   SECTION 2 — INTEGRATED LEVERAGE RECTANGLE
+   SECTION 2 — EVIDENCE TABLE + LEVERAGE RECTANGLE
    ═══════════════════════════════════════════════════════ */
-function LeverageSection({ aiMetrics, agenticMetrics, aiDays, agDays, config }) {
-  const [mode, setMode] = useState('aperture');
 
-  const daysInRange = useMemo(() => {
-    const allDays = [...(aiDays || []).map(d => d.day), ...(agDays || []).map(d => d.day)].filter(Boolean).sort();
-    if (allDays.length === 0) return 0;
-    return Math.round((new Date(allDays[allDays.length - 1]) - new Date(allDays[0])) / 86400000) + 1;
-  }, [aiDays, agDays]);
-
-  const { elements, capacity } = useMemo(
-    () => computeElementAtMode(mode, aiMetrics, agenticMetrics, config, daysInRange),
-    [mode, aiMetrics, agenticMetrics, config, daysInRange]
+function EvidenceTable({ elements, rows, selections, onSelectionChange, selectedKey, onRowClick }) {
+  return (
+    <div className="Box mb-3" style={{ overflowX: 'auto' }}>
+      <table className="evidence-table">
+        <thead>
+          <tr>
+            <th>Area</th>
+            <th>Completion Type</th>
+            <th>Completions</th>
+            <th>Time Spent</th>
+            <th>Time Saved</th>
+            <th>Yield</th>
+            <th>Proj. Savings</th>
+            <th>Proj. Yield</th>
+            <th>Mode</th>
+            <th>Estimate</th>
+            <th>Projection</th>
+          </tr>
+        </thead>
+        <tbody>
+          {elements.map((el, i) => {
+            const r = rows[i];
+            const sel = selections[el.elementKey] || {};
+            return (
+              <tr key={el.elementKey}
+                  className={`clickable${selectedKey === el.elementKey ? ' selected' : ''}`}
+                  onClick={() => onRowClick(el.elementKey)}>
+                <td style={{ fontWeight: 600, color: (ELEMENT_COLORS[el.elementKey] || {}).color }}>
+                  {r.area}
+                </td>
+                <td>{r.completionType}</td>
+                <td>{fmt(r.completionCount)}</td>
+                <td>{fmt(r.timeSpentHours)}<span className="color-fg-muted"> hrs</span></td>
+                <td style={{ color: '#3fb950' }}>{fmt(r.timeSavedHours)}<span className="color-fg-muted"> hrs</span></td>
+                <td>{fmtDec(r.currentYield, 3)}</td>
+                <td>{r.projTimeSavedHours != null ? fmt(r.projTimeSavedHours) + ' hrs' : '—'}</td>
+                <td>{fmtDec(r.projYield, 3)}</td>
+                <td className="color-fg-muted" style={{ fontSize: '0.75rem' }}>{r.modeNote}</td>
+                <td onClick={e => e.stopPropagation()}>
+                  <select value={sel.estimateId || ''} onChange={e => onSelectionChange(el.elementKey, 'estimateId', e.target.value)}>
+                    {el.worksheet.improvementEstimates.map(est => (
+                      <option key={est.estimateId} value={est.estimateId}>{est.name}</option>
+                    ))}
+                  </select>
+                </td>
+                <td onClick={e => e.stopPropagation()}>
+                  <select value={sel.projectionId || ''} onChange={e => onSelectionChange(el.elementKey, 'projectionId', e.target.value)}
+                    disabled={el.worksheet.projectedImprovements.length === 0}>
+                    {el.worksheet.projectedImprovements.length === 0
+                      ? <option value="">none</option>
+                      : el.worksheet.projectedImprovements.map(p => (
+                          <option key={p.projectionId} value={p.projectionId}>{p.name}</option>
+                        ))}
+                  </select>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
+}
+
+
+function LeverageRectangle({ elements, rows, profile, mode }) {
+  const cfg = profile.config_used;
+  const dr = profile.date_range || {};
+  const daysInRange = dr.first && dr.last
+    ? Math.round((new Date(dr.last) - new Date(dr.first)) / 86400000) + 1 : 0;
+
+  const rectData = useMemo(() => {
+    return elements.map((el, i) => {
+      const r = rows[i];
+      const colors = ELEMENT_COLORS[el.elementKey] || { color: '#8b949e', rgbaFill: 'rgba(139,148,158,0.18)' };
+      const isAgentic = el.elementKey === 'agentic-ai-coding';
+      let devHours, completions;
+
+      if (mode === 'aperture') {
+        devHours = r.timeSpentHours || 0;
+        completions = r.completionCount || 0;
+      } else if (mode === 'unimproved') {
+        if (isAgentic) {
+          devHours = 0;
+          completions = 0;
+        } else {
+          devHours = (r.timeSpentHours || 0) + (r.timeSavedHours || 0);
+          completions = r.completionCount || 0;
+        }
+      } else {
+        devHours = r.projTimeSavedHours != null ? r.projTimeSavedHours : (r.timeSpentHours || 0);
+        completions = (r.completionCount || 0) + (r.projCompletionGain || 0);
+      }
+      return { name: r.area, devHours, completions, ...colors, isAgentic };
+    });
+  }, [elements, rows, mode]);
+
+  const capacity = useMemo(() => {
+    if (mode !== 'aperture' || daysInRange === 0) return null;
+    const totalOrgDevHours = (cfg.cfg_total_developers || 100) * daysInRange * (cfg.cfg_hrs_per_dev_per_day || 8);
+    const totalCompletions = rectData.reduce((s, e) => s + e.completions, 0);
+    return { devHours: totalOrgDevHours, completions: totalCompletions };
+  }, [mode, daysInRange, cfg, rectData]);
 
   // Fixed axis scales across all modes
   const { fixedXMax, fixedYMax } = useMemo(() => {
     let maxW = 0, maxH = 0;
     for (const m of ['aperture', 'unimproved', 'projected']) {
-      const { elements: els, capacity: cap } = computeElementAtMode(m, aiMetrics, agenticMetrics, config, daysInRange);
-      const elW = els.reduce((s, e) => s + (e.devHours || 0), 0);
-      const elH = els.reduce((s, e) => s + (e.completions || 0), 0);
-      const w = cap ? Math.max(elW, cap.devHours) : elW;
-      const h = cap ? Math.max(elH, cap.completions) : elH;
+      let w = 0, h = 0;
+      for (let i = 0; i < elements.length; i++) {
+        const r = rows[i];
+        const isAg = elements[i].elementKey === 'agentic-ai-coding';
+        if (m === 'unimproved' && isAg) continue;
+        const dh = m === 'unimproved' && !isAg ? (r.timeSpentHours || 0) + (r.timeSavedHours || 0)
+          : m === 'projected' && r.projTimeSavedHours != null ? r.projTimeSavedHours
+          : (r.timeSpentHours || 0);
+        const c = m === 'projected' ? (r.completionCount || 0) + (r.projCompletionGain || 0) : (r.completionCount || 0);
+        w += dh; h += c;
+      }
+      if (m === 'aperture' && daysInRange > 0) {
+        const orgW = (cfg.cfg_total_developers || 100) * daysInRange * (cfg.cfg_hrs_per_dev_per_day || 8);
+        w = Math.max(w, orgW);
+      }
       if (w > maxW) maxW = w;
       if (h > maxH) maxH = h;
     }
     return { fixedXMax: maxW > 0 ? maxW * 1.15 : 10, fixedYMax: maxH > 0 ? maxH * 1.15 : 10 };
-  }, [aiMetrics, agenticMetrics, config, daysInRange]);
+  }, [elements, rows, cfg, daysInRange]);
 
-  const totalDevHours = elements.reduce((s, e) => s + (e.devHours || 0), 0);
-  const totalCompletions = elements.reduce((s, e) => s + (e.completions || 0), 0);
+  const totalDevHours = rectData.reduce((s, e) => s + e.devHours, 0);
+  const totalCompletions = rectData.reduce((s, e) => s + e.completions, 0);
   const integratedLeverage = safeDiv(totalCompletions, totalDevHours);
   const aperturePct = capacity ? safeDiv(totalDevHours, capacity.devHours) : null;
 
-  // Build chart series
   const series = [];
 
-  // Capacity rectangle (aperture mode only)
   if (capacity && capacity.devHours > 0 && capacity.completions > 0) {
     series.push({
       type: 'polygon', name: 'Org Capacity',
@@ -534,38 +423,29 @@ function LeverageSection({ aiMetrics, agenticMetrics, aiDays, agDays, config }) 
     });
   }
 
-  // Element sub-rectangles side-by-side
   let xOffset = 0;
-  for (const elem of elements) {
-    const w = elem.devHours || 0;
-    const h = elem.completions || 0;
+  for (const elem of rectData) {
+    const w = elem.devHours, h = elem.completions;
     if (w > 0 && h > 0) {
       series.push({
         type: 'polygon', name: elem.name,
         data: [[xOffset, 0], [xOffset + w, 0], [xOffset + w, h], [xOffset, h]],
         color: elem.rgbaFill, lineWidth: 2, lineColor: elem.color,
         enableMouseTracking: true,
-        tooltip: {
-          headerFormat: '',
-          pointFormat: `<b>${elem.name}</b><br/>Dev-Hours: ${fmtCompact(w)}<br/>Completions: ${fmtCompact(h)}<br/>Leverage: ${fmtDec(safeDiv(h, w), 3)}${elem.chosenFactor ? '<br/>Factor: ' + elem.chosenFactor + ' → 100%' : ''}`,
-        },
+        tooltip: { headerFormat: '', pointFormat: `<b>${elem.name}</b><br/>Dev-Hours: ${fmtCompact(w)}<br/>Completions: ${fmtCompact(h)}<br/>Leverage: ${fmtDec(safeDiv(h, w), 3)}` },
       });
-    } else if (w === 0 && h === 0 && mode === 'unimproved' && elem.name === 'Agentic') {
+    } else if (w === 0 && h === 0 && mode === 'unimproved' && elem.isAgentic) {
       series.push({
         type: 'scatter', name: `${elem.name} (zero)`,
         data: [{ x: xOffset, y: 0 }],
         color: elem.color,
         marker: { radius: 8, symbol: 'circle', lineWidth: 2, lineColor: elem.color, fillColor: 'rgba(63,185,80,0.3)' },
-        tooltip: {
-          headerFormat: '',
-          pointFormat: `<b>${elem.name} (Counterfactual)</b><br/>Without the agent: 0 dev-hours, 0 completions.<br/>This is purely additive capacity.`,
-        },
+        tooltip: { headerFormat: '', pointFormat: `<b>${elem.name} (Counterfactual)</b><br/>Without the agent: 0 dev-hours, 0 completions.<br/>This is purely additive capacity.` },
       });
     }
     xOffset += w;
   }
 
-  // Diagonal leverage line from origin through the combined point
   if (totalDevHours > 0 && totalCompletions > 0) {
     series.push({
       type: 'line', name: `Leverage = ${fmtDec(integratedLeverage, 3)}`,
@@ -580,16 +460,8 @@ function LeverageSection({ aiMetrics, agenticMetrics, aiDays, agDays, config }) 
     chart: { type: 'scatter', height: 480 },
     title: { text: 'Integrated Leverage Rectangle' },
     subtitle: { text: null },
-    xAxis: {
-      title: { text: 'Dev-Hours', style: { fontSize: '13px', fontWeight: '600' } },
-      min: 0, max: fixedXMax, gridLineWidth: 1,
-      labels: { formatter: function() { return fmtCompact(this.value); } },
-    },
-    yAxis: {
-      title: { text: 'Completions', style: { fontSize: '13px', fontWeight: '600' } },
-      min: 0, max: fixedYMax,
-      labels: { formatter: function() { return fmtCompact(this.value); } },
-    },
+    xAxis: { title: { text: 'Dev-Hours', style: { fontSize: '13px', fontWeight: '600' } }, min: 0, max: fixedXMax, gridLineWidth: 1, labels: { formatter: function() { return fmtCompact(this.value); } } },
+    yAxis: { title: { text: 'Completions', style: { fontSize: '13px', fontWeight: '600' } }, min: 0, max: fixedYMax, labels: { formatter: function() { return fmtCompact(this.value); } } },
     tooltip: { useHTML: true, headerFormat: '' },
     legend: { enabled: true, align: 'center', verticalAlign: 'bottom' },
     plotOptions: { series: { animation: { duration: 600 }, states: { inactive: { opacity: 0.6 } } } },
@@ -597,22 +469,7 @@ function LeverageSection({ aiMetrics, agenticMetrics, aiDays, agDays, config }) 
   };
 
   return (
-    <div className="section-row">
-      <SectionHeader title="Integrated Leverage" desc="Leverage rectangle — completions per dev-hour across projection modes" />
-
-      {/* Mode buttons */}
-      <div className="mode-toggle mb-2">
-        {MODES.map(m => (
-          <button key={m.key} className={m.key === mode ? 'active' : ''} onClick={() => setMode(m.key)}>
-            {m.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Mode explanation */}
-      <p className="f6 color-fg-muted mb-3">{MODE_DESCRIPTIONS[mode]}</p>
-
-      {/* KPI row */}
+    <>
       <div className="d-flex flex-wrap mb-3" style={{ gap: '12px' }}>
         <div style={{ flex: '1 1 140px' }}>
           <KpiCard label="Total Dev-Hours" value={fmtCompact(totalDevHours)} sub="sum across elements" />
@@ -629,10 +486,90 @@ function LeverageSection({ aiMetrics, agenticMetrics, aiDays, agDays, config }) 
           </div>
         )}
       </div>
-
-      {/* Chart */}
       <div className="Box p-3">
         <Chart options={chartOpts} />
+      </div>
+    </>
+  );
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   SECTION 3 — WORKSHEET DRILL-DOWN
+   ═══════════════════════════════════════════════════════ */
+function WorksheetDrilldown({ element, selections }) {
+  const ws = element.worksheet;
+  const fs = ws.factSummary;
+  const sel = selections[element.elementKey] || {};
+
+  const factEntries = Object.entries(fs).filter(([k]) => k !== 'completionType');
+
+  return (
+    <div className="drill-panel">
+      <div className="drill-header">
+        <h3 className="f4 mb-0" style={{ color: (ELEMENT_COLORS[element.elementKey] || {}).color }}>
+          {element.row.area} — Worksheet
+        </h3>
+      </div>
+      <div className="drill-body">
+        {/* Facts */}
+        <h4 className="f5 color-fg-muted mb-2">Facts</h4>
+        <div className="d-flex flex-wrap mb-3" style={{ gap: '8px' }}>
+          {factEntries.map(([k, v]) => (
+            <div key={k} className="Box p-2" style={{ flex: '0 0 auto', minWidth: '120px' }}>
+              <div className="f6 color-fg-muted">{k.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())}</div>
+              <div className="f5 text-bold">{typeof v === 'number' ? (v < 1 && v > 0 ? fmtPct(v) : fmtDec(v, 1)) : String(v ?? '—')}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Estimates */}
+        <h4 className="f5 color-fg-muted mb-2">Improvement Estimates</h4>
+        <table className="drill-table">
+          <thead>
+            <tr><th>Name</th><th>Method</th><th>Formula</th><th>Time Saved (hrs)</th><th>Per Dev/Day</th></tr>
+          </thead>
+          <tbody>
+            {ws.improvementEstimates.map(est => (
+              <tr key={est.estimateId} className={est.estimateId === sel.estimateId ? 'active-row' : ''}>
+                <td style={{ fontWeight: est.estimateId === sel.estimateId ? 600 : 400 }}>
+                  {est.estimateId === sel.estimateId ? '● ' : ''}{est.name}
+                </td>
+                <td className="color-fg-muted">{est.method}</td>
+                <td className="color-fg-muted" style={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>{est.formula}</td>
+                <td>{fmtDec(est.timeSavedHours, 1)}</td>
+                <td>{fmtDec(est.timeSavedPerDev, 2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* Projections */}
+        <h4 className="f5 color-fg-muted mb-2">Projected Improvements</h4>
+        {ws.projectedImprovements.length === 0 ? (
+          <p className="f6 color-fg-muted">No projections available for this element.</p>
+        ) : (
+          <table className="drill-table">
+            <thead>
+              <tr><th>Name</th><th>Factor</th><th>Current</th><th>Target</th><th>Proj. Saved (hrs)</th><th>Proj. Completions</th><th>Proj. Yield</th></tr>
+            </thead>
+            <tbody>
+              {ws.projectedImprovements.map(p => (
+                <tr key={p.projectionId} className={p.projectionId === sel.projectionId ? 'active-row' : ''}>
+                  <td style={{ fontWeight: p.projectionId === sel.projectionId ? 600 : 400 }}>
+                    {p.projectionId === sel.projectionId ? '● ' : ''}{p.name}
+                  </td>
+                  <td className="color-fg-muted">{p.structuralFactor}</td>
+                  <td>{fmtPct(p.currentValue)}</td>
+                  <td>{fmtPct(p.targetValue)}</td>
+                  <td>{fmt(p.projTimeSavedHours)}</td>
+                  <td>{p.projCompletionGain != null ? '+' + fmt(p.projCompletionGain) : '—'}</td>
+                  <td>{fmtDec(p.projYield, 3)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
@@ -640,95 +577,33 @@ function LeverageSection({ aiMetrics, agenticMetrics, aiDays, agDays, config }) 
 
 
 /* ═══════════════════════════════════════════════════════
-   SECTION 3 — CONFIG PANEL
+   SECTION 4 — CONFIG PANEL (read-only)
    ═══════════════════════════════════════════════════════ */
-function ConfigPanel({ config, onApply, isOpen, onToggle, aiMethod, onAiMethodChange, agenticMethod, onAgenticMethodChange }) {
-  const [cfg, setCfg] = useState(config);
-  useEffect(() => setCfg(config), [config]);
-  const set = (k, v) => setCfg(prev => ({ ...prev, [k]: v }));
-  const apply = () => onApply(cfg);
-
-  const fields = [
-    { section: 'Organization', items: [
-      { key: 'cfg_total_developers', label: 'Total Developers', type: 'number' },
-      { key: 'cfg_hrs_per_dev_per_day', label: 'Hours per Dev per Day', type: 'number' },
-      { key: 'cfg_labor_cost_per_hour', label: 'Labor Cost $/hr', type: 'number' },
-      { key: 'cfg_workdays_per_week', label: 'Workdays / Week', type: 'number' },
-    ]},
-    { section: 'AI-Assisted Estimation', items: [
-      { key: 'est_interactions_per_hour', label: 'Interactions per Hour Saved', type: 'number' },
-      { key: 'est_hrs_per_kloc', label: 'Hrs Saved per 1K LoC', type: 'number', step: '0.5' },
-      { key: 'cfg_pct_time_coding', label: '% Time Coding (0–1)', type: 'number', step: '0.05' },
-    ]},
-    { section: 'Manual Daily % Parameters', items: [
-      { key: 'cfg_time_saved_pct_day', label: 'Time Saved % (0–1)', type: 'number', step: '0.01' },
-      { key: 'cfg_baseline_hours_per_dev_per_week', label: 'Baseline Hrs / Dev / Week', type: 'number' },
-    ]},
-    { section: 'Agentic Estimation', items: [
-      { key: 'est_duration_factor', label: 'Duration Multiplier', type: 'number', step: '1' },
-    ]},
-    { section: 'Projection Caps', items: [
-      { key: 'cfg_projection_cap_ai', label: 'AI Leverage Cap (×)', type: 'number', step: '1' },
-      { key: 'cfg_projection_cap_agentic', label: 'Agentic Scale Cap (×)', type: 'number', step: '1' },
-    ]},
-  ];
-
-  const summary = `${cfg.cfg_total_developers} devs · ${cfg.cfg_hrs_per_dev_per_day || 8}h/d`;
+function ConfigPanel({ config, isOpen, onToggle }) {
+  const entries = Object.entries(config).filter(([, v]) => v != null);
+  const summary = `${config.cfg_total_developers} devs · ${config.cfg_hrs_per_dev_per_day || 8}h/d`;
 
   return (
     <div className="Box mt-4" style={{ borderColor: isOpen ? 'var(--borderColor-accent-emphasis)' : undefined }}>
       <div className="Box-header d-flex flex-items-center flex-justify-between" style={{ cursor: 'pointer' }} onClick={onToggle}>
         <div className="d-flex flex-items-center" style={{ gap: '8px' }}>
           <span style={{ transition: 'transform 0.15s', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', display: 'inline-block' }}>▶</span>
-          <h4 className="f5 mb-0">Configuration</h4>
+          <h4 className="f5 mb-0">Configuration (materialization-time)</h4>
         </div>
         <span className="f6 color-fg-muted">{summary}</span>
       </div>
       {isOpen && (
         <div className="Box-body">
-          {fields.map(section => (
-            <div key={section.section} className="mb-3">
-              <h5 className="f6 color-fg-muted text-bold mb-2">{section.section}</h5>
-              <div className="d-flex flex-wrap" style={{ gap: '12px', alignItems: 'flex-end' }}>
-                {section.items.map(f => (
-                  <div key={f.key} className="form-group mb-0" style={{ flex: '1 1 160px' }}>
-                    <label className="f6 color-fg-muted">{f.label}</label>
-                    <input type={f.type} className="form-control input-sm" step={f.step || '1'}
-                      value={cfg[f.key] ?? ''} onChange={e => set(f.key, e.target.value === '' ? null : parseFloat(e.target.value))} />
-                  </div>
-                ))}
+          <p className="f6 color-fg-muted mb-3">
+            These values were set at materialization time. To change, update <code>dashboard-config.json</code> and re-run the pipeline.
+          </p>
+          <div className="d-flex flex-wrap" style={{ gap: '12px' }}>
+            {entries.map(([k, v]) => (
+              <div key={k} className="Box p-2" style={{ flex: '1 1 180px' }}>
+                <div className="f6 color-fg-muted">{k}</div>
+                <div className="f5 text-bold">{typeof v === 'number' && v < 1 && v > 0 ? fmtPct(v) : String(v)}</div>
               </div>
-            </div>
-          ))}
-
-          <div className="mb-3">
-            <h5 className="f6 color-fg-muted text-bold mb-2">AI-Assisted Time Saved Method</h5>
-            <div className="d-flex flex-wrap" style={{ gap: '8px' }}>
-              {AI_ESTIMATION_METHODS.map(m => (
-                <button key={m.key} className={`btn btn-sm${m.key === aiMethod ? ' btn-primary' : ''}`}
-                  onClick={() => onAiMethodChange(m.key)}>{m.label}</button>
-              ))}
-            </div>
-          </div>
-
-          <div className="mb-3">
-            <h5 className="f6 color-fg-muted text-bold mb-2">Agentic Dev-Hours Method</h5>
-            <div className="d-flex flex-wrap" style={{ gap: '8px' }}>
-              {AGENTIC_ESTIMATION_METHODS.map(m => (
-                <button key={m.key} className={`btn btn-sm${m.key === agenticMethod ? ' btn-primary' : ''}`}
-                  onClick={() => onAgenticMethodChange(m.key)}>{m.label}</button>
-              ))}
-            </div>
-          </div>
-
-          <div className="d-flex flex-items-center mt-3" style={{ gap: '8px' }}>
-            <button className="btn btn-sm btn-primary" onClick={apply}>Apply & Recalculate</button>
-            <button className="btn btn-sm btn-outline" onClick={() => {
-              const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: 'application/json' });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a'); a.href = url; a.download = 'integrated-config.json'; a.click();
-              URL.revokeObjectURL(url);
-            }}>💾 Save config.json</button>
+            ))}
           </div>
         </div>
       )}
@@ -738,112 +613,121 @@ function ConfigPanel({ config, onApply, isOpen, onToggle, aiMethod, onAiMethodCh
 
 
 /* ═══════════════════════════════════════════════════════
+   DOWNLOAD
+   ═══════════════════════════════════════════════════════ */
+function downloadLeverageSummary(artifact, elements, selections) {
+  const updated = {
+    ...artifact,
+    artifact: {
+      ...artifact.artifact,
+      exported_at: new Date().toISOString(),
+      profile: {
+        ...artifact.artifact.profile,
+        selections_used: Object.fromEntries(
+          elements.map(el => [el.elementKey, selections[el.elementKey] || {}])
+        ),
+      },
+    },
+    elements: elements.map(el => ({
+      ...el,
+      row: recomputeRow(el, selections[el.elementKey]?.estimateId, selections[el.elementKey]?.projectionId),
+      worksheet: {
+        ...el.worksheet,
+        selection: {
+          selectedEstimateId: selections[el.elementKey]?.estimateId || el.worksheet.selection.selectedEstimateId,
+          selectedProjectionId: selections[el.elementKey]?.projectionId || el.worksheet.selection.selectedProjectionId,
+          modeNote: selections[el.elementKey]?.projectionId
+            ? (el.worksheet.projectedImprovements.find(p => p.projectionId === selections[el.elementKey].projectionId)?.name || 'custom')
+            : el.worksheet.selection.modeNote,
+        },
+      },
+    })),
+  };
+  const blob = new Blob([JSON.stringify(updated, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'leverage-summary.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+
+/* ═══════════════════════════════════════════════════════
    APP
    ═══════════════════════════════════════════════════════ */
 function App() {
-  const [rawArts, setRawArts] = useState(null);
-  const [aiDays, setAiDays] = useState(null);
-  const [aiBaseDays, setAiBaseDays] = useState(null);
-  const [agDays, setAgDays] = useState(null);
-  const [agBaseDays, setAgBaseDays] = useState(null);
-  const [config, setConfig] = useState({ ...DEFAULT_CONFIG });
+  const [artifact, setArtifact] = useState(null);
+  const [selections, setSelections] = useState({});
   const [configOpen, setConfigOpen] = useState(false);
-  const [aiMethod, setAiMethod] = useState('interactions');
-  const [agenticMethod, setAgenticMethod] = useState('duration');
+  const [selectedKey, setSelectedKey] = useState(null);
+  const [rectMode, setRectMode] = useState('aperture');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    fetchArtifacts().then(arts => {
-      if (!arts) {
-        setError('No materialized artifacts found.');
+    fetchLeverageSummary().then(art => {
+      if (!art || !art.elements?.length) {
+        setError('No leverage-summary artifact found.');
         setLoading(false);
         return;
       }
-      setRawArts(arts);
-
-      let baseDaysAi = null;
-      if (arts.aiEff?.data?.length) {
-        baseDaysAi = [...arts.aiEff.data].sort((a, b) => (a.day||'').localeCompare(b.day||''));
-        setAiBaseDays(baseDaysAi);
-        setAiDays(computeDerived(baseDaysAi, DEFAULT_CONFIG, 'interactions'));
+      setArtifact(art);
+      const sel = {};
+      for (const el of art.elements) {
+        sel[el.elementKey] = {
+          estimateId: el.worksheet.selection.selectedEstimateId,
+          projectionId: el.worksheet.selection.selectedProjectionId,
+        };
       }
-
-      let baseDaysAg = null;
-      if (arts.agEff?.data?.length) {
-        baseDaysAg = [...arts.agEff.data].sort((a, b) => (a.day||'').localeCompare(b.day||''));
-
-        const needsMerged = baseDaysAg.length > 0 &&
-          baseDaysAg[0].merged_session_minutes == null &&
-          baseDaysAg[0].merged_loc_added == null;
-        if (needsMerged && arts.agSess?.data) {
-          const mergedByDay = {};
-          for (const pr of arts.agSess.data) {
-            if (!pr.merged) continue;
-            const day = pr.day || '';
-            if (!day) continue;
-            if (!mergedByDay[day]) mergedByDay[day] = { mins: 0, loc: 0 };
-            mergedByDay[day].mins += (pr.duration_minutes || 0);
-            mergedByDay[day].loc += (pr.additions || 0);
-          }
-          baseDaysAg = baseDaysAg.map(d => ({
-            ...d,
-            merged_session_minutes: d.merged_session_minutes ?? (mergedByDay[d.day]?.mins || 0),
-            merged_loc_added: d.merged_loc_added ?? (mergedByDay[d.day]?.loc || 0),
-          }));
-        }
-
-        setAgBaseDays(baseDaysAg);
-        setAgDays(computeAgenticDerived(baseDaysAg, DEFAULT_CONFIG, 'duration'));
-      }
-
-      if (!baseDaysAi && !baseDaysAg) setError('No data found in artifacts.');
+      setSelections(sel);
       setLoading(false);
     }).catch(e => {
       console.error('Artifact load error:', e);
-      setError('Failed to load artifacts: ' + e.message);
+      setError('Failed to load leverage-summary: ' + e.message);
       setLoading(false);
     });
   }, []);
 
-  const handleAiMethodChange = useCallback((m) => {
-    setAiMethod(m);
-    if (aiBaseDays) setAiDays(computeDerived(aiBaseDays, config, m));
-  }, [aiBaseDays, config]);
+  const handleSelectionChange = useCallback((elKey, field, value) => {
+    setSelections(prev => ({
+      ...prev,
+      [elKey]: { ...prev[elKey], [field]: value },
+    }));
+  }, []);
 
-  const handleAgenticMethodChange = useCallback((m) => {
-    setAgenticMethod(m);
-    if (agBaseDays) setAgDays(computeAgenticDerived(agBaseDays, config, m));
-  }, [agBaseDays, config]);
+  const rows = useMemo(() => {
+    if (!artifact) return [];
+    return artifact.elements.map(el => {
+      const sel = selections[el.elementKey] || {};
+      return recomputeRow(el, sel.estimateId, sel.projectionId);
+    });
+  }, [artifact, selections]);
 
-  const handleConfigApply = useCallback((cfg) => {
-    setConfig(cfg);
-    if (aiBaseDays) setAiDays(computeDerived(aiBaseDays, cfg, aiMethod));
-    if (agBaseDays) setAgDays(computeAgenticDerived(agBaseDays, cfg, agenticMethod));
-  }, [aiBaseDays, agBaseDays, aiMethod, agenticMethod]);
+  const profile = artifact?.artifact?.profile;
+  const elements = artifact?.elements || [];
+  const hasData = elements.length > 0;
 
-  const aiMetrics = useMemo(
-    () => computeAiAssistedMetrics(aiDays, rawArts?.aiStr, config, aiMethod),
-    [aiDays, rawArts, config, aiMethod]
-  );
-  const agenticMetrics = useMemo(
-    () => computeAgenticMetrics(agDays, rawArts?.agSess?.data, config, agenticMethod),
-    [agDays, rawArts, config, agenticMethod]
-  );
-
-  const hasData = aiDays || agDays;
+  const drillElement = selectedKey ? elements.find(e => e.elementKey === selectedKey) : null;
 
   return (
     <div className="integrated-page">
-      <div className="mb-4">
-        <h1 className="f1">BVE — Integrated Leverage <span className="Label Label--accent ml-2" style={{ verticalAlign: 'middle', fontSize: '0.5em' }}>v2</span></h1>
-        <p className="f4 color-fg-muted">Organizational capacity, measurement aperture, and integrated leverage</p>
+      <div className="d-flex flex-items-center flex-justify-between mb-4">
+        <div>
+          <h1 className="f1">BVE — Integrated Leverage <span className="Label Label--accent ml-2" style={{ verticalAlign: 'middle', fontSize: '0.5em' }}>v2</span></h1>
+          <p className="f4 color-fg-muted">Organizational capacity, measurement aperture, and integrated leverage</p>
+        </div>
+        {hasData && (
+          <button className="btn btn-sm btn-outline" onClick={() => downloadLeverageSummary(artifact, elements, selections)}>
+            ⬇ Download leverage-summary.json
+          </button>
+        )}
       </div>
 
       {loading && (
         <div className="Box p-4 text-center color-fg-muted">
           <p className="f3 mb-2">⏳</p>
-          <p className="f5">Loading materialized artifacts…</p>
+          <p className="f5">Loading leverage-summary…</p>
         </div>
       )}
 
@@ -856,16 +740,38 @@ function App() {
 
       {hasData && (
         <>
-          <SummarySection aiDays={aiDays} agDays={agDays} config={config}
-            aiMetrics={aiMetrics} agenticMetrics={agenticMetrics} />
+          <SummarySection profile={profile} rows={rows} />
 
-          <LeverageSection aiMetrics={aiMetrics} agenticMetrics={agenticMetrics}
-            aiDays={aiDays} agDays={agDays} config={config} />
+          {/* Section 2: Evidence + Leverage Rectangle */}
+          <div className="section-row">
+            <SectionHeader title="Evidence & Leverage"
+              desc="Per-element evidence table with selectable estimates and projections. Click a row to drill into its worksheet." />
 
-          <ConfigPanel config={config} onApply={handleConfigApply}
-            isOpen={configOpen} onToggle={() => setConfigOpen(o => !o)}
-            aiMethod={aiMethod} onAiMethodChange={handleAiMethodChange}
-            agenticMethod={agenticMethod} onAgenticMethodChange={handleAgenticMethodChange} />
+            <EvidenceTable elements={elements} rows={rows} selections={selections}
+              onSelectionChange={handleSelectionChange} selectedKey={selectedKey}
+              onRowClick={k => setSelectedKey(prev => prev === k ? null : k)} />
+
+            {drillElement && (
+              <WorksheetDrilldown element={drillElement} selections={selections} />
+            )}
+
+            <div className="mt-4">
+              <div className="d-flex flex-items-center mb-2" style={{ gap: '12px' }}>
+                <div className="mode-toggle">
+                  {MODES.map(m => (
+                    <button key={m.key} className={m.key === rectMode ? 'active' : ''} onClick={() => setRectMode(m.key)}>
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+                <span className="f6 color-fg-muted">{MODE_DESCRIPTIONS[rectMode]}</span>
+              </div>
+              <LeverageRectangle elements={elements} rows={rows} profile={profile} mode={rectMode} />
+            </div>
+          </div>
+
+          {/* Section 4: Config */}
+          <ConfigPanel config={profile.config_used} isOpen={configOpen} onToggle={() => setConfigOpen(o => !o)} />
         </>
       )}
     </div>
