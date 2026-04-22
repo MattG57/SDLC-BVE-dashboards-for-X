@@ -39,11 +39,13 @@ RUN_TS=$(date -u +%Y-%m-%dT%H%MZ)
 
 PROFILE="default"
 MATERIALIZE_ONLY=false
+USE_STREAMING=true
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --profile) PROFILE="$2"; shift 2 ;;
     --materialize-only) MATERIALIZE_ONLY=true; shift ;;
+    --no-streaming) USE_STREAMING=false; shift ;;
     *) echo "Unknown argument: $1"; exit 1 ;;
   esac
 done
@@ -315,8 +317,13 @@ main() {
 
   # Materialize
   echo ""
-  echo "Materializing pipeline artifacts..."
-  node "${REPO_ROOT}/scripts/materialize.js"
+  if [[ "$USE_STREAMING" == "true" ]]; then
+    echo "Materializing pipeline artifacts (streaming)..."
+    node "${REPO_ROOT}/scripts/materialize-streaming.js"
+  else
+    echo "Materializing pipeline artifacts (standard)..."
+    node "${REPO_ROOT}/scripts/materialize.js"
+  fi
 
   echo ""
   echo "✅ Pipeline complete"

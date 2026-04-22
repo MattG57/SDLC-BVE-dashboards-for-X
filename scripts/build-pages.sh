@@ -125,10 +125,17 @@ done
 # ─── Materialize pipeline artifacts for the dataflow dashboard ─────────────────
 # Run the materializer which writes directly to dashboard/dataflow/data/.
 # Then copy the subdirectories to _site/ (the generic loop above only copies flat *.json).
+# Uses streaming materializer by default; set MATERIALIZE_MODE=standard to use original.
 if command -v node >/dev/null 2>&1; then
   echo ""
-  echo "Materializing pipeline artifacts..."
-  node "${REPO_ROOT}/scripts/materialize.js" 2>/dev/null || echo "  ⚠ materialize.js skipped (no data or error)"
+  MATERIALIZE_MODE="${MATERIALIZE_MODE:-streaming}"
+  if [[ "$MATERIALIZE_MODE" == "streaming" ]]; then
+    echo "Materializing pipeline artifacts (streaming)..."
+    node "${REPO_ROOT}/scripts/materialize-streaming.js" 2>/dev/null || echo "  ⚠ materialize-streaming.js skipped (no data or error)"
+  else
+    echo "Materializing pipeline artifacts (standard)..."
+    node "${REPO_ROOT}/scripts/materialize.js" 2>/dev/null || echo "  ⚠ materialize.js skipped (no data or error)"
+  fi
   DATAFLOW_SRC="${REPO_ROOT}/dashboard/dataflow/data"
   DATAFLOW_DEST="${SITE_DIR}/dataflow/data"
   for subdir in raw materialized; do
