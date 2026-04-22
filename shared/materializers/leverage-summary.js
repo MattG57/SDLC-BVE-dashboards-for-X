@@ -25,14 +25,16 @@ function buildAiAssistedElement(effArt, strArt, config, selections) {
 
   const days = effArt.data;
   const strData = strArt?.data || [];
+  const prRecords = strArt?._prRecords || [];
   const n = days.length;
   const totalDevs = config.cfg_total_developers || 100;
   const pctTimeCoding = config.cfg_pct_time_coding || 0.5;
   const hrsPerDay = config.cfg_hrs_per_dev_per_day || 8;
+  const defaultWindowDays = config.cfg_window_days || 28;
 
-  // Window
+  // Date range (actual data)
   const sortedDays = days.map(d => d.day).sort();
-  const window = {
+  const dateRange = {
     first: sortedDays[0],
     last: sortedDays[sortedDays.length - 1],
     days: n,
@@ -51,9 +53,18 @@ function buildAiAssistedElement(effArt, strArt, config, selections) {
   // Time spent = active dev hours in the coding context
   const timeSpentHours = days.reduce((s, d) => s + (d.daily_active_users || 0) * pctTimeCoding * hrsPerDay, 0);
 
-  // Completions — use total PRs from structural data
-  const completionCount = totalPRs;
-  const completionType = 'PRs Created';
+  // Attempts, completions, WIP Delta
+  const attempts = totalPRs;
+  const attemptType = 'PRs Created';
+  const mergedPRs = prRecords.filter(p => p.merged);
+  const completionCount = mergedPRs.length > 0 ? mergedPRs.length : strData.reduce((s, d) => s + (d.assisted_prs || 0), 0);
+  const completionType = 'PRs Merged';
+
+  // WIP Delta: open PRs in window - completions from before window
+  const windowStart = dateRange.first;
+  const unfinished = prRecords.filter(p => p.state === 'open').length;
+  const preWindowCompletions = prRecords.filter(p => p.merged && p.day < windowStart).length;
+  const wipDelta = unfinished - preWindowCompletions;
 
   // Yield
   const currentYield = safeDiv(completionCount, timeSpentHours);
@@ -182,25 +193,36 @@ function buildAiAssistedElement(effArt, strArt, config, selections) {
     elementKey: 'ai-assisted-coding',
     row: {
       area: 'AI Assisted Coding',
-      completionType: completionType,
-      completionCount: completionCount,
+      attemptType,
+      attempts,
+      completionType,
+      completionCount,
+      wipDelta,
       timeSpentHours: Math.round(timeSpentHours),
       timeSavedHours: Math.round(timeSavedHours),
-      currentYield: currentYield,
+      currentYield,
       projTimeSavedHours: selectedProjection ? Math.round(selectedProjection.projTimeSavedHours) : null,
       projCompletionGain: selectedProjection?.projCompletionGain ?? null,
       projYield: selectedProjection?.projYield ?? null,
       modeNote: selectedProjection?.name || 'no projection available',
     },
     worksheet: {
+      definitions: {
+        attempt: 'PR created by a Copilot-active author within the time window',
+        failure: 'PR closed without merge',
+        completion: 'PR merged',
+        yield: 'Completions per dev-hour of coding time',
+      },
+      timeWindow: { label: `Previous ${defaultWindowDays} Days`, days: defaultWindowDays },
+      dateRange,
       factSummary: {
-        windowLabel: `Previous ${n} Days`,
-        windowFirst: window.first,
-        windowLast: window.last,
-        windowDays: n,
         completionCount,
         completionType,
+        attempts,
+        attemptType,
+        wipDelta,
         timeSpentHours: Math.round(timeSpentHours),
+        timeSpentBasis: `${Math.round(avgDau)} active devs × ${n}d × ${pctTimeCoding} coding × ${hrsPerDay}h`,
         currentYield,
         totalDevs,
         activeDevs: Math.round(avgDau),
@@ -234,10 +256,11 @@ function buildAgenticElement(effArt, sessArt, config, selections) {
   const n = days.length;
   const totalDevs = config.cfg_total_developers || 100;
   const totalRepos = config.cfg_total_repos;
+  const defaultWindowDays = config.cfg_window_days || 28;
 
-  // Window
+  // Date range (actual data)
   const sortedDays = days.map(d => d.day).sort();
-  const window = {
+  const dateRange = {
     first: sortedDays[0],
     last: sortedDays[sortedDays.length - 1],
     days: n,
@@ -265,9 +288,17 @@ function buildAgenticElement(effArt, sessArt, config, selections) {
   const mergedLocAdded = mergedSessions.reduce((s, p) => s + (p.additions || 0), 0);
   const totalSessionMins = days.reduce((s, d) => s + (d.agent_session_minutes || 0), 0);
 
-  // Completions = merged PRs
+  // Attempts, completions, WIP Delta
+  const attempts = totalPRsCreated;
+  const attemptType = 'Agent PR Sessions';
   const completionCount = totalPRsMerged;
   const completionType = 'PRs Merged';
+
+  // WIP Delta: open sessions in window - completions from before window
+  const windowStart = dateRange.first;
+  const unfinished = sessions.filter(p => p.state === 'open').length;
+  const preWindowCompletions = sessions.filter(p => p.merged && p.day < windowStart).length;
+  const wipDelta = unfinished - preWindowCompletions;
 
   // ── Improvement estimates ──
   const estimates = [];
@@ -370,8 +401,11 @@ function buildAgenticElement(effArt, sessArt, config, selections) {
     elementKey: 'agentic-ai-coding',
     row: {
       area: 'Agentic AI Coding',
+      attemptType,
+      attempts,
       completionType,
       completionCount,
+      wipDelta,
       timeSpentHours: Math.round(timeSpentHours),
       timeSavedHours: Math.round(timeSavedHours),
       currentYield,
@@ -381,14 +415,22 @@ function buildAgenticElement(effArt, sessArt, config, selections) {
       modeNote: selectedProjection?.name || 'no projection available',
     },
     worksheet: {
+      definitions: {
+        attempt: 'Agent PR session started (issue assignment or PR follow-up)',
+        failure: 'PR closed without merge or abandoned session',
+        completion: 'PR merged',
+        yield: 'Merged PRs per agent dev-hour',
+      },
+      timeWindow: { label: `Previous ${defaultWindowDays} Days`, days: defaultWindowDays },
+      dateRange,
       factSummary: {
-        windowLabel: `Previous ${n} Days`,
-        windowFirst: window.first,
-        windowLast: window.last,
-        windowDays: n,
         completionCount,
         completionType,
+        attempts,
+        attemptType,
+        wipDelta,
         timeSpentHours: Math.round(timeSpentHours),
+        timeSpentBasis: `${Math.round(avgActiveDevs)} active devs × ${n}d (agent time, purely additive)`,
         currentYield,
         totalDevs,
         activeDevs: Math.round(avgActiveDevs),

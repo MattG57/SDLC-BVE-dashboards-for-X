@@ -61,6 +61,19 @@
   .drill-table th { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--borderColor-default); color: var(--fgColor-muted); }
   .drill-table td { padding: 4px 8px; border-bottom: 1px solid var(--borderColor-muted); }
   .drill-table tr.active-row { background: var(--bgColor-accent-muted); }
+
+  .cell-sublabel { display: block; font-size: 0.7rem; color: var(--fgColor-muted); font-weight: 400; margin-top: 1px; }
+  .wip-growing { color: #d29922; }
+  .wip-shrinking { color: #3fb950; }
+  .wip-neutral { color: var(--fgColor-muted); }
+
+  .def-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin-bottom: 12px; }
+  .def-table th { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--borderColor-default); color: var(--fgColor-muted); font-weight: 600; }
+  .def-table td { padding: 4px 8px; border-bottom: 1px solid var(--borderColor-muted); }
+  .def-label { font-weight: 600; white-space: nowrap; }
+
+  .time-window-badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 0.8rem; background: var(--bgColor-accent-muted); color: var(--fgColor-accent); border: 1px solid var(--borderColor-accent-emphasis); }
+  .basis-note { font-size: 0.75rem; color: var(--fgColor-muted); font-style: italic; margin-top: 4px; }
 </style>
 </head>
 <body>
@@ -133,12 +146,15 @@ function recomputeRow(element, selectedEstimateId, selectedProjectionId) {
 
   return {
     ...element.row,
+    // attempts, attemptType, wipDelta pass through from element.row
     timeSavedHours: Math.round(timeSaved),
     currentYield: safeDiv(completions, timeSpent),
     projTimeSavedHours: projTimeSaved,
     projCompletionGain: projCompletionGain,
     projYield: projYield,
     modeNote: proj?.name || 'no projection',
+    timeSpentBasis: element.worksheet.factSummary?.timeSpentBasis || null,
+    estimateName: est?.name || null,
   };
 }
 
@@ -229,13 +245,16 @@ const MODE_DESCRIPTIONS = {
 /* ═══════════════════════════════════════════════════════
    SECTION 1 — SUMMARY
    ═══════════════════════════════════════════════════════ */
-function SummarySection({ profile, rows }) {
+function SummarySection({ profile, rows, elements }) {
   const cfg = profile.config_used;
   const dr = profile.date_range || {};
   const firstDay = dr.first;
   const lastDay = dr.last;
   const daysInRange = firstDay && lastDay
     ? Math.round((new Date(lastDay) - new Date(firstDay)) / 86400000) + 1 : 0;
+
+  // Shared time window from first element (all elements share the same timeWindow)
+  const timeWindow = elements?.[0]?.worksheet?.timeWindow || null;
 
   const totalDevs = cfg.cfg_total_developers || 100;
   const hrsPerDay = cfg.cfg_hrs_per_dev_per_day || 8;
@@ -251,6 +270,20 @@ function SummarySection({ profile, rows }) {
     <div className="section-row">
       <SectionHeader title="Summary"
         desc="Summary of total organizational dev capacity, the fraction measured across leverage elements, and the estimated impact." />
+      {timeWindow && (
+        <div className="d-flex flex-items-center flex-wrap mb-3" style={{ gap: '8px' }}>
+          <span className="time-window-badge">⏱ Time Window: {timeWindow.label || `${timeWindow.days} Days`}</span>
+          {elements.map(el => {
+            const dateRange = el.worksheet?.dateRange;
+            if (!dateRange) return null;
+            return (
+              <span key={el.elementKey} className="f6 color-fg-muted">
+                {el.row.area}: {fmtShortDate(dateRange.first)} → {fmtShortDate(dateRange.last)} ({dateRange.days}d)
+              </span>
+            );
+          })}
+        </div>
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '12px' }}>
         <KpiCard label="Time Range"
           value={firstDay ? `${fmtShortDate(firstDay)} – ${fmtShortDate(lastDay)}` : '—'}
@@ -277,6 +310,14 @@ function SummarySection({ profile, rows }) {
    SECTION 2 — EVIDENCE TABLE + LEVERAGE RECTANGLE
    ═══════════════════════════════════════════════════════ */
 
+function wipLabel(val) {
+  if (val == null) return { text: '—', cls: 'wip-neutral', sub: '' };
+  const sign = val > 0 ? '+' : val < 0 ? '' : '';
+  const word = val > 0 ? 'growing' : val < 0 ? 'shrinking' : 'stable';
+  const cls = val > 0 ? 'wip-growing' : val < 0 ? 'wip-shrinking' : 'wip-neutral';
+  return { text: `${sign}${fmt(val)}`, cls, sub: `${sign}${fmt(val)} ${word}` };
+}
+
 function EvidenceTable({ elements, rows, selections, onSelectionChange, selectedKey, onRowClick }) {
   return (
     <div className="Box mb-3" style={{ overflowX: 'auto' }}>
@@ -284,8 +325,9 @@ function EvidenceTable({ elements, rows, selections, onSelectionChange, selected
         <thead>
           <tr>
             <th>Area</th>
-            <th>Completion Type</th>
+            <th>Attempts</th>
             <th>Completions</th>
+            <th>WIP Δ</th>
             <th>Time Spent</th>
             <th>Time Saved</th>
             <th>Yield</th>
@@ -300,6 +342,7 @@ function EvidenceTable({ elements, rows, selections, onSelectionChange, selected
           {elements.map((el, i) => {
             const r = rows[i];
             const sel = selections[el.elementKey] || {};
+            const wip = wipLabel(r.wipDelta);
             return (
               <tr key={el.elementKey}
                   className={`clickable${selectedKey === el.elementKey ? ' selected' : ''}`}
@@ -307,11 +350,27 @@ function EvidenceTable({ elements, rows, selections, onSelectionChange, selected
                 <td style={{ fontWeight: 600, color: (ELEMENT_COLORS[el.elementKey] || {}).color }}>
                   {r.area}
                 </td>
-                <td>{r.completionType}</td>
+                <td>
+                  {fmt(r.attempts)}
+                  <span className="cell-sublabel">{r.attemptType || ''}</span>
+                </td>
                 <td>{fmt(r.completionCount)}</td>
-                <td>{fmt(r.timeSpentHours)}<span className="color-fg-muted"> hrs</span></td>
-                <td style={{ color: '#3fb950' }}>{fmt(r.timeSavedHours)}<span className="color-fg-muted"> hrs</span></td>
-                <td>{fmtDec(r.currentYield, 3)}</td>
+                <td className={wip.cls}>
+                  {wip.text}
+                  <span className="cell-sublabel">{wip.sub}</span>
+                </td>
+                <td>
+                  {fmt(r.timeSpentHours)}<span className="color-fg-muted"> hrs</span>
+                  {r.timeSpentBasis && <span className="cell-sublabel">{r.timeSpentBasis}</span>}
+                </td>
+                <td style={{ color: '#3fb950' }}>
+                  {fmt(r.timeSavedHours)}<span className="color-fg-muted"> hrs</span>
+                  {r.estimateName && <span className="cell-sublabel">{r.estimateName}</span>}
+                </td>
+                <td>
+                  {fmtDec(r.currentYield, 3)}
+                  <span className="cell-sublabel">completions / dev-hrs</span>
+                </td>
                 <td>{r.projTimeSavedHours != null ? fmt(r.projTimeSavedHours) + ' hrs' : '—'}</td>
                 <td>{fmtDec(r.projYield, 3)}</td>
                 <td className="color-fg-muted" style={{ fontSize: '0.75rem' }}>{r.modeNote}</td>
@@ -501,8 +560,12 @@ function WorksheetDrilldown({ element, selections }) {
   const ws = element.worksheet;
   const fs = ws.factSummary;
   const sel = selections[element.elementKey] || {};
+  const defs = ws.definitions || null;
+  const timeWindow = ws.timeWindow || null;
+  const dateRange = ws.dateRange || null;
 
-  const factEntries = Object.entries(fs).filter(([k]) => k !== 'completionType');
+  const HIDDEN_FACT_KEYS = new Set(['completionType', 'windowLabel', 'windowFirst', 'windowLast', 'windowDays']);
+  const factEntries = Object.entries(fs).filter(([k]) => !HIDDEN_FACT_KEYS.has(k) && k !== 'timeSpentBasis');
 
   return (
     <div className="drill-panel">
@@ -512,6 +575,34 @@ function WorksheetDrilldown({ element, selections }) {
         </h3>
       </div>
       <div className="drill-body">
+        {/* Time Window & Date Range */}
+        {(timeWindow || dateRange) && (
+          <div className="d-flex flex-items-center flex-wrap mb-3" style={{ gap: '8px' }}>
+            {timeWindow && <span className="time-window-badge">⏱ Time Window: {timeWindow.label || `${timeWindow.days} Days`}</span>}
+            {dateRange && (
+              <span className="f6 color-fg-muted">
+                Data: {fmtShortDate(dateRange.first)} → {fmtShortDate(dateRange.last)} ({dateRange.days} days)
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Definitions */}
+        {defs && (
+          <>
+            <h4 className="f5 color-fg-muted mb-2">Definitions</h4>
+            <table className="def-table">
+              <thead><tr><th>Concept</th><th>Definition</th></tr></thead>
+              <tbody>
+                {defs.attempt && <tr><td className="def-label">Attempt</td><td>{defs.attempt}</td></tr>}
+                {defs.failure && <tr><td className="def-label">Failure</td><td>{defs.failure}</td></tr>}
+                {defs.completion && <tr><td className="def-label">Completion</td><td>{defs.completion}</td></tr>}
+                {defs.yield && <tr><td className="def-label">Yield</td><td>{defs.yield}</td></tr>}
+              </tbody>
+            </table>
+          </>
+        )}
+
         {/* Facts */}
         <h4 className="f5 color-fg-muted mb-2">Facts</h4>
         <div className="d-flex flex-wrap mb-3" style={{ gap: '8px' }}>
@@ -519,6 +610,9 @@ function WorksheetDrilldown({ element, selections }) {
             <div key={k} className="Box p-2" style={{ flex: '0 0 auto', minWidth: '120px' }}>
               <div className="f6 color-fg-muted">{k.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())}</div>
               <div className="f5 text-bold">{typeof v === 'number' ? (v < 1 && v > 0 ? fmtPct(v) : fmtDec(v, 1)) : String(v ?? '—')}</div>
+              {k === 'timeSpentHours' && fs.timeSpentBasis && (
+                <div className="basis-note">{fs.timeSpentBasis}</div>
+              )}
             </div>
           ))}
         </div>
@@ -740,7 +834,7 @@ function App() {
 
       {hasData && (
         <>
-          <SummarySection profile={profile} rows={rows} />
+          <SummarySection profile={profile} rows={rows} elements={elements} />
 
           {/* Section 2: Evidence + Leverage Rectangle */}
           <div className="section-row">
