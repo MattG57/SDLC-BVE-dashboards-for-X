@@ -428,4 +428,298 @@ describe('leverage-summary materializer', () => {
       expect(adoptionProj).toBeUndefined();
     });
   });
+
+  /* ═══════════════════════════════════════════════════════
+     EXACT-VALUE CALCULATION TESTS
+     Hand-computed from fixture data to verify every formula.
+     ═══════════════════════════════════════════════════════ */
+  describe('AI-Assisted exact calculations', () => {
+    // Fixture facts:
+    //   days: dau=[50,60], interactions=[1000,1200], loc_added=[5000,6000]
+    //   structural: total_prs=[10,12]=22, assisted_prs=[6,8]=14
+    //   _periodPrsAssistedPct=0.625, _periodLocAssistedPct=0.71
+    //   config defaults: pctTimeCoding=0.5, hrsPerDay=8, totalDevs=100
+
+    it('timeSpentHours = sum(dau × pctTimeCoding × hrsPerDay)', () => {
+      const result = materializeLeverageSummary(allArtifacts(), BASE_CONFIG);
+      const ai = result.elements.find(e => e.elementKey === 'ai-assisted-coding');
+      // (50×0.5×8) + (60×0.5×8) = 200 + 240 = 440
+      expect(ai.row.timeSpentHours).toBe(440);
+      expect(ai.worksheet.factSummary.timeSpentHours).toBe(440);
+    });
+
+    it('leverage = assistedPRs / timeSpentHours', () => {
+      const result = materializeLeverageSummary(allArtifacts(), BASE_CONFIG);
+      const ai = result.elements.find(e => e.elementKey === 'ai-assisted-coding');
+      // 14 / 440 = 0.031818...
+      expect(ai.row.leverage).toBeCloseTo(14 / 440, 5);
+    });
+
+    it('adoption projection: projTimeSavedHours = timeSaved × (1/adoptionPct)', () => {
+      const result = materializeLeverageSummary(allArtifacts(), BASE_CONFIG);
+      const ai = result.elements.find(e => e.elementKey === 'ai-assisted-coding');
+      const proj = ai.worksheet.projectedImprovements.find(p => p.projectionId === 'adoption');
+      // adoptionPct = 55/100 = 0.55, scaleFactor = 1/0.55 ≈ 1.8182
+      // timeSaved (interactions) = 110, projTimeSavedHours = 110 × 1.8182 ≈ 200
+      expect(proj.currentValue).toBeCloseTo(0.55, 2);
+      expect(proj.projTimeSavedHours).toBe(Math.round(110 / 0.55));
+      expect(proj.projCompletionGain).toBeNull(); // time-only projection
+      expect(proj.projYield).toBe(1.0); // same as current yield
+    });
+
+    it('PR assist projection: projTimeSavedHours = timeSaved × (1/prsAssistedPct)', () => {
+      const result = materializeLeverageSummary(allArtifacts(), BASE_CONFIG);
+      const ai = result.elements.find(e => e.elementKey === 'ai-assisted-coding');
+      const proj = ai.worksheet.projectedImprovements.find(p => p.projectionId === 'prs_assisted');
+      // prsAssistedPct = 0.625, scaleFactor = 1/0.625 = 1.6
+      // projTimeSavedHours = 110 × 1.6 = 176
+      expect(proj.currentValue).toBe(0.625);
+      expect(proj.projTimeSavedHours).toBe(176);
+      expect(proj.projYield).toBe(1.0);
+    });
+
+    it('LoC assist projection: projTimeSavedHours = timeSaved × (1/locAssistedPct)', () => {
+      const result = materializeLeverageSummary(allArtifacts(), BASE_CONFIG);
+      const ai = result.elements.find(e => e.elementKey === 'ai-assisted-coding');
+      const proj = ai.worksheet.projectedImprovements.find(p => p.projectionId === 'loc_assisted');
+      // locAssistedPct = 0.71, scaleFactor = 1/0.71
+      // projTimeSavedHours = 110 / 0.71 ≈ 154.93 (not rounded for AI-assisted)
+      expect(proj.currentValue).toBe(0.71);
+      expect(proj.projTimeSavedHours).toBeCloseTo(110 / 0.71, 2);
+    });
+
+    it('LoC estimate uses configured est_hrs_per_kloc', () => {
+      const result = materializeLeverageSummary(allArtifacts(), { ...BASE_CONFIG, est_hrs_per_kloc: 4 });
+      const ai = result.elements.find(e => e.elementKey === 'ai-assisted-coding');
+      const est = ai.worksheet.improvementEstimates.find(e => e.estimateId === 'loc');
+      // (5000+6000)/1000 × 4 = 44
+      expect(est.timeSavedHours).toBe(44);
+    });
+
+    it('manual_daily_pct estimate: pct × baseline_hrs/workdays × dau per day', () => {
+      const cfg = {
+        ...BASE_CONFIG,
+        cfg_time_saved_pct_day: 0.1,
+        cfg_baseline_hours_per_dev_per_week: 40,
+        cfg_workdays_per_week: 5,
+      };
+      const result = materializeLeverageSummary(allArtifacts(), cfg);
+      const ai = result.elements.find(e => e.elementKey === 'ai-assisted-coding');
+      const est = ai.worksheet.improvementEstimates.find(e => e.estimateId === 'manual_daily_pct');
+      // per-day hrs per dev = 0.1 × 40/5 = 0.8
+      // day1: 0.8 × 50 = 40, day2: 0.8 × 60 = 48, total = 88
+      expect(est.timeSavedHours).toBe(88);
+    });
+
+    it('row.timeSavedHours changes when different estimate is selected via config', () => {
+      const cfg = { ...BASE_CONFIG, leverage_ai_estimate: 'loc', est_hrs_per_kloc: 2 };
+      const result = materializeLeverageSummary(allArtifacts(), cfg);
+      const ai = result.elements.find(e => e.elementKey === 'ai-assisted-coding');
+      // LoC estimate: (11000/1000)×2 = 22
+      expect(ai.row.timeSavedHours).toBe(22);
+    });
+  });
+
+  describe('Agentic exact calculations', () => {
+    // Fixture facts:
+    //   efficiency days: active_devs=[5,6], session_mins=[120,150]=270
+    //   sessions: 4 total, 3 merged (s1,s3,s4), 1 open (s2)
+    //     merged mins: 30+45+20=95, merged loc: 500+800+300=1600
+    //   config defaults: est_duration_factor=2, est_hrs_per_kloc=2
+
+    it('timeSpentHours = totalSessionMins / 60', () => {
+      const result = materializeLeverageSummary(allArtifacts(), BASE_CONFIG);
+      const ag = result.elements.find(e => e.elementKey === 'agentic-ai-coding');
+      // totalSessionMins = 120 + 150 = 270, → 270/60 = 4.5, rounded = 5
+      expect(ag.worksheet.factSummary.totalSessionMinutes).toBe(270);
+      expect(ag.row.timeSpentHours).toBe(Math.round(270 / 60));
+    });
+
+    it('yield = windowBoundCompletions / windowBoundAttempts', () => {
+      const result = materializeLeverageSummary(allArtifacts(), BASE_CONFIG);
+      const ag = result.elements.find(e => e.elementKey === 'agentic-ai-coding');
+      // attempts=4, wipPlus=1(open), completions=3, wipMinus=0
+      // windowBound: (3-0)/(4-1) = 3/3 = 1.0
+      expect(ag.row.currentYield).toBe(1.0);
+    });
+
+    it('leverage = completionCount / timeSpentHours (raw, not rounded)', () => {
+      const result = materializeLeverageSummary(allArtifacts(), BASE_CONFIG);
+      const ag = result.elements.find(e => e.elementKey === 'agentic-ai-coding');
+      // 3 / 4.5 = 0.6667
+      expect(ag.row.leverage).toBeCloseTo(3 / (270 / 60), 4);
+    });
+
+    it('LoC estimate: (mergedLocAdded / 1000) × est_hrs_per_kloc', () => {
+      const result = materializeLeverageSummary(allArtifacts(), { ...BASE_CONFIG, est_hrs_per_kloc: 2 });
+      const ag = result.elements.find(e => e.elementKey === 'agentic-ai-coding');
+      const est = ag.worksheet.improvementEstimates.find(e => e.estimateId === 'loc');
+      // mergedLocAdded = 500+800+300 = 1600, (1600/1000)×2 = 3.2
+      expect(est.timeSavedHours).toBeCloseTo(3.2, 4);
+    });
+
+    it('adoption projection: scales timeSaved and completions by 1/adoptionPct', () => {
+      const result = materializeLeverageSummary(allArtifacts(), BASE_CONFIG);
+      const ag = result.elements.find(e => e.elementKey === 'agentic-ai-coding');
+      const proj = ag.worksheet.projectedImprovements.find(p => p.projectionId === 'adoption');
+      // adoptionPct = 5.5/100 = 0.055
+      const adoptionPct = 5.5 / 100;
+      const timeSaved = (95 / 60) * 2; // duration estimate
+      expect(proj.currentValue).toBeCloseTo(adoptionPct, 3);
+      expect(proj.projTimeSavedHours).toBe(Math.round(timeSaved / adoptionPct));
+      expect(proj.projCompletionGain).toBe(Math.round(3 * (1 / adoptionPct - 1)));
+      expect(proj.projYield).toBe(ag.row.currentYield); // yield preserved
+    });
+
+    it('repo coverage projection: scales by 1/repoCoverage', () => {
+      const result = materializeLeverageSummary(allArtifacts(), BASE_CONFIG);
+      const ag = result.elements.find(e => e.elementKey === 'agentic-ai-coding');
+      const proj = ag.worksheet.projectedImprovements.find(p => p.projectionId === 'repo_coverage');
+      // activeRepos=2, totalRepos=10, coverage=0.2, scale=5
+      expect(proj.currentValue).toBeCloseTo(0.2, 2);
+      const timeSaved = (95 / 60) * 2;
+      expect(proj.projTimeSavedHours).toBe(Math.round(timeSaved * 5));
+      expect(proj.projCompletionGain).toBe(Math.round(3 * 4)); // 3 × (5-1)
+    });
+
+    it('duration estimate uses configured est_duration_factor', () => {
+      const result = materializeLeverageSummary(allArtifacts(), { ...BASE_CONFIG, est_duration_factor: 0.5 });
+      const ag = result.elements.find(e => e.elementKey === 'agentic-ai-coding');
+      const est = ag.worksheet.improvementEstimates.find(e => e.estimateId === 'duration');
+      // mergedSessionMins=95, (95/60)×0.5 = 0.7917
+      expect(est.timeSavedHours).toBeCloseTo((95 / 60) * 0.5, 3);
+    });
+  });
+
+  describe('Agentic WIP with pre-window completions', () => {
+    // Custom fixture: a session that started before window but merged in window
+    function makeSessionsWithPreWindow() {
+      return makeAgenticSessionsArtifact({
+        sessions: [
+          // Started before window (day < '2026-04-01'), merged in window
+          { repo: 'org/repo-a', pr_number: 0, day: '2026-03-20', merged: true, additions: 100, deletions: 10, duration_minutes: 10, author: 'dev0', state: 'closed' },
+          // Normal in-window sessions
+          { repo: 'org/repo-a', pr_number: 1, day: '2026-04-01', merged: true, additions: 500, deletions: 100, duration_minutes: 30, author: 'dev1', state: 'closed' },
+          { repo: 'org/repo-a', pr_number: 2, day: '2026-04-01', merged: false, additions: 200, deletions: 50, duration_minutes: 15, author: 'dev2', state: 'open' },
+          { repo: 'org/repo-b', pr_number: 3, day: '2026-04-02', merged: false, additions: 0, deletions: 0, duration_minutes: 20, author: 'dev1', state: 'closed' },
+          { repo: 'org/repo-b', pr_number: 4, day: '2026-04-02', merged: true, additions: 300, deletions: 80, duration_minutes: 20, author: 'dev3', state: 'closed' },
+        ],
+      });
+    }
+
+    it('wipMinus counts merged sessions that started before windowStart', () => {
+      const arts = allArtifacts({ agenticSessions: makeSessionsWithPreWindow() });
+      const result = materializeLeverageSummary(arts, BASE_CONFIG);
+      const ag = result.elements.find(e => e.elementKey === 'agentic-ai-coding');
+      // windowStart = '2026-04-01' (first efficiency day)
+      // s0: day='2026-03-20' < windowStart, merged=true → wipMinus
+      // s2: state='open' → wipPlus
+      expect(ag.row.wipPlus).toBe(1);  // s2
+      expect(ag.row.wipMinus).toBe(1); // s0
+      expect(ag.row.wipDelta).toBe(0); // 1-1
+    });
+
+    it('yield subtracts WIP components from attempts and completions', () => {
+      const arts = allArtifacts({ agenticSessions: makeSessionsWithPreWindow() });
+      const result = materializeLeverageSummary(arts, BASE_CONFIG);
+      const ag = result.elements.find(e => e.elementKey === 'agentic-ai-coding');
+      // attempts=5, completions=3 (s0,s1,s4 merged)
+      // wipPlus=1, wipMinus=1
+      // windowBoundAttempts = 5-1 = 4
+      // windowBoundCompletions = 3-1 = 2
+      // yield = 2/4 = 0.5
+      expect(ag.row.attempts).toBe(5);
+      expect(ag.row.completionCount).toBe(3);
+      expect(ag.row.currentYield).toBeCloseTo(0.5, 4);
+    });
+  });
+
+  describe('Agentic merge-rate projection with yield < 1', () => {
+    // Custom fixture: sessions with closed/unmerged to produce yield < 1
+    function makeSessionsWithFailures() {
+      return makeAgenticSessionsArtifact({
+        sessions: [
+          { repo: 'org/repo-a', pr_number: 1, day: '2026-04-01', merged: true, additions: 500, deletions: 100, duration_minutes: 30, author: 'dev1', state: 'closed' },
+          { repo: 'org/repo-a', pr_number: 2, day: '2026-04-01', merged: false, additions: 0, deletions: 0, duration_minutes: 15, author: 'dev2', state: 'closed' },
+          { repo: 'org/repo-b', pr_number: 3, day: '2026-04-02', merged: false, additions: 0, deletions: 0, duration_minutes: 20, author: 'dev3', state: 'closed' },
+          { repo: 'org/repo-b', pr_number: 4, day: '2026-04-02', merged: true, additions: 300, deletions: 80, duration_minutes: 20, author: 'dev1', state: 'closed' },
+        ],
+      });
+    }
+
+    it('merge-rate projection: proj_saved = durationFactor × timeSpent × (1 - yield)', () => {
+      const arts = allArtifacts({ agenticSessions: makeSessionsWithFailures() });
+      const cfg = { ...BASE_CONFIG, est_duration_factor: 2 };
+      const result = materializeLeverageSummary(arts, cfg);
+      const ag = result.elements.find(e => e.elementKey === 'agentic-ai-coding');
+      const proj = ag.worksheet.projectedImprovements.find(p => p.projectionId === 'merge_rate');
+
+      // attempts=4, completions=2, no open sessions → wipPlus=0, wipMinus=0
+      // yield = 2/4 = 0.5
+      // timeSpentHours = 270/60 = 4.5 (from efficiency days)
+      // proj_saved = 2 × 4.5 × (1 - 0.5) = 4.5
+      expect(ag.row.currentYield).toBeCloseTo(0.5, 4);
+      expect(proj).toBeDefined();
+      const timeSpentHours = 270 / 60;
+      const expectedProjSaved = 2 * timeSpentHours * (1 - 0.5);
+      expect(proj.projTimeSavedHours).toBe(Math.round(expectedProjSaved));
+    });
+
+    it('merge-rate projection: projCompletionGain = attempts - completions', () => {
+      const arts = allArtifacts({ agenticSessions: makeSessionsWithFailures() });
+      const result = materializeLeverageSummary(arts, BASE_CONFIG);
+      const ag = result.elements.find(e => e.elementKey === 'agentic-ai-coding');
+      const proj = ag.worksheet.projectedImprovements.find(p => p.projectionId === 'merge_rate');
+      // 4 - 2 = 2
+      expect(proj.projCompletionGain).toBe(2);
+    });
+
+    it('merge-rate projection: projYield = 1.0', () => {
+      const arts = allArtifacts({ agenticSessions: makeSessionsWithFailures() });
+      const result = materializeLeverageSummary(arts, BASE_CONFIG);
+      const ag = result.elements.find(e => e.elementKey === 'agentic-ai-coding');
+      const proj = ag.worksheet.projectedImprovements.find(p => p.projectionId === 'merge_rate');
+      expect(proj.projYield).toBe(1.0);
+    });
+
+    it('merge-rate projection uses est_duration_factor from config', () => {
+      const arts = allArtifacts({ agenticSessions: makeSessionsWithFailures() });
+      const cfg = { ...BASE_CONFIG, est_duration_factor: 0.5 };
+      const result = materializeLeverageSummary(arts, cfg);
+      const ag = result.elements.find(e => e.elementKey === 'agentic-ai-coding');
+      const proj = ag.worksheet.projectedImprovements.find(p => p.projectionId === 'merge_rate');
+      // proj_saved = 0.5 × 4.5 × (1 - 0.5) = 1.125, rounded = 1
+      const expected = 0.5 * (270 / 60) * 0.5;
+      expect(proj.projTimeSavedHours).toBe(Math.round(expected));
+    });
+  });
+
+  describe('integrated profile calculations', () => {
+    it('integrated_leverage = totalCompletions / totalTimeSpent', () => {
+      const result = materializeLeverageSummary(allArtifacts(), BASE_CONFIG);
+      const p = result.artifact.profile;
+      // AI: completions=14, timeSpent=440
+      // Agentic: completions=3, timeSpent=round(4.5)=5
+      // total: 17/445
+      expect(p.total_completions).toBe(17);
+      expect(p.total_time_spent_hours).toBe(445);
+      expect(p.integrated_leverage).toBeCloseTo(17 / 445, 4);
+    });
+
+    it('total_time_saved_hours reflects selected estimates', () => {
+      const result = materializeLeverageSummary(allArtifacts(), BASE_CONFIG);
+      const p = result.artifact.profile;
+      // AI: interactions estimate = 110
+      // Agentic: duration estimate = round((95/60)×2) = round(3.167) = 3
+      expect(p.total_time_saved_hours).toBe(110 + 3);
+    });
+
+    it('selecting different estimates changes totals', () => {
+      const cfg = { ...BASE_CONFIG, leverage_ai_estimate: 'loc', est_hrs_per_kloc: 2 };
+      const result = materializeLeverageSummary(allArtifacts(), cfg);
+      const p = result.artifact.profile;
+      // AI LoC: 22, Agentic duration: 3 → total = 25
+      expect(p.total_time_saved_hours).toBe(22 + 3);
+    });
+  });
 });
