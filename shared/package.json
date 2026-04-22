@@ -11,5 +11,8 @@
   },
   "devDependencies": {
     "vitest": "^1.6.1"
+  },
+  "dependencies": {
+    "stream-json": "^2.1.0"
   }
 }
