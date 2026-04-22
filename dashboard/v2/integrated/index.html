@@ -247,18 +247,14 @@ const MODE_DESCRIPTIONS = {
    ═══════════════════════════════════════════════════════ */
 function SummarySection({ profile, rows, elements }) {
   const cfg = profile.config_used;
-  const dr = profile.date_range || {};
-  const firstDay = dr.first;
-  const lastDay = dr.last;
-  const daysInRange = firstDay && lastDay
-    ? Math.round((new Date(lastDay) - new Date(firstDay)) / 86400000) + 1 : 0;
 
-  // Shared time window from first element (all elements share the same timeWindow)
-  const timeWindow = elements?.[0]?.worksheet?.timeWindow || null;
+  // Use time window (shared across elements) for capacity calculation
+  const timeWindow = elements?.[0]?.worksheet?.timeWindow || { label: 'Previous 28 Days', days: 28 };
+  const windowDays = timeWindow.days || 28;
 
   const totalDevs = cfg.cfg_total_developers || 100;
   const hrsPerDay = cfg.cfg_hrs_per_dev_per_day || 8;
-  const totalOrgDevHours = totalDevs * daysInRange * hrsPerDay;
+  const totalOrgDevHours = totalDevs * windowDays * hrsPerDay;
 
   const modeledDevHours = rows.reduce((s, r) => s + (r.timeSpentHours || 0), 0);
   const totalHoursSaved = rows.reduce((s, r) => s + (r.timeSavedHours || 0), 0);
@@ -270,26 +266,21 @@ function SummarySection({ profile, rows, elements }) {
     <div className="section-row">
       <SectionHeader title="Summary"
         desc="Summary of total organizational dev capacity, the fraction measured across leverage elements, and the estimated impact." />
-      {timeWindow && (
-        <div className="d-flex flex-items-center flex-wrap mb-3" style={{ gap: '8px' }}>
-          <span className="time-window-badge">⏱ Time Window: {timeWindow.label || `${timeWindow.days} Days`}</span>
-          {elements.map(el => {
-            const dateRange = el.worksheet?.dateRange;
-            if (!dateRange) return null;
-            return (
-              <span key={el.elementKey} className="f6 color-fg-muted">
-                {el.row.area}: {fmtShortDate(dateRange.first)} → {fmtShortDate(dateRange.last)} ({dateRange.days}d)
-              </span>
-            );
-          })}
-        </div>
-      )}
+      <div className="d-flex flex-items-center flex-wrap mb-3" style={{ gap: '8px' }}>
+        <span className="time-window-badge">⏱ Time Window: {timeWindow.label}</span>
+        {elements.map(el => {
+          const dr = el.worksheet?.dateRange;
+          if (!dr) return null;
+          return (
+            <span key={el.elementKey} className="f6 color-fg-muted">
+              {el.row.area}: {fmtShortDate(dr.first)} → {fmtShortDate(dr.last)} ({dr.days}d)
+            </span>
+          );
+        })}
+      </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '12px' }}>
-        <KpiCard label="Time Range"
-          value={firstDay ? `${fmtShortDate(firstDay)} – ${fmtShortDate(lastDay)}` : '—'}
-          sub={daysInRange > 0 ? `${daysInRange} days` : 'no data'} />
         <KpiCard label="Org Capacity" value={fmtCompact(totalOrgDevHours)} unit="hrs"
-          sub={`${totalDevs} devs × ${daysInRange}d × ${hrsPerDay}h`} />
+          sub={`${totalDevs} devs × ${windowDays}d × ${hrsPerDay}h`} />
         <KpiCard label="Modeled Dev-Hours" value={fmtCompact(modeledDevHours)} unit="hrs"
           sub="observed across elements" color="#58a6ff" />
         <KpiCard label="Aperture" value={fmtPct(aperture)}
@@ -403,9 +394,8 @@ function EvidenceTable({ elements, rows, selections, onSelectionChange, selected
 
 function LeverageRectangle({ elements, rows, profile, mode }) {
   const cfg = profile.config_used;
-  const dr = profile.date_range || {};
-  const daysInRange = dr.first && dr.last
-    ? Math.round((new Date(dr.last) - new Date(dr.first)) / 86400000) + 1 : 0;
+  const timeWindow = elements?.[0]?.worksheet?.timeWindow || { days: 28 };
+  const windowDays = timeWindow.days || 28;
 
   const rectData = useMemo(() => {
     return elements.map((el, i) => {
@@ -434,11 +424,11 @@ function LeverageRectangle({ elements, rows, profile, mode }) {
   }, [elements, rows, mode]);
 
   const capacity = useMemo(() => {
-    if (mode !== 'aperture' || daysInRange === 0) return null;
-    const totalOrgDevHours = (cfg.cfg_total_developers || 100) * daysInRange * (cfg.cfg_hrs_per_dev_per_day || 8);
+    if (mode !== 'aperture' || windowDays === 0) return null;
+    const totalOrgDevHours = (cfg.cfg_total_developers || 100) * windowDays * (cfg.cfg_hrs_per_dev_per_day || 8);
     const totalCompletions = rectData.reduce((s, e) => s + e.completions, 0);
     return { devHours: totalOrgDevHours, completions: totalCompletions };
-  }, [mode, daysInRange, cfg, rectData]);
+  }, [mode, windowDays, cfg, rectData]);
 
   // Fixed axis scales across all modes
   const { fixedXMax, fixedYMax } = useMemo(() => {
@@ -455,15 +445,15 @@ function LeverageRectangle({ elements, rows, profile, mode }) {
         const c = m === 'projected' ? (r.completionCount || 0) + (r.projCompletionGain || 0) : (r.completionCount || 0);
         w += dh; h += c;
       }
-      if (m === 'aperture' && daysInRange > 0) {
-        const orgW = (cfg.cfg_total_developers || 100) * daysInRange * (cfg.cfg_hrs_per_dev_per_day || 8);
+      if (m === 'aperture' && windowDays > 0) {
+        const orgW = (cfg.cfg_total_developers || 100) * windowDays * (cfg.cfg_hrs_per_dev_per_day || 8);
         w = Math.max(w, orgW);
       }
       if (w > maxW) maxW = w;
       if (h > maxH) maxH = h;
     }
     return { fixedXMax: maxW > 0 ? maxW * 1.15 : 10, fixedYMax: maxH > 0 ? maxH * 1.15 : 10 };
-  }, [elements, rows, cfg, daysInRange]);
+  }, [elements, rows, cfg, windowDays]);
 
   const totalDevHours = rectData.reduce((s, e) => s + e.devHours, 0);
   const totalCompletions = rectData.reduce((s, e) => s + e.completions, 0);
