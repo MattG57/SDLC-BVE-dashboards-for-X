@@ -93,7 +93,7 @@ finalize_status() {
 #   base_filename  — base name for the output JSON file
 # ───────────────────────────────────────────────────────────────────────────────
 
-TARGETS="ai-assisted-efficiency ai-assisted-structural pr-review-structural agentic-efficiency"
+TARGETS="ai-assisted-efficiency ai-assisted-structural pr-review-structural agentic-efficiency agent-session-logs"
 
 get_target_config() {
   case "$1" in
@@ -124,6 +124,13 @@ get_target_config() {
       optional_vars="REPO DAYS MAX_REPOS"
       output_dirs="BVE-dashboards-for-agentic-ai-coding/dashboard/efficiency/data"
       base_filename="coding-agent-pr-metrics"
+      ;;
+    agent-session-logs)
+      query_script="BVE-dashboards-for-agentic-ai-coding/data/queries/agent-session-logs.sh"
+      required_vars="ORG"
+      optional_vars="IDLE_THRESHOLD_SECS MAX_SESSIONS"
+      output_dirs="BVE-dashboards-for-agentic-ai-coding/dashboard/efficiency/data"
+      base_filename="agent-session-logs"
       ;;
     *)
       return 1

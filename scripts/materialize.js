@@ -82,8 +82,8 @@ function findDataFiles() {
 }
 
 function loadAndClassify(files) {
-  const sources = { copilot: [], pr: [], agentic: [] };
-  const fileInfo = { copilot: [], pr: [], agentic: [] };
+  const sources = { copilot: [], pr: [], agentic: [], sessionLogs: [] };
+  const fileInfo = { copilot: [], pr: [], agentic: [], sessionLogs: [] };
 
   for (const filepath of files) {
     let data;
@@ -96,7 +96,11 @@ function loadAndClassify(files) {
 
     const info = { file: basename(filepath), hash: hashFile(filepath), metadata: data.metadata || null };
 
-    if (isCopilotMetricsSource(data)) {
+    if (data.session_logs && data.metadata?.script === 'agent-session-logs') {
+      sources.sessionLogs.push(data);
+      fileInfo.sessionLogs.push(info);
+      console.log(`  📊 Session logs: ${basename(filepath)} (${data.session_logs.length} sessions)`);
+    } else if (isCopilotMetricsSource(data)) {
       sources.copilot.push(data);
       fileInfo.copilot.push(info);
       console.log(`  📊 Copilot metrics: ${basename(filepath)}`);
@@ -265,7 +269,18 @@ function main() {
     fileInfo.agentic.forEach(f => edges.push({ from: f.file, to: fname }));
   }
 
-  // Leverage Summary — reads from the 4 artifacts above
+  // Merge session logs if available
+  const mergedSessionLogs = sources.sessionLogs.length > 0
+    ? sources.sessionLogs.reduce((acc, sl) => {
+        acc.session_logs = (acc.session_logs || []).concat(sl.session_logs || []);
+        return acc;
+      }, { session_logs: [] })
+    : null;
+  if (mergedSessionLogs) {
+    console.log(`  📋 Session logs: ${mergedSessionLogs.session_logs.length} sessions with compute time`);
+  }
+
+  // Leverage Summary — reads from the 4 artifacts above + session logs
   const leverageInputArtifacts = {};
   if (artifactMap['ai-assisted-efficiency-days']) {
     leverageInputArtifacts.aiEfficiency = JSON.parse(
@@ -286,6 +301,9 @@ function main() {
     leverageInputArtifacts.agenticSessions = JSON.parse(
       readFileSync(join(OUTPUT_DIR, artifactMap['agentic-pr-sessions']), 'utf-8')
     );
+  }
+  if (mergedSessionLogs) {
+    leverageInputArtifacts.sessionLogs = mergedSessionLogs;
   }
 
   if (Object.keys(leverageInputArtifacts).length > 0) {
@@ -313,6 +331,7 @@ function main() {
     ...fileInfo.copilot.map(f => f.file),
     ...fileInfo.pr.map(f => f.file),
     ...fileInfo.agentic.map(f => f.file),
+    ...fileInfo.sessionLogs.map(f => f.file),
   ])];
 
   // Write pipeline manifest

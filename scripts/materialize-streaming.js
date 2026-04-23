@@ -152,6 +152,7 @@ function classifyFile(filepath) {
   require('fs').readSync(fd, buf, 0, 2048, 0);
   require('fs').closeSync(fd);
   const peek = buf.toString('utf-8');
+  if (peek.includes('session_logs') && peek.includes('agent-session-logs')) return 'sessionLogs';
   if (peek.includes('enterprise_report') || peek.includes('user_report')) return 'copilot';
   if (peek.includes('developer_day_summary') || peek.includes('pr_sessions')) return 'agentic';
   if (peek.includes('"prs"') || peek.includes('pull_requests')) return 'pr';
@@ -252,13 +253,17 @@ async function main() {
   console.log(`  Found ${dataFiles.length} data file(s)\n`);
 
   // Classify files
-  const classified = { copilot: [], pr: [], agentic: [] };
-  const fileInfo = { copilot: [], pr: [], agentic: [] };
+  const classified = { copilot: [], pr: [], agentic: [], sessionLogs: [] };
+  const fileInfo = { copilot: [], pr: [], agentic: [], sessionLogs: [] };
 
   for (const fp of dataFiles) {
     const type = classifyFile(fp);
     const info = { file: basename(fp), hash: hashFile(fp) };
-    if (type === 'copilot') {
+    if (type === 'sessionLogs') {
+      classified.sessionLogs.push(fp);
+      fileInfo.sessionLogs.push(info);
+      console.log(`  📊 Session logs: ${basename(fp)}`);
+    } else if (type === 'copilot') {
       classified.copilot.push(fp);
       fileInfo.copilot.push(info);
     } else if (type === 'pr') {
@@ -390,6 +395,18 @@ async function main() {
     fileInfo.agentic.forEach(f => edges.push({ from: f.file, to: fname }));
   }
 
+  // Load and merge session logs if available
+  let mergedSessionLogs = null;
+  if (classified.sessionLogs.length > 0) {
+    const allSessions = [];
+    for (const fp of classified.sessionLogs) {
+      const sl = loadSmallFile(fp);
+      if (sl?.session_logs) allSessions.push(...sl.session_logs);
+    }
+    mergedSessionLogs = { session_logs: allSessions };
+    console.log(`  📋 Session logs: ${allSessions.length} sessions with compute time`);
+  }
+
   // Leverage Summary
   const leverageInputArtifacts = {};
   if (artifactMap['ai-assisted-efficiency-days']) {
@@ -403,6 +420,9 @@ async function main() {
   }
   if (artifactMap['agentic-pr-sessions']) {
     leverageInputArtifacts.agenticSessions = JSON.parse(readFileSync(join(OUTPUT_DIR, artifactMap['agentic-pr-sessions']), 'utf-8'));
+  }
+  if (mergedSessionLogs) {
+    leverageInputArtifacts.sessionLogs = mergedSessionLogs;
   }
 
   if (Object.keys(leverageInputArtifacts).length > 0) {
@@ -427,6 +447,7 @@ async function main() {
     ...fileInfo.copilot.map(f => f.file),
     ...fileInfo.pr.map(f => f.file),
     ...fileInfo.agentic.map(f => f.file),
+    ...fileInfo.sessionLogs.map(f => f.file),
   ])];
 
   const manifest = {

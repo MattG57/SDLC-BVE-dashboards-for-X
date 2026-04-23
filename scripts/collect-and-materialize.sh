@@ -308,6 +308,34 @@ main() {
       echo "No query targets ran — collecting existing data files..."
       collect_existing
     fi
+
+    # Post-collection: fetch agent session logs if agentic data is available
+    local agentic_raw
+    agentic_raw=$(ls "$RAW_DIR"/*coding-agent-pr-metrics*.json 2>/dev/null | head -1)
+    if [[ -n "$agentic_raw" && -f "$agentic_raw" ]]; then
+      echo ""
+      echo "━━━ agent-session-logs ━━━"
+      local scope_name="${ENTERPRISE:-${ORG:-unknown}}"
+      local sl_output="${RAW_DIR}/${scope_name}-agent-session-logs-${RUN_TS}.json"
+      local sl_script="${REPO_ROOT}/BVE-dashboards-for-agentic-ai-coding/data/queries/agent-session-logs.sh"
+      if [[ -f "$sl_script" ]]; then
+        echo "  Input: $(basename "$agentic_raw")"
+        echo "  Output: _data/raw/$(basename "$sl_output")"
+        if bash "$sl_script" --input "$agentic_raw" > "$sl_output" 2>&1; then
+          if jq -e '.' "$sl_output" > /dev/null 2>&1; then
+            local sl_count
+            sl_count=$(jq '.metadata.succeeded // 0' "$sl_output")
+            echo "  ✔ Session logs: $sl_count sessions processed"
+          else
+            echo "  ✗ Output is not valid JSON"
+            rm -f "$sl_output"
+          fi
+        else
+          echo "  ✗ Script failed"
+          rm -f "$sl_output"
+        fi
+      fi
+    fi
   fi
 
   # Write query status

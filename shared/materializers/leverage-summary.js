@@ -259,11 +259,12 @@ function buildAiAssistedElement(effArt, strArt, config, selections) {
 /**
  * Build the Agentic leverage element.
  */
-function buildAgenticElement(effArt, sessArt, config, selections) {
+function buildAgenticElement(effArt, sessArt, config, selections, sessionLogs) {
   if (!effArt?.data?.length) return null;
 
   const allDays = effArt.data;
   const allSessions = sessArt?.data || [];
+  const allSessionLogs = sessionLogs?.session_logs || [];
   const totalDevs = config.cfg_total_developers || 100;
   const totalRepos = config.cfg_total_repos;
   const defaultWindowDays = config.cfg_window_days || 28;
@@ -323,8 +324,32 @@ function buildAgenticElement(effArt, sessArt, config, selections) {
   const wipMinus = sessions.filter(p => p.merged && p.day < windowStart).length;
   const wipDelta = wipPlus - wipMinus;
 
-  // Time spent = observed session duration (all sessions)
-  const timeSpentHours = totalSessionMins / 60;
+  // Time spent = compute time from session logs (preferred) or observed session duration
+  // Build a lookup of compute_minutes by repo+pr_number
+  const computeByPr = {};
+  for (const sl of allSessionLogs) {
+    computeByPr[`${sl.repo}#${sl.pr_number}`] = sl;
+  }
+  const hasSessionLogs = allSessionLogs.length > 0;
+
+  // Sum compute time for sessions in window
+  let computeMinutesTotal = 0;
+  let computeSessionCount = 0;
+  for (const s of sessions) {
+    const key = `${s.repo}#${s.pr_number}`;
+    const sl = computeByPr[key];
+    if (sl && sl.active_minutes != null) {
+      computeMinutesTotal += sl.active_minutes;
+      computeSessionCount++;
+    }
+  }
+
+  const timeSpentHours = hasSessionLogs && computeSessionCount > 0
+    ? computeMinutesTotal / 60
+    : totalSessionMins / 60;
+  const timeSpentBasis = hasSessionLogs && computeSessionCount > 0
+    ? `${computeMinutesTotal.toFixed(1)} compute-mins / 60 (active time from ${computeSessionCount} session logs)`
+    : `${Math.round(totalSessionMins)} session-mins / 60 (observed agent running time)`;
 
   // Yield (window-bound) and Leverage
   const windowBoundAttempts = attempts - wipPlus;
@@ -469,7 +494,9 @@ function buildAgenticElement(effArt, sessArt, config, selections) {
         wipMinus,
         wipDelta,
         timeSpentHours: Math.round(timeSpentHours),
-        timeSpentBasis: `${Math.round(totalSessionMins)} session-mins / 60 (observed agent running time)`,
+        timeSpentBasis,
+        hasSessionLogs,
+        computeSessionCount: hasSessionLogs ? computeSessionCount : null,
         currentYield,
         leverage,
         totalDevs,
@@ -541,6 +568,7 @@ export function materializeLeverageSummary(artifacts, config = {}, options = {})
     artifacts.agenticSessions,
     mergedConfig,
     selections.agentic,
+    artifacts.sessionLogs,
   );
   if (agElement) elements.push(agElement);
 
