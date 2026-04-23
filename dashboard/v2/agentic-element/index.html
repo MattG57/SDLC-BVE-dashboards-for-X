@@ -127,6 +127,13 @@ async function fetchArtifacts() {
   return null;
 }
 
+async function fetchConfig() {
+  for (const p of ['./data/config.json', '../data/config.json']) {
+    try { const r = await fetch(p); if (r.ok) return r.json(); } catch(e) {}
+  }
+  return null;
+}
+
 /* ═══════════════════════════════════════════════════════
    DATA PROCESSING LAYER
    ═══════════════════════════════════════════════════════ */
@@ -134,12 +141,18 @@ async function fetchArtifacts() {
 function safeDiv(a, b) { return b > 0 ? a / b : null; }
 
 const DEFAULT_CONFIG = {
-  cfg_total_developers: 100,
-  cfg_total_repos: null,
+  cfg_total_developers: 1100,
+  cfg_total_repos: 220,
   cfg_workdays_per_week: 5,
-  cfg_labor_cost_per_hour: null,
-  est_duration_factor: 2,
-  est_hrs_per_kloc: 2,
+  cfg_labor_cost_per_hour: 100,
+  cfg_pct_time_coding: 0.25,
+  est_duration_factor: 0.5,
+  est_hrs_per_kloc: 4,
+  est_interactions_per_hour: 20,
+  cfg_time_saved_pct_day: 0.3,
+  cfg_baseline_hours_per_dev_per_week: 40,
+  cfg_total_dev_loc_added_day: 10000,
+  est_human_to_agent_ratio: 10,
 };
 
 /* ── Estimation method definitions ── */
@@ -1386,19 +1399,19 @@ function ConfidenceSection({ days, config, method, onMethodChange }) {
    CONFIG PANEL
    ═══════════════════════════════════════════════════════ */
 
-function ConfigPanel({ config, onApply, isOpen, onToggle }) {
-  const [totalDevs, setTotalDevs] = useState(config.cfg_total_developers ?? 100);
+function ConfigPanel({ config, onApply, isOpen, onToggle, fullConfig }) {
+  const [totalDevs, setTotalDevs] = useState(config.cfg_total_developers ?? 1100);
   const [totalRepos, setTotalRepos] = useState(config.cfg_total_repos ?? '');
-  const [factor, setFactor] = useState(config.est_duration_factor ?? 2);
-  const [hrsPerKloc, setHrsPerKloc] = useState(config.est_hrs_per_kloc ?? 2);
+  const [factor, setFactor] = useState(config.est_duration_factor ?? 0.5);
+  const [hrsPerKloc, setHrsPerKloc] = useState(config.est_hrs_per_kloc ?? 4);
   const [wdays, setWdays] = useState(config.cfg_workdays_per_week ?? 5);
   const [cost, setCost] = useState(config.cfg_labor_cost_per_hour ?? '');
 
   useEffect(() => {
-    setTotalDevs(config.cfg_total_developers ?? 100);
+    setTotalDevs(config.cfg_total_developers ?? 1100);
     setTotalRepos(config.cfg_total_repos ?? '');
-    setFactor(config.est_duration_factor ?? 2);
-    setHrsPerKloc(config.est_hrs_per_kloc ?? 2);
+    setFactor(config.est_duration_factor ?? 0.5);
+    setHrsPerKloc(config.est_hrs_per_kloc ?? 4);
     setWdays(config.cfg_workdays_per_week ?? 5);
     setCost(config.cfg_labor_cost_per_hour ?? '');
   }, [config]);
@@ -1414,7 +1427,7 @@ function ConfigPanel({ config, onApply, isOpen, onToggle }) {
     });
   };
 
-  const summary = `${totalDevs} devs · ×${config.est_duration_factor || 2} factor · ${config.est_hrs_per_kloc || 2} hrs/KLoC`
+  const summary = `${totalDevs} devs · ×${config.est_duration_factor || 0.5} factor · ${config.est_hrs_per_kloc || 4} hrs/KLoC`
     + (config.cfg_labor_cost_per_hour != null ? ` · $${config.cfg_labor_cost_per_hour}/hr` : '');
 
   return (
@@ -1423,14 +1436,18 @@ function ConfigPanel({ config, onApply, isOpen, onToggle }) {
         <div className="d-flex flex-items-center" style={{ gap: '8px' }}>
           <span style={{ transition: 'transform 0.15s', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', display: 'inline-block' }}>▶</span>
           <h4 className="f5 mb-0">Configuration</h4>
-          <span className="Label Label--secondary f6">estimation params</span>
+          {fullConfig && <span className="Label Label--success f6">from repo</span>}
         </div>
         <span className="f6 color-fg-muted">{summary}</span>
       </div>
 
       {isOpen && (
         <div className="Box-body">
-          <p className="f6 color-fg-muted mb-3">Edit the estimation parameters below. Changes take effect when you click Apply.</p>
+          <p className="f6 color-fg-muted mb-3">
+            {fullConfig
+              ? 'Defaults loaded from dashboard-config.json. Edit below, then Apply to recalculate. Save to download for updating repo defaults.'
+              : 'Using built-in defaults. Deploy the pipeline to load values from dashboard-config.json.'}
+          </p>
 
           <h5 className="f6 color-fg-muted text-bold mb-2">Organization</h5>
           <div className="d-flex flex-wrap mb-3" style={{ gap: '12px', alignItems: 'flex-end' }}>
@@ -1464,11 +1481,25 @@ function ConfigPanel({ config, onApply, isOpen, onToggle }) {
             </div>
             <div className="form-group mb-0" style={{ flex: '1 1 140px' }}>
               <label className="f6 color-fg-muted">Labor Cost $/hr</label>
-              <input type="number" className="form-control input-sm" step="1" min="0" value={cost} onChange={e => setCost(e.target.value)} placeholder="75" />
+              <input type="number" className="form-control input-sm" step="1" min="0" value={cost} onChange={e => setCost(e.target.value)} placeholder="100" />
             </div>
           </div>
           <div className="d-flex flex-items-center mt-3" style={{ gap: '8px' }}>
             <button className="btn btn-sm btn-primary" onClick={apply}>Apply &amp; Recalculate</button>
+            <button className="btn btn-sm btn-outline" onClick={() => {
+              const exportCfg = { ...(fullConfig || DEFAULT_CONFIG), ...config,
+                cfg_total_developers: parseFloat(totalDevs) || 1100,
+                cfg_total_repos: parseFloat(totalRepos) || null,
+                cfg_workdays_per_week: parseFloat(wdays) || 5,
+                cfg_labor_cost_per_hour: parseFloat(cost) || null,
+                est_duration_factor: parseFloat(factor) || 0.5,
+                est_hrs_per_kloc: parseFloat(hrsPerKloc) || 4,
+              };
+              const blob = new Blob([JSON.stringify(exportCfg, null, 2)], { type: 'application/json' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a'); a.href = url; a.download = 'dashboard-config.json'; a.click();
+              URL.revokeObjectURL(url);
+            }}>💾 Save dashboard-config.json</button>
           </div>
         </div>
       )}
@@ -1490,14 +1521,19 @@ function App() {
   const [structuralFactor, setStructuralFactor] = useState('adoption');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const fullConfigRef = useRef(null);
 
   const recompute = useCallback((baseDays, cfg, m) => {
     return computeDerived(baseDays, cfg, m);
   }, []);
 
-  // Auto-load materialized artifacts on mount
+  // Auto-load materialized artifacts and config on mount
   useEffect(() => {
-    fetchArtifacts().then(arts => {
+    Promise.all([fetchArtifacts(), fetchConfig()]).then(([arts, loadedConfig]) => {
+      const mergedConfig = { ...DEFAULT_CONFIG, ...(loadedConfig || {}) };
+      setConfig(mergedConfig);
+      if (loadedConfig) fullConfigRef.current = loadedConfig;
+
       if (!arts || !arts.efficiency || !arts.efficiency.data || !arts.efficiency.data.length) {
         setError('Materialized artifact not found or empty.');
         setLoading(false);
@@ -1533,7 +1569,7 @@ function App() {
 
       const devDays = eff._devDays || [];
       const prSessions = sess?.data || [];
-      const enriched = computeDerived(baseDays, DEFAULT_CONFIG, 'duration');
+      const enriched = computeDerived(baseDays, mergedConfig, 'duration');
 
       setData({ enterprise: enriched, baseDays, devDays, prSessions });
       setLoading(false);
@@ -1609,7 +1645,7 @@ function App() {
             selectedEstimate={selectedEstimate} structuralFactor={structuralFactor} />
 
           <ConfidenceSection days={data.enterprise} config={config} method={method} onMethodChange={handleMethodChange} />
-          <ConfigPanel config={config} onApply={handleConfigApply} isOpen={configOpen} onToggle={() => setConfigOpen(o => !o)} />
+          <ConfigPanel config={config} onApply={handleConfigApply} isOpen={configOpen} onToggle={() => setConfigOpen(o => !o)} fullConfig={fullConfigRef.current} />
         </>
       )}
     </div>

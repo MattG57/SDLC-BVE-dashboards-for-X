@@ -109,6 +109,13 @@ async function fetchArtifact() {
   return null;
 }
 
+async function fetchConfig() {
+  for (const p of ['./data/config.json', '../data/config.json']) {
+    try { const r = await fetch(p); if (r.ok) return r.json(); } catch(e) {}
+  }
+  return null;
+}
+
 /* ═══════════════════════════════════════════════════════
    DATA PROCESSING LAYER
    ═══════════════════════════════════════════════════════ */
@@ -116,12 +123,13 @@ async function fetchArtifact() {
 function safeDiv(a, b) { return b > 0 ? a / b : null; }
 
 const DEFAULT_CONFIG = {
-  cfg_time_saved_pct_day: null,
-  cfg_baseline_hours_per_dev_per_week: null,
+  cfg_total_developers: 1100, cfg_pct_time_coding: 0.25,
+  cfg_time_saved_pct_day: 0.3,
+  cfg_baseline_hours_per_dev_per_week: 40,
   cfg_workdays_per_week: 5,
-  cfg_labor_cost_per_hour: null,
+  cfg_labor_cost_per_hour: 100,
   est_interactions_per_hour: 20,
-  est_hrs_per_kloc: 2,
+  est_hrs_per_kloc: 4,
 };
 
 /* ── Estimation method definitions ── */
@@ -279,13 +287,13 @@ function DevSearch({ users, selectedUser, onSelect }) {
 }
 
 /* ── Config Panel (collapsible, bottom of page) ── */
-function ConfigPanel({ config, onApply, isOpen, onToggle }) {
+function ConfigPanel({ config, onApply, isOpen, onToggle, fullConfig }) {
   const [pct, setPct] = useState(config.cfg_time_saved_pct_day ?? '');
   const [base, setBase] = useState(config.cfg_baseline_hours_per_dev_per_week ?? '');
   const [wdays, setWdays] = useState(config.cfg_workdays_per_week ?? 5);
   const [cost, setCost] = useState(config.cfg_labor_cost_per_hour ?? '');
   const [intPerHr, setIntPerHr] = useState(config.est_interactions_per_hour ?? 20);
-  const [hrsPerKloc, setHrsPerKloc] = useState(config.est_hrs_per_kloc ?? 2);
+  const [hrsPerKloc, setHrsPerKloc] = useState(config.est_hrs_per_kloc ?? 4);
 
   useEffect(() => {
     setPct(config.cfg_time_saved_pct_day ?? '');
@@ -293,23 +301,24 @@ function ConfigPanel({ config, onApply, isOpen, onToggle }) {
     setWdays(config.cfg_workdays_per_week ?? 5);
     setCost(config.cfg_labor_cost_per_hour ?? '');
     setIntPerHr(config.est_interactions_per_hour ?? 20);
-    setHrsPerKloc(config.est_hrs_per_kloc ?? 2);
+    setHrsPerKloc(config.est_hrs_per_kloc ?? 4);
   }, [config]);
 
   const apply = () => {
     onApply({
+      ...config,
       cfg_time_saved_pct_day: parseFloat(pct) || null,
       cfg_baseline_hours_per_dev_per_week: parseFloat(base) || null,
       cfg_workdays_per_week: parseFloat(wdays) || 5,
       cfg_labor_cost_per_hour: parseFloat(cost) || null,
       est_interactions_per_hour: parseFloat(intPerHr) || 20,
-      est_hrs_per_kloc: parseFloat(hrsPerKloc) || 2,
+      est_hrs_per_kloc: parseFloat(hrsPerKloc) || 4,
     });
   };
 
-  const summary = `${config.est_interactions_per_hour || 20} int/hr · ${config.est_hrs_per_kloc || 2} hrs/KLoC` +
-    (config.cfg_time_saved_pct_day != null ? ` · ${fmtPct(config.cfg_time_saved_pct_day)} manual` : '') +
-    (config.cfg_labor_cost_per_hour != null ? ` · $${config.cfg_labor_cost_per_hour}/hr` : '');
+  const summary = `${intPerHr || 20} int/hr · ${hrsPerKloc || 4} hrs/KLoC` +
+    (pct ? ` · ${fmtPct(parseFloat(pct))} manual` : '') +
+    (cost ? ` · $${cost}/hr` : '');
 
   return (
     <div className="Box mt-4" style={{ borderColor: isOpen ? 'var(--borderColor-accent-emphasis)' : undefined }}>
@@ -317,14 +326,18 @@ function ConfigPanel({ config, onApply, isOpen, onToggle }) {
         <div className="d-flex flex-items-center" style={{ gap: '8px' }}>
           <span style={{ transition: 'transform 0.15s', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', display: 'inline-block' }}>▶</span>
           <h4 className="f5 mb-0">Configuration</h4>
-          <span className="Label Label--secondary f6">all methods</span>
+          {fullConfig && <span className="Label Label--success f6">from repo</span>}
         </div>
         <span className="f6 color-fg-muted">{summary}</span>
       </div>
 
       {isOpen && (
         <div className="Box-body">
-          <p className="f6 color-fg-muted mb-3">Edit the estimation parameters below. Changes take effect when you click Apply.</p>
+          <p className="f6 color-fg-muted mb-3">
+            {fullConfig
+              ? 'Defaults loaded from dashboard-config.json. Edit below, then Apply to recalculate. Save to download for updating repo defaults.'
+              : 'Using built-in defaults. Deploy the pipeline to load values from dashboard-config.json.'}
+          </p>
 
           <h5 className="f6 color-fg-muted text-bold mb-2">Estimation Constants</h5>
           <div className="d-flex flex-wrap mb-3" style={{ gap: '12px', alignItems: 'flex-end' }}>
@@ -358,11 +371,25 @@ function ConfigPanel({ config, onApply, isOpen, onToggle }) {
             </div>
             <div className="form-group mb-0" style={{ flex: '1 1 140px' }}>
               <label className="f6 color-fg-muted">Labor Cost $/hr</label>
-              <input type="number" className="form-control input-sm" step="1" min="0" value={cost} onChange={e => setCost(e.target.value)} placeholder="75" />
+              <input type="number" className="form-control input-sm" step="1" min="0" value={cost} onChange={e => setCost(e.target.value)} placeholder="100" />
             </div>
           </div>
           <div className="d-flex flex-items-center mt-3" style={{ gap: '8px' }}>
             <button className="btn btn-sm btn-primary" onClick={apply}>Apply &amp; Recalculate</button>
+            <button className="btn btn-sm btn-outline" onClick={() => {
+              const exportCfg = { ...(fullConfig || DEFAULT_CONFIG), ...config,
+                cfg_time_saved_pct_day: parseFloat(pct) || null,
+                cfg_baseline_hours_per_dev_per_week: parseFloat(base) || null,
+                cfg_workdays_per_week: parseFloat(wdays) || 5,
+                cfg_labor_cost_per_hour: parseFloat(cost) || null,
+                est_interactions_per_hour: parseFloat(intPerHr) || 20,
+                est_hrs_per_kloc: parseFloat(hrsPerKloc) || 4,
+              };
+              const blob = new Blob([JSON.stringify(exportCfg, null, 2)], { type: 'application/json' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a'); a.href = url; a.download = 'dashboard-config.json'; a.click();
+              URL.revokeObjectURL(url);
+            }}>💾 Save dashboard-config.json</button>
           </div>
         </div>
       )}
@@ -780,14 +807,19 @@ function App() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const fullConfigRef = useRef(null);
 
   const recompute = useCallback((baseEnterprise, cfg, m) => {
     return computeDerived(baseEnterprise, cfg, m);
   }, []);
 
-  // Auto-load materialized artifact on mount
+  // Auto-load materialized artifact and config on mount
   useEffect(() => {
-    fetchArtifact().then(art => {
+    Promise.all([fetchArtifact(), fetchConfig()]).then(([art, loadedConfig]) => {
+      const mergedConfig = { ...DEFAULT_CONFIG, ...(loadedConfig || {}) };
+      setConfig(mergedConfig);
+      if (loadedConfig) fullConfigRef.current = loadedConfig;
+
       if (!art || !art.data || !art.data.length) {
         setError('Materialized artifact not found or empty.');
         setLoading(false);
@@ -797,7 +829,7 @@ function App() {
 
       const baseDays = art.data.sort((a, b) => a.day.localeCompare(b.day));
       const users = art._users || [];
-      const enriched = computeDerived(baseDays, DEFAULT_CONFIG, 'interactions');
+      const enriched = computeDerived(baseDays, mergedConfig, 'interactions');
 
       setData({ enterprise: enriched, baseEnterprise: baseDays, users });
       setLoading(false);
@@ -852,7 +884,7 @@ function App() {
           <ImpactSection days={data.enterprise} config={config} method={method} onMethodChange={handleMethodChange} users={data.users} selectedUser={selectedUser} />
           <DriversSection days={data.enterprise} users={data.users} selectedUser={selectedUser} />
           <ConfidenceSection days={data.enterprise} config={config} method={method} onMethodChange={handleMethodChange} />
-          <ConfigPanel config={config} onApply={handleConfigApply} isOpen={configOpen} onToggle={() => setConfigOpen(o => !o)} />
+          <ConfigPanel config={config} onApply={handleConfigApply} isOpen={configOpen} onToggle={() => setConfigOpen(o => !o)} fullConfig={fullConfigRef.current} />
         </>
       )}
     </div>

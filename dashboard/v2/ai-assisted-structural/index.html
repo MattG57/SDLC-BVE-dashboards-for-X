@@ -106,6 +106,13 @@ async function fetchArtifact() {
   return null;
 }
 
+async function fetchConfig() {
+  for (const p of ['./data/config.json', '../data/config.json']) {
+    try { const r = await fetch(p); if (r.ok) return r.json(); } catch(e) {}
+  }
+  return null;
+}
+
 /* ═══════════════════════════════════════════════════════
    DATA PROCESSING LAYER
    ═══════════════════════════════════════════════════════ */
@@ -113,7 +120,7 @@ async function fetchArtifact() {
 function safeDiv(a, b) { return b > 0 ? a / b : null; }
 
 const DEFAULT_CONFIG = {
-  cfg_total_developers: 100,
+  cfg_total_developers: 1100,
   cfg_workdays_per_week: 5,
   cfg_pr_assist_lookback_days: 3,
 };
@@ -716,26 +723,27 @@ function ConfidenceSection({ days, artifact, config }) {
 /* ═══════════════════════════════════════════════════════
    SECTION — CONFIG PANEL (collapsible)
    ═══════════════════════════════════════════════════════ */
-function ConfigPanel({ config, onApply, isOpen, onToggle }) {
-  const [totalDevs, setTotalDevs] = useState(config.cfg_total_developers ?? 100);
+function ConfigPanel({ config, onApply, isOpen, onToggle, fullConfig }) {
+  const [totalDevs, setTotalDevs] = useState(config.cfg_total_developers ?? 1100);
   const [wdays, setWdays] = useState(config.cfg_workdays_per_week ?? 5);
   const [lookback, setLookback] = useState(config.cfg_pr_assist_lookback_days ?? 3);
 
   useEffect(() => {
-    setTotalDevs(config.cfg_total_developers ?? 100);
+    setTotalDevs(config.cfg_total_developers ?? 1100);
     setWdays(config.cfg_workdays_per_week ?? 5);
     setLookback(config.cfg_pr_assist_lookback_days ?? 3);
   }, [config]);
 
   const apply = () => {
     onApply({
-      cfg_total_developers: parseInt(totalDevs) || 100,
+      ...config,
+      cfg_total_developers: parseInt(totalDevs) || 1100,
       cfg_workdays_per_week: parseFloat(wdays) || 5,
       cfg_pr_assist_lookback_days: parseInt(lookback) || 3,
     });
   };
 
-  const summary = `${fmt(config.cfg_total_developers)} total devs · ${config.cfg_pr_assist_lookback_days}-day lookback`;
+  const summary = `${fmt(totalDevs)} total devs · ${lookback}-day lookback`;
 
   return (
     <div className="Box mt-4" style={{ borderColor: isOpen ? 'var(--borderColor-accent-emphasis)' : undefined }}>
@@ -743,14 +751,18 @@ function ConfigPanel({ config, onApply, isOpen, onToggle }) {
         <div className="d-flex flex-items-center" style={{ gap: '8px' }}>
           <span style={{ transition: 'transform 0.15s', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', display: 'inline-block' }}>▶</span>
           <h4 className="f5 mb-0">Configuration</h4>
-          <span className="Label Label--secondary f6">structural parameters</span>
+          {fullConfig && <span className="Label Label--success f6">from repo</span>}
         </div>
         <span className="f6 color-fg-muted">{summary}</span>
       </div>
 
       {isOpen && (
         <div className="Box-body">
-          <p className="f6 color-fg-muted mb-3">These parameters affect how overview KPIs are displayed. Structural factors in the artifact are pre-computed and not affected by configuration changes.</p>
+          <p className="f6 color-fg-muted mb-3">
+            {fullConfig
+              ? 'Defaults loaded from dashboard-config.json. Structural factors in the artifact are pre-computed and not affected by configuration changes.'
+              : 'Using built-in defaults. Deploy the pipeline to load values from dashboard-config.json.'}
+          </p>
 
           <div className="d-flex flex-wrap mb-3" style={{ gap: '12px', alignItems: 'flex-end' }}>
             <div className="form-group mb-0" style={{ flex: '1 1 220px' }}>
@@ -768,7 +780,19 @@ function ConfigPanel({ config, onApply, isOpen, onToggle }) {
               <p className="note f6 color-fg-muted mt-1">How many days back to check for Copilot activity when classifying PRs.</p>
             </div>
           </div>
-          <button className="btn btn-sm btn-primary" onClick={apply}>Apply</button>
+          <div className="d-flex flex-items-center" style={{ gap: '8px' }}>
+            <button className="btn btn-sm btn-primary" onClick={apply}>Apply</button>
+            <button className="btn btn-sm btn-outline" onClick={() => {
+              const exportCfg = { ...(fullConfig || DEFAULT_CONFIG), ...config,
+                cfg_total_developers: parseInt(totalDevs) || 1100,
+                cfg_workdays_per_week: parseFloat(wdays) || 5,
+              };
+              const blob = new Blob([JSON.stringify(exportCfg, null, 2)], { type: 'application/json' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a'); a.href = url; a.download = 'dashboard-config.json'; a.click();
+              URL.revokeObjectURL(url);
+            }}>💾 Save dashboard-config.json</button>
+          </div>
         </div>
       )}
     </div>
@@ -786,22 +810,32 @@ function App() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const fullConfigRef = useRef(null);
 
   useEffect(() => {
-    fetchArtifact().then(art => {
+    Promise.all([fetchArtifact(), fetchConfig()]).then(([art, loadedConfig]) => {
+      const mergedConfig = { ...DEFAULT_CONFIG, ...(loadedConfig || {}) };
+      if (loadedConfig) fullConfigRef.current = loadedConfig;
+
       if (!art || !art.data || !art.data.length) {
         setError('Materialized artifact not found or empty. Expected ai-assisted-structural-days-*.json in materialized/.');
         setLoading(false);
+        // Still apply config even if no data
+        setConfig(mergedConfig);
         return;
       }
       setArtifact(art);
       const sorted = art.data.sort((a, b) => a.day.localeCompare(b.day));
       setDays(sorted);
 
-      // Auto-detect total developer population from data
-      const maxMau = Math.max(...sorted.map(d => d.monthly_active_users || 0));
-      const detectedTotal = maxMau > 0 ? Math.round(maxMau * 1.25) : Math.round(Math.max(...sorted.map(d => d.daily_active_users || 0)) * 2);
-      setConfig(prev => ({ ...prev, cfg_total_developers: detectedTotal || prev.cfg_total_developers }));
+      // Use loaded config if available, otherwise auto-detect total developers from data
+      if (loadedConfig && loadedConfig.cfg_total_developers) {
+        setConfig(mergedConfig);
+      } else {
+        const maxMau = Math.max(...sorted.map(d => d.monthly_active_users || 0));
+        const detectedTotal = maxMau > 0 ? Math.round(maxMau * 1.25) : Math.round(Math.max(...sorted.map(d => d.daily_active_users || 0)) * 2);
+        setConfig({ ...mergedConfig, cfg_total_developers: detectedTotal || mergedConfig.cfg_total_developers });
+      }
       setLoading(false);
     }).catch(e => {
       console.error('Artifact load error:', e);
@@ -844,7 +878,7 @@ function App() {
           <PrAnalysisSection prRecords={artifact._prRecords} selectedUser={selectedUser} />
           <ImpactSection days={days} />
           <ConfidenceSection days={days} artifact={artifact} config={config} />
-          <ConfigPanel config={config} onApply={handleConfigApply} isOpen={configOpen} onToggle={() => setConfigOpen(o => !o)} />
+          <ConfigPanel config={config} onApply={handleConfigApply} isOpen={configOpen} onToggle={() => setConfigOpen(o => !o)} fullConfig={fullConfigRef.current} />
         </>
       )}
     </div>

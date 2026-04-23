@@ -113,6 +113,13 @@ async function fetchArtifacts() {
   return null;
 }
 
+async function fetchConfig() {
+  for (const p of ['./data/config.json', '../data/config.json']) {
+    try { const r = await fetch(p); if (r.ok) return r.json(); } catch(e) {}
+  }
+  return null;
+}
+
 /* ═══════════════════════════════════════════════════════
    UTILITIES
    ═══════════════════════════════════════════════════════ */
@@ -204,9 +211,12 @@ const DRIVER_SERIES = [
 ];
 
 const DEFAULT_CONFIG = {
-  cfg_total_developers: 100, cfg_workdays_per_week: 5, cfg_labor_cost_per_hour: null,
-  est_interactions_per_hour: 20, est_hrs_per_kloc: 2,
-  cfg_pr_assist_lookback_days: 3, cfg_total_dev_loc_added_day: null,
+  cfg_total_developers: 1100, cfg_pct_time_coding: 0.25, cfg_workdays_per_week: 5,
+  cfg_labor_cost_per_hour: 100, cfg_total_repos: 220,
+  est_interactions_per_hour: 20, est_hrs_per_kloc: 4,
+  cfg_pr_assist_lookback_days: 3, cfg_total_dev_loc_added_day: 10000,
+  cfg_time_saved_pct_day: 0.3, cfg_baseline_hours_per_dev_per_week: 40,
+  est_duration_factor: 0.5, est_human_to_agent_ratio: 10,
 };
 
 /* ═══════════════════════════════════════════════════════
@@ -1054,7 +1064,7 @@ function LeverageInsightsSection({ days, config, users, prRecords, selectedUser,
    CONFIG PANEL
    ═══════════════════════════════════════════════════════ */
 
-function ConfigPanel({ config, onApply, isOpen, onToggle }) {
+function ConfigPanel({ config, onApply, isOpen, onToggle, fullConfig }) {
   const [cfg, setCfg] = useState(config);
   useEffect(() => setCfg(config), [config]);
   const set = (k, v) => setCfg(prev => ({ ...prev, [k]: v }));
@@ -1083,11 +1093,17 @@ function ConfigPanel({ config, onApply, isOpen, onToggle }) {
         <div className="d-flex flex-items-center" style={{ gap: '8px' }}>
           <span style={{ transition: 'transform 0.15s', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', display: 'inline-block' }}>▶</span>
           <h4 className="f5 mb-0">Configuration</h4>
+          {fullConfig && <span className="Label Label--success f6">from repo</span>}
         </div>
         <span className="f6 color-fg-muted">{cfg.cfg_total_developers || 100} devs · {((cfg.cfg_pct_time_coding || 0.5) * 100).toFixed(0)}% coding · {cfg.est_interactions_per_hour || 20} int/hr</span>
       </div>
       {isOpen && (
         <div className="Box-body">
+          <p className="f6 color-fg-muted mb-3">
+            {fullConfig
+              ? 'Defaults loaded from dashboard-config.json. Edit below, then Apply to recalculate. Save to download for updating repo defaults.'
+              : 'Using built-in defaults. Deploy the pipeline to load values from dashboard-config.json.'}
+          </p>
           {fields.map(section => (
             <div key={section.section} className="mb-3">
               <h5 className="f6 color-fg-muted text-bold mb-2">{section.section}</h5>
@@ -1105,11 +1121,12 @@ function ConfigPanel({ config, onApply, isOpen, onToggle }) {
           <div className="d-flex flex-items-center mt-3" style={{ gap: '8px' }}>
             <button className="btn btn-sm btn-primary" onClick={apply}>Apply &amp; Recalculate</button>
             <button className="btn btn-sm btn-outline" onClick={() => {
-              const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: 'application/json' });
+              const exportCfg = { ...(fullConfig || DEFAULT_CONFIG), ...cfg };
+              const blob = new Blob([JSON.stringify(exportCfg, null, 2)], { type: 'application/json' });
               const url = URL.createObjectURL(blob);
-              const a = document.createElement('a'); a.href = url; a.download = 'config.json'; a.click();
+              const a = document.createElement('a'); a.href = url; a.download = 'dashboard-config.json'; a.click();
               URL.revokeObjectURL(url);
-            }}>💾 Save config.json</button>
+            }}>💾 Save dashboard-config.json</button>
           </div>
         </div>
       )}
@@ -1133,6 +1150,7 @@ function App() {
   const [structuralFactor, setStructuralFactor] = useState('adoption');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const fullConfigRef = useRef(null);
 
   function mergeDays(effDays, structural) {
     const hasPrData = structural?._prRecords?.length > 0;
@@ -1183,7 +1201,11 @@ function App() {
   }
 
   useEffect(() => {
-    fetchArtifacts().then(result => {
+    Promise.all([fetchArtifacts(), fetchConfig()]).then(([result, loadedConfig]) => {
+      const mergedConfig = { ...DEFAULT_CONFIG, ...(loadedConfig || {}) };
+      setConfig(mergedConfig);
+      if (loadedConfig) fullConfigRef.current = loadedConfig;
+
       if (!result || !result.efficiency?.data?.length) {
         setError('Efficiency artifact not found or empty.');
         setLoading(false);
@@ -1198,7 +1220,7 @@ function App() {
       const prRecords = structural?._prRecords || null;
 
       const baseDays = mergeDays(effDays, structural);
-      const enriched = enrichDays(baseDays, DEFAULT_CONFIG, 'interactions');
+      const enriched = enrichDays(baseDays, mergedConfig, 'interactions');
 
       setData({ baseDays, days: enriched, users, prRecords });
       setLoading(false);
@@ -1274,7 +1296,7 @@ function App() {
             prRecords={data.prRecords} selectedUser={selectedUser}
             selectedEstimate={selectedEstimate} structuralFactor={structuralFactor} />
 
-          <ConfigPanel config={config} onApply={handleConfigApply} isOpen={configOpen} onToggle={() => setConfigOpen(!configOpen)} />
+          <ConfigPanel config={config} onApply={handleConfigApply} isOpen={configOpen} onToggle={() => setConfigOpen(!configOpen)} fullConfig={fullConfigRef.current} />
         </>
       )}
     </div>
