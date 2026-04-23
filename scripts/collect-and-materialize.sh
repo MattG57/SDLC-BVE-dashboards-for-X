@@ -321,7 +321,7 @@ main() {
       if [[ -f "$sl_script" ]]; then
         echo "  Input: $(basename "$agentic_raw")"
         echo "  Output: _data/raw/$(basename "$sl_output")"
-        if bash "$sl_script" --input "$agentic_raw" > "$sl_output" 2>&1; then
+        if bash "$sl_script" --input "$agentic_raw" > "$sl_output" 2>"${sl_output}.log"; then
           if jq -e '.' "$sl_output" > /dev/null 2>&1; then
             local sl_count
             sl_count=$(jq '.metadata.succeeded // 0' "$sl_output")
