@@ -39,12 +39,14 @@ RUN_TS=$(date -u +%Y-%m-%dT%H%MZ)
 
 PROFILE="default"
 MATERIALIZE_ONLY=false
+SESSION_LOGS_ONLY=false
 USE_STREAMING=true
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --profile) PROFILE="$2"; shift 2 ;;
     --materialize-only) MATERIALIZE_ONLY=true; shift ;;
+    --session-logs-only) SESSION_LOGS_ONLY=true; shift ;;
     --no-streaming) USE_STREAMING=false; shift ;;
     *) echo "Unknown argument: $1"; exit 1 ;;
   esac
@@ -266,6 +268,44 @@ write_status() {
   echo "  ✔ query-status.json"
 }
 
+# ─── Session logs collection ──────────────────────────────────────────────────
+
+run_session_logs() {
+  local agentic_raw
+  agentic_raw=$(ls "$RAW_DIR"/*coding-agent-pr-metrics*.json 2>/dev/null | head -1)
+  if [[ -z "$agentic_raw" || ! -f "$agentic_raw" ]]; then
+    echo ""
+    echo "  ⚠ No agentic data found — skipping session logs"
+    return 0
+  fi
+
+  echo ""
+  echo "━━━ agent-session-logs ━━━"
+  local scope_name="${ENTERPRISE:-${ORG:-unknown}}"
+  local sl_output="${RAW_DIR}/${scope_name}-agent-session-logs-${RUN_TS}.json"
+  local sl_script="${REPO_ROOT}/BVE-dashboards-for-agentic-ai-coding/data/queries/agent-session-logs.sh"
+  if [[ ! -f "$sl_script" ]]; then
+    echo "  ⚠ Script not found: $sl_script"
+    return 0
+  fi
+
+  echo "  Input: $(basename "$agentic_raw")"
+  echo "  Output: _data/raw/$(basename "$sl_output")"
+  if bash "$sl_script" --input "$agentic_raw" > "$sl_output" 2>"${sl_output}.log"; then
+    if jq -e '.' "$sl_output" > /dev/null 2>&1; then
+      local sl_count
+      sl_count=$(jq '.metadata.succeeded // 0' "$sl_output")
+      echo "  ✔ Session logs: $sl_count sessions processed"
+    else
+      echo "  ✗ Output is not valid JSON"
+      rm -f "$sl_output"
+    fi
+  else
+    echo "  ✗ Script failed (see ${sl_output}.log)"
+    rm -f "$sl_output"
+  fi
+}
+
 # ─── Main ──────────────────────────────────────────────────────────────────────
 
 main() {
@@ -289,6 +329,17 @@ main() {
       load_profile
       collect_existing
     fi
+  elif $SESSION_LOGS_ONLY; then
+    echo "Session logs only (--session-logs-only)"
+
+    # If _data/raw/ is empty, collect from existing dashboard data dirs
+    if ! ls "$RAW_DIR"/*.json > /dev/null 2>&1; then
+      load_profile
+      collect_existing
+    fi
+
+    # Run session logs collection
+    run_session_logs
   else
     # Load profile and run collection
     load_profile
@@ -309,32 +360,12 @@ main() {
       collect_existing
     fi
 
-    # Post-collection: fetch agent session logs if agentic data is available
-    local agentic_raw
-    agentic_raw=$(ls "$RAW_DIR"/*coding-agent-pr-metrics*.json 2>/dev/null | head -1)
-    if [[ -n "$agentic_raw" && -f "$agentic_raw" ]]; then
+    # Post-collection: fetch agent session logs unless skipped
+    if [[ "${SKIP_SESSION_LOGS:-false}" != "true" ]]; then
+      run_session_logs
+    else
       echo ""
-      echo "━━━ agent-session-logs ━━━"
-      local scope_name="${ENTERPRISE:-${ORG:-unknown}}"
-      local sl_output="${RAW_DIR}/${scope_name}-agent-session-logs-${RUN_TS}.json"
-      local sl_script="${REPO_ROOT}/BVE-dashboards-for-agentic-ai-coding/data/queries/agent-session-logs.sh"
-      if [[ -f "$sl_script" ]]; then
-        echo "  Input: $(basename "$agentic_raw")"
-        echo "  Output: _data/raw/$(basename "$sl_output")"
-        if bash "$sl_script" --input "$agentic_raw" > "$sl_output" 2>"${sl_output}.log"; then
-          if jq -e '.' "$sl_output" > /dev/null 2>&1; then
-            local sl_count
-            sl_count=$(jq '.metadata.succeeded // 0' "$sl_output")
-            echo "  ✔ Session logs: $sl_count sessions processed"
-          else
-            echo "  ✗ Output is not valid JSON"
-            rm -f "$sl_output"
-          fi
-        else
-          echo "  ✗ Script failed"
-          rm -f "$sl_output"
-        fi
-      fi
+      echo "Skipping session logs (SKIP_SESSION_LOGS=true)"
     fi
   fi
 

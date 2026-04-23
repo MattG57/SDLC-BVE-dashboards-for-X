@@ -9,6 +9,10 @@ on:
         description: 'Deploy pages only (skip data collection)'
         type: boolean
         default: false
+      pipeline_steps:
+        description: 'Run specific steps only (comma-separated: collect,session-logs,materialize,deploy). Leave empty for all.'
+        required: false
+        default: ''
       enterprise:
         description: 'GitHub Enterprise slug (overrides ENTERPRISE variable)'
         required: false
@@ -55,16 +59,25 @@ jobs:
         run: npm install --workspace=shared --include=dev
 
       - name: Collect and materialize data
-        if: ${{ inputs.skip_data_collection != true }}
+        if: ${{ inputs.skip_data_collection != true && (inputs.pipeline_steps == '' || contains(inputs.pipeline_steps, 'collect')) }}
         env:
           GH_TOKEN: ${{ secrets.DASHBOARD_GH_TOKEN }}
           ENTERPRISE: ${{ inputs.enterprise || vars.ENTERPRISE || '' }}
           ORG: ${{ inputs.org || vars.ORG || '' }}
           DAYS: ${{ inputs.days || vars.DAYS || '28' }}
+          SKIP_SESSION_LOGS: ${{ inputs.pipeline_steps != '' && !contains(inputs.pipeline_steps, 'session-logs') }}
         run: bash scripts/collect-and-materialize.sh
 
+      - name: Session logs only
+        if: ${{ inputs.pipeline_steps != '' && contains(inputs.pipeline_steps, 'session-logs') && !contains(inputs.pipeline_steps, 'collect') }}
+        env:
+          GH_TOKEN: ${{ secrets.DASHBOARD_GH_TOKEN }}
+          ENTERPRISE: ${{ inputs.enterprise || vars.ENTERPRISE || '' }}
+          ORG: ${{ inputs.org || vars.ORG || '' }}
+        run: bash scripts/collect-and-materialize.sh --session-logs-only
+
       - name: Materialize only (skip collection)
-        if: ${{ inputs.skip_data_collection == true }}
+        if: ${{ (inputs.skip_data_collection == true || (inputs.pipeline_steps != '' && contains(inputs.pipeline_steps, 'materialize') && !contains(inputs.pipeline_steps, 'collect') && !contains(inputs.pipeline_steps, 'session-logs'))) }}
         run: bash scripts/collect-and-materialize.sh --materialize-only
 
       - name: Save raw data to cache
