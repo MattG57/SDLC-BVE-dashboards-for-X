@@ -54,11 +54,28 @@
   .metric-card { background: var(--bgColor-muted); border: 1px solid var(--borderColor-default); border-radius: 8px;
     padding: 20px; text-align: center; }
   .metric-value { font-size: 1.8rem; font-weight: 700; color: var(--fgColor-default); line-height: 1.2; }
+  .metric-value.text-value { font-size: 1.1rem; }
   .metric-value .unit { font-size: 1rem; font-weight: 400; opacity: 0.6; margin-left: 2px; }
   .metric-label { font-size: 0.75rem; color: var(--fgColor-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
   .metric-card.accent { border-top: 3px solid var(--borderColor-accent-emphasis); }
   .metric-card.success { border-top: 3px solid var(--borderColor-success-emphasis); }
   .metric-card.attention { border-top: 3px solid var(--borderColor-attention-emphasis); }
+
+  /* ── Decomposition paths ── */
+  .decomp-wrap { margin: 28px 0 8px; }
+  .decomp-formula { text-align: center; margin-bottom: 20px; }
+  .decomp-formula .decomp-frac { display: inline-flex; flex-direction: column; align-items: center; font-family: 'SFMono-Regular', Consolas, monospace; }
+  .decomp-formula .decomp-num { padding: 4px 16px; border-bottom: 2px solid var(--borderColor-default); font-size: 1rem; color: #3fb950; font-weight: 600; }
+  .decomp-formula .decomp-den { padding: 4px 16px; font-size: 1rem; color: #58a6ff; font-weight: 600; }
+  .decomp-formula .decomp-eq { font-size: 1.2rem; color: var(--fgColor-muted); margin: 0 12px; }
+  .decomp-paths { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .decomp-path { background: var(--bgColor-muted); border: 1px solid var(--borderColor-default); border-radius: 8px; padding: 20px 24px; }
+  .decomp-path h4 { font-size: 0.9rem; font-weight: 600; margin: 0 0 4px; }
+  .decomp-path .path-holding { font-size: 0.8rem; color: var(--fgColor-muted); font-style: italic; margin: 0 0 12px; }
+  .decomp-path ul { margin: 0; padding: 0 0 0 18px; }
+  .decomp-path li { font-size: 0.85rem; color: var(--fgColor-muted); padding: 3px 0; line-height: 1.4; }
+  .decomp-path.path-a { border-top: 3px solid #3fb950; }
+  .decomp-path.path-b { border-top: 3px solid #58a6ff; }
 
   /* ── Comparison cards ── */
   .comparison-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 8px; }
@@ -224,8 +241,9 @@ function FlowBar({ active }) {
 }
 
 function MetricCard({ value, label, className = '' }) {
+  const isText = typeof value === 'string' && value.length > 6;
   return React.createElement('div', { className: `metric-card ${className}` },
-    React.createElement('div', { className: 'metric-value' }, value),
+    React.createElement('div', { className: `metric-value${isText ? ' text-value' : ''}` }, value),
     React.createElement('div', { className: 'metric-label' }, label),
   );
 }
@@ -306,10 +324,10 @@ function Section2() {
 
   const chartRef = useChart((el) => {
     return Highcharts.chart(el, {
-      chart: { type: 'bar', height: 280 },
+      chart: { type: 'bar', height: 280, marginRight: 20 },
       title: { text: 'Developer Hours by Area of Improvement' },
       xAxis: { categories: areas.map(a => a.area), lineWidth: 0, tickWidth: 0 },
-      yAxis: { title: { text: 'Hours' }, gridLineWidth: 1 },
+      yAxis: { title: { text: 'Hours' }, gridLineWidth: 1, maxPadding: 0.15 },
       legend: { enabled: false },
       plotOptions: { bar: { borderWidth: 0, borderRadius: 3, dataLabels: { enabled: true, format: '{y:,.0f} hrs', style: { color: '#8b949e', fontSize: '11px', fontWeight: '400', textOutline: 'none' } } } },
       series: [{ name: 'Hours', data: areas.map((a, i) => ({ y: a.hours, color: AREA_COLORS[i] })) }],
@@ -387,28 +405,28 @@ function Section4() {
       chart: { type: 'bar', height: 280 },
       title: { text: 'Completion Yield by Area' },
       xAxis: { categories: sorted.map(a => a.area), lineWidth: 0, tickWidth: 0 },
-      yAxis: { title: { text: 'Yield' }, max: 1, labels: { format: '{value:.0%}' }, gridLineWidth: 1 },
+      yAxis: { title: { text: 'Yield' }, max: 100, labels: { format: '{value}%' }, gridLineWidth: 1 },
       legend: { enabled: false },
       plotOptions: { bar: { borderWidth: 0, borderRadius: 3,
-        dataLabels: { enabled: true, format: '{y:.0%}', style: { color: '#e6edf3', fontSize: '12px', fontWeight: '600', textOutline: 'none' } }
+        dataLabels: { enabled: true, format: '{y:.0f}%', style: { color: '#e6edf3', fontSize: '12px', fontWeight: '600', textOutline: 'none' } }
       } },
       series: [{ name: 'Yield', data: sorted.map(a => {
         const idx = areas.indexOf(a);
-        return { y: a.yield, color: AREA_COLORS[idx] };
+        return { y: Math.round(a.yield * 100), color: AREA_COLORS[idx] };
       }) }],
-      tooltip: { pointFormat: 'Yield: <b>{point.y:.1%}</b>' },
+      tooltip: { pointFormat: 'Yield: <b>{point.y}%</b>' },
     });
   }, []);
 
   return React.createElement(NarrativeSection, {
     number: 4,
     title: 'Yield Separates Activity From Valid Completion',
-    explanation: 'Yield prevents the dashboard from treating all attempts as equally valuable. Not all activity leads to a valid completion.',
+    explanation: 'Yield measures the quality of the numerator in leverage — how many attempts become valid completions. Improving yield increases leverage by producing more useful output from the same activity, without requiring any change to hours spent.',
     activeStep: 2,
   },
     React.createElement('div', { className: 'formula-box' }, 'Yield = Valid Completions ÷ Attempts'),
     React.createElement('div', { className: 'chart-container', ref: chartRef }),
-    React.createElement(TakeawayCallout, { text: 'Higher activity is not automatically better. Yield shows how much activity becomes valid completion.' })
+    React.createElement(TakeawayCallout, { text: 'Yield improves the completions side of leverage. Higher yield means the same number of attempts produces more valid output — hours stay constant, but the numerator grows.' })
   );
 }
 
@@ -431,6 +449,43 @@ function Section5() {
     activeStep: 3,
   },
     React.createElement('div', { className: 'formula-box' }, 'Leverage = Valid Completions ÷ Developer Hours'),
+
+    React.createElement('div', { className: 'decomp-wrap' },
+      React.createElement('div', { className: 'decomp-formula' },
+        React.createElement('span', { style: { fontSize: '1rem', color: 'var(--fgColor-muted)', marginRight: 8 } }, 'Leverage ='),
+        React.createElement('span', { className: 'decomp-frac' },
+          React.createElement('span', { className: 'decomp-num' }, 'Valid Completions ▲'),
+          React.createElement('span', { className: 'decomp-den' }, 'Developer Hours ▼'),
+        ),
+      ),
+      React.createElement('p', { style: { fontSize: '0.9rem', color: 'var(--fgColor-muted)', textAlign: 'center', margin: '12px 0 20px', lineHeight: 1.5 } },
+        'Leverage improves through two distinct paths. Conflating them hides where improvement is actually coming from.'),
+      React.createElement('div', { className: 'decomp-paths' },
+        React.createElement('div', { className: 'decomp-path path-a' },
+          React.createElement('h4', { style: { color: '#3fb950' } }, 'Path A: More Completions'),
+          React.createElement('p', { className: 'path-holding' }, 'holding hours constant'),
+          React.createElement('ul', null,
+            React.createElement('li', null, 'Better yield — more attempts succeed'),
+            React.createElement('li', null, 'Higher throughput — more attempts per hour'),
+            React.createElement('li', null, 'Richer output — more value per completion'),
+          ),
+          React.createElement('p', { style: { fontSize: '0.8rem', color: '#3fb950', marginTop: 12, marginBottom: 0 } },
+            'Example: AI-assisted coding increases PR merge rate from 65% to 80%'),
+        ),
+        React.createElement('div', { className: 'decomp-path path-b' },
+          React.createElement('h4', { style: { color: '#58a6ff' } }, 'Path B: Fewer Hours'),
+          React.createElement('p', { className: 'path-holding' }, 'holding completions constant'),
+          React.createElement('ul', null,
+            React.createElement('li', null, 'Faster execution — same task, less time'),
+            React.createElement('li', null, 'Automation — agents replace manual work'),
+            React.createElement('li', null, 'Elimination — unnecessary steps removed'),
+          ),
+          React.createElement('p', { style: { fontSize: '0.8rem', color: '#58a6ff', marginTop: 12, marginBottom: 0 } },
+            'Example: Agentic coding completes a PR in 5 min instead of 2 hrs'),
+        ),
+      ),
+    ),
+
     React.createElement('div', { className: 'metric-cards cols-4', style: { marginBottom: 24 } },
       React.createElement(MetricCard, { value: combinedLeverage.toFixed(2), label: 'Combined Leverage', className: 'accent' }),
       React.createElement(MetricCard, { value: sorted[0].area, label: 'Highest Leverage Area', className: 'success' }),
@@ -467,7 +522,7 @@ function Section5() {
         )
       )
     ),
-    React.createElement(TakeawayCallout, { text: 'Leverage is more than a productivity metric: it connects valid completions to developer hours, making it a way to gauge efficiency improvement, capacity effects, and net progress across diverse areas of improvement.' })
+    React.createElement(TakeawayCallout, { text: 'Leverage improves through two distinct paths: more valid completions from the same hours, or fewer hours for the same completions. Distinguishing these paths prevents us from confusing yield improvement with efficiency improvement — they address different sides of the same ratio.' })
   );
 }
 
@@ -483,27 +538,33 @@ function Section6() {
       chart: { type: 'bubble', height: 380, plotBorderWidth: 1, plotBorderColor: '#30363d' },
       title: { text: 'Efficiency Gain × Structural Gain' },
       subtitle: { text: 'Bubble size = hours · Color intensity = leverage improvement' },
-      xAxis: { title: { text: 'Structural Gain', style: { color: '#8b949e' } }, min: 0, max: 0.5, gridLineWidth: 1,
-        plotLines: [{ value: 0.2, color: '#30363d', width: 1, dashStyle: 'Dash', label: { text: 'Low / High', style: { color: '#484f58', fontSize: '10px' }, y: -5 } }]
+      xAxis: { title: { text: 'Structural Gain', style: { color: '#8b949e' } }, min: 0, max: 50, gridLineWidth: 1,
+        labels: { format: '{value}%' },
+        plotLines: [{ value: 20, color: '#30363d', width: 1, dashStyle: 'Dash', label: { text: 'Low / High', style: { color: '#484f58', fontSize: '10px' }, y: -5 } }]
       },
-      yAxis: { title: { text: 'Efficiency Gain', style: { color: '#8b949e' } }, min: 0, max: 0.35, gridLineWidth: 1, startOnTick: false,
-        plotLines: [{ value: 0.15, color: '#30363d', width: 1, dashStyle: 'Dash', label: { text: 'Low / High', style: { color: '#484f58', fontSize: '10px' }, x: 5 } }]
+      yAxis: { title: { text: 'Efficiency Gain', style: { color: '#8b949e' } }, min: 0, max: 35, gridLineWidth: 1, startOnTick: false,
+        labels: { format: '{value}%' },
+        plotLines: [{ value: 15, color: '#30363d', width: 1, dashStyle: 'Dash', label: { text: 'Low / High', style: { color: '#484f58', fontSize: '10px' }, x: 5 } }]
       },
       legend: { enabled: false },
-      plotOptions: { bubble: { minSize: 30, maxSize: 80, dataLabels: { enabled: true, format: '{point.name}', style: { color: '#e6edf3', fontSize: '10px', fontWeight: '400', textOutline: '1px #0d1117' } } } },
+      plotOptions: { bubble: { minSize: 30, maxSize: 80, dataLabels: {
+        enabled: true, format: '{point.name}', allowOverlap: false, padding: 4,
+        style: { color: '#e6edf3', fontSize: '10px', fontWeight: '400', textOutline: '2px #0d1117' }
+      } } },
       series: [{
         name: 'Areas',
         data: areas.map((a, i) => ({
-          x: a.structuralGain,
-          y: a.efficiencyGain,
+          x: Math.round(a.structuralGain * 100),
+          y: Math.round(a.efficiencyGain * 100),
           z: a.hours,
-          name: a.area.length > 20 ? a.area.substring(0, 18) + '…' : a.area,
+          name: a.area.replace('Creating CI/CD/etc ', 'CI/CD ').replace('Vulnerability ', 'Vuln '),
+          fullName: a.area,
           color: Highcharts.color(AREA_COLORS[i]).setOpacity(0.4 + a.leverageDelta * 5).get(),
         })),
       }],
       tooltip: {
         headerFormat: '',
-        pointFormat: '<b>{point.name}</b><br/>Structural: {point.x:.0%}<br/>Efficiency: {point.y:.0%}<br/>Hours: {point.z:,.0f}',
+        pointFormat: '<b>{point.fullName}</b><br/>Structural: {point.x}%<br/>Efficiency: {point.y}%<br/>Hours: {point.z:,.0f}',
       },
     });
   }, []);
@@ -511,33 +572,88 @@ function Section6() {
   return React.createElement(NarrativeSection, {
     number: 6,
     title: 'Improvements Come From Efficiency and Structure',
-    explanation: 'There are two main improvement mechanisms. Efficiency makes existing work faster. Structure changes which work should happen, where it should happen, and how it compounds.',
+    explanation: 'Efficiency and structural improvement are different in kind, not just degree. Efficiency makes a single task faster. Structural improvement changes the conditions under which efficiency compounds.',
   },
     React.createElement('div', { className: 'comparison-grid', style: { marginBottom: 24 } },
       React.createElement('div', { className: 'comparison-col' },
         React.createElement('h3', { style: { color: '#3fb950' } }, '⚡ Efficiency Gain'),
-        React.createElement('p', { style: { fontSize: '0.9rem', color: 'var(--fgColor-muted)', margin: 0, lineHeight: 1.5 } },
-          'The same type of work requires fewer hours or produces more valid completions per hour.')
+        React.createElement('p', { style: { fontSize: '0.9rem', color: 'var(--fgColor-muted)', margin: '0 0 10px', lineHeight: 1.5 } },
+          'A task-level improvement. The same type of work requires fewer hours or produces more valid completions per hour.'),
+        React.createElement('p', { style: { fontSize: '0.85rem', color: 'var(--fgColor-muted)', margin: '0 0 4px', lineHeight: 1.5 } },
+          'Efficiency gains are real but bounded. A developer completing a PR 30% faster is valuable — but that gain applies only to the PRs they personally touch. Efficiency alone does not change how many developers adopt, how many work items are eligible, or how much of the pipeline is reusable.'),
       ),
       React.createElement('div', { className: 'comparison-col' },
         React.createElement('h3', { style: { color: '#bc8cff' } }, '🏗️ Structural Gain'),
-        React.createElement('p', { style: { fontSize: '0.9rem', color: 'var(--fgColor-muted)', margin: 0, lineHeight: 1.5 } },
-          'The system changes what work exists, where hours go, what is reused, what is eliminated, or how work is sequenced.')
+        React.createElement('p', { style: { fontSize: '0.9rem', color: 'var(--fgColor-muted)', margin: '0 0 10px', lineHeight: 1.5 } },
+          'A system-level improvement. Structure changes the scaling factors that determine how far efficiency carries.'),
+        React.createElement('p', { style: { fontSize: '0.85rem', color: 'var(--fgColor-muted)', margin: '0 0 4px', lineHeight: 1.5 } },
+          'Efficiency gains scale when three structural factors improve:'),
+        React.createElement('ul', { style: { margin: '4px 0 0', padding: '0 0 0 18px' } },
+          React.createElement('li', { style: { fontSize: '0.85rem', color: 'var(--fgColor-muted)', padding: '3px 0', lineHeight: 1.4 } },
+            React.createElement('strong', { style: { color: 'var(--fgColor-default)' } }, 'Adoption'), ' — more developers using the improved process'),
+          React.createElement('li', { style: { fontSize: '0.85rem', color: 'var(--fgColor-muted)', padding: '3px 0', lineHeight: 1.4 } },
+            React.createElement('strong', { style: { color: 'var(--fgColor-default)' } }, 'Opportunity'), ' — more work items eligible for the improved process'),
+          React.createElement('li', { style: { fontSize: '0.85rem', color: 'var(--fgColor-muted)', padding: '3px 0', lineHeight: 1.4 } },
+            React.createElement('strong', { style: { color: 'var(--fgColor-default)' } }, 'Yield'), ' — higher success rate across all attempts'),
+        ),
       ),
     ),
+
+    React.createElement('div', { style: { margin: '0 0 28px' } },
+      React.createElement('p', { style: { fontSize: '0.85rem', color: 'var(--fgColor-muted)', margin: '0 0 4px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' } }, 'Examples of structural improvement'),
+      React.createElement('div', { className: 'table-wrap' },
+        React.createElement('table', { className: 'demo-table' },
+          React.createElement('thead', null,
+            React.createElement('tr', null,
+              React.createElement('th', null, 'Pattern'),
+              React.createElement('th', null, 'Before'),
+              React.createElement('th', null, 'After'),
+              React.createElement('th', null, 'Why It Scales'),
+            )
+          ),
+          React.createElement('tbody', null,
+            React.createElement('tr', null,
+              React.createElement('td', { style: { fontWeight: 600 } }, 'Sequential → Parallel'),
+              React.createElement('td', { className: 'muted' }, 'PR reviews happen one at a time, blocking merges'),
+              React.createElement('td', { className: 'muted' }, 'Reviews happen concurrently; merge queues decouple review from deployment'),
+              React.createElement('td', { className: 'muted' }, 'Throughput increases without changing per-review efficiency'),
+            ),
+            React.createElement('tr', null,
+              React.createElement('td', { style: { fontWeight: 600 } }, 'Disposable → Reusable'),
+              React.createElement('td', { className: 'muted' }, 'Each project configures its own CI pipeline from scratch'),
+              React.createElement('td', { className: 'muted' }, 'Shared CI templates used across repos; one fix improves all'),
+              React.createElement('td', { className: 'muted' }, 'Amortized cost per completion drops as reuse spreads'),
+            ),
+            React.createElement('tr', null,
+              React.createElement('td', { style: { fontWeight: 600 } }, 'Manual → Automated'),
+              React.createElement('td', { className: 'muted' }, 'Vulnerability triage requires developer review of each alert'),
+              React.createElement('td', { className: 'muted' }, 'Agent auto-remediates known patterns; developers review exceptions'),
+              React.createElement('td', { className: 'muted' }, 'Hours freed grow with the number of eligible alerts'),
+            ),
+            React.createElement('tr', null,
+              React.createElement('td', { style: { fontWeight: 600 } }, 'Limited → Widespread'),
+              React.createElement('td', { className: 'muted' }, '15% of developers use AI-assisted coding'),
+              React.createElement('td', { className: 'muted' }, '70% of developers use AI-assisted coding'),
+              React.createElement('td', { className: 'muted' }, 'Same per-developer efficiency, 4.7× more developer-hours affected'),
+            ),
+          )
+        )
+      ),
+    ),
+
     React.createElement('div', { className: 'matrix-grid' },
       React.createElement('div'),
       React.createElement('div', { className: 'matrix-header' }, 'Low Structural Gain'),
       React.createElement('div', { className: 'matrix-header' }, 'High Structural Gain'),
       React.createElement('div', { className: 'matrix-header matrix-row-header' }, 'High Efficiency'),
-      React.createElement('div', { className: 'matrix-cell' }, 'Faster local work'),
-      React.createElement('div', { className: 'matrix-cell highlight' }, 'Compounding leverage'),
+      React.createElement('div', { className: 'matrix-cell' }, 'Faster local work — gains stay with individual tasks'),
+      React.createElement('div', { className: 'matrix-cell highlight' }, 'Compounding leverage — efficiency multiplied by adoption, opportunity, and reuse'),
       React.createElement('div', { className: 'matrix-header matrix-row-header' }, 'Low Efficiency'),
-      React.createElement('div', { className: 'matrix-cell' }, 'Stable baseline'),
-      React.createElement('div', { className: 'matrix-cell' }, 'Reallocation opportunity'),
+      React.createElement('div', { className: 'matrix-cell' }, 'Stable baseline — no change in either dimension'),
+      React.createElement('div', { className: 'matrix-cell' }, 'Reallocation opportunity — structure is ready but per-task efficiency has not caught up'),
     ),
     React.createElement('div', { className: 'chart-container', ref: chartRef }),
-    React.createElement(TakeawayCallout, { text: 'Efficiency makes existing work faster. Structure changes which work should happen, where it should happen, and how it compounds.' })
+    React.createElement(TakeawayCallout, { text: 'Efficiency without structure is local. Structure without efficiency is potential. When adoption widens, work items become reusable instead of disposable, and processes shift from sequential to parallel, efficiency gains compound across the system instead of staying locked to individual tasks.' })
   );
 }
 
