@@ -31,6 +31,7 @@ declare -A DASHBOARDS=(
   ["v2/agentic-efficiency"]="dashboard/v2/agentic-efficiency"
   ["v2/agentic-element"]="dashboard/v2/agentic-element"
   ["v2/integrated"]="dashboard/v2/integrated"
+  ["v2/simplified-leverage-demo"]="dashboard/v2/simplified-leverage-demo"
 )
 
 for slug in "${!DASHBOARDS[@]}"; do
@@ -371,6 +372,10 @@ cat > "$SITE_DIR/index.html" << 'LANDING_EOF'
       <a class="app-icon" href="v2/agentic-element/">
         <div class="icon-tile tile-leverage" style="opacity:0.8;">⚡</div>
         <span class="icon-label">Agentic Elem v2</span>
+      </a>
+      <a class="app-icon" href="v2/simplified-leverage-demo/">
+        <div class="icon-tile" style="opacity:0.8; background: linear-gradient(135deg, #58a6ff, #bc8cff);">💡</div>
+        <span class="icon-label">Leverage Demo</span>
       </a>
     </div>
     <p class="f6 color-fg-muted text-center">v2 dashboards load from materialized artifacts (~5MB vs ~100MB raw). Compare side-by-side with v1 above.</p>

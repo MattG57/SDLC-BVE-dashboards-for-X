@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark" data-dark-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BVE — From Activity Metrics to Leverage Signals</title>
+
+<!-- Primer CSS -->
+<link rel="stylesheet" href="https://unpkg.com/@primer/css@21.3.1/dist/primer.css">
+
+<!-- Highcharts -->
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/highcharts.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/highcharts-more.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/modules/accessibility.js"></script>
+
+<!-- React -->
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<style>
+  html { scroll-behavior: smooth; }
+  body { background: var(--bgColor-default); }
+
+  /* ── Page layout ── */
+  .demo-page { max-width: 960px; margin: 0 auto; padding: 48px 24px 80px; }
+
+  /* ── Page header ── */
+  .page-header { text-align: center; margin-bottom: 56px; padding-bottom: 40px; border-bottom: 1px solid var(--borderColor-muted); }
+  .page-title { font-size: 2rem; font-weight: 700; color: var(--fgColor-default); margin: 0 0 8px; line-height: 1.25; }
+  .page-subtitle { font-size: 1rem; color: var(--fgColor-muted); margin: 0; max-width: 640px; margin: 0 auto; line-height: 1.5; }
+
+  /* ── Demo data badge ── */
+  .demo-badge { display: inline-block; padding: 3px 12px; border-radius: 12px; font-size: 0.75rem; font-weight: 600;
+    background: var(--bgColor-attention-muted); color: var(--fgColor-attention); border: 1px solid var(--borderColor-attention-muted);
+    margin-bottom: 16px; letter-spacing: 0.3px; text-transform: uppercase; }
+
+  /* ── Narrative sections ── */
+  .narrative-section { margin-bottom: 64px; }
+  .section-number { font-size: 0.75rem; font-weight: 600; color: var(--fgColor-accent); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  .section-title { font-size: 1.5rem; font-weight: 600; color: var(--fgColor-default); margin: 0 0 12px; }
+  .section-explanation { font-size: 0.95rem; color: var(--fgColor-muted); line-height: 1.6; margin-bottom: 24px; max-width: 720px; }
+
+  /* ── Takeaway callout ── */
+  .takeaway { border-left: 3px solid var(--borderColor-accent-emphasis); padding: 16px 20px; margin-top: 24px;
+    background: var(--bgColor-accent-muted); border-radius: 0 6px 6px 0; }
+  .takeaway p { margin: 0; font-size: 0.9rem; color: var(--fgColor-default); line-height: 1.5; font-style: italic; }
+
+  /* ── Metric cards ── */
+  .metric-cards { display: grid; gap: 16px; margin-bottom: 24px; }
+  .metric-cards.cols-4 { grid-template-columns: repeat(4, 1fr); }
+  .metric-cards.cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .metric-cards.cols-2 { grid-template-columns: repeat(2, 1fr); }
+  .metric-card { background: var(--bgColor-muted); border: 1px solid var(--borderColor-default); border-radius: 8px;
+    padding: 20px; text-align: center; }
+  .metric-value { font-size: 1.8rem; font-weight: 700; color: var(--fgColor-default); line-height: 1.2; }
+  .metric-value .unit { font-size: 1rem; font-weight: 400; opacity: 0.6; margin-left: 2px; }
+  .metric-label { font-size: 0.75rem; color: var(--fgColor-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
+  .metric-card.accent { border-top: 3px solid var(--borderColor-accent-emphasis); }
+  .metric-card.success { border-top: 3px solid var(--borderColor-success-emphasis); }
+  .metric-card.attention { border-top: 3px solid var(--borderColor-attention-emphasis); }
+
+  /* ── Comparison cards ── */
+  .comparison-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 8px; }
+  .comparison-col { background: var(--bgColor-muted); border: 1px solid var(--borderColor-default); border-radius: 8px; padding: 24px; }
+  .comparison-col.highlight { border-color: var(--borderColor-accent-emphasis); background: var(--bgColor-accent-muted); }
+  .comparison-col h3 { font-size: 1rem; font-weight: 600; margin: 0 0 16px; }
+  .comparison-col.highlight h3 { color: var(--fgColor-accent); }
+  .comparison-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--borderColor-muted); font-size: 0.9rem; color: var(--fgColor-muted); }
+  .comparison-item:last-child { border-bottom: none; }
+  .comparison-icon { font-size: 1.1rem; width: 24px; text-align: center; flex-shrink: 0; }
+  .comparison-col.highlight .comparison-item { color: var(--fgColor-default); }
+
+  /* ── Tables ── */
+  .demo-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .demo-table th { text-align: left; padding: 8px 12px; border-bottom: 2px solid var(--borderColor-default);
+    color: var(--fgColor-muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; }
+  .demo-table th.num { text-align: right; }
+  .demo-table td { padding: 8px 12px; border-bottom: 1px solid var(--borderColor-muted); color: var(--fgColor-default); }
+  .demo-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .demo-table td.muted { color: var(--fgColor-muted); }
+  .demo-table tr:last-child td { border-bottom: none; }
+  .table-wrap { background: var(--bgColor-muted); border: 1px solid var(--borderColor-default); border-radius: 8px;
+    padding: 4px 0; overflow: hidden; }
+
+  /* ── Formula display ── */
+  .formula-box { display: inline-block; padding: 12px 24px; border-radius: 8px; font-family: 'SFMono-Regular', Consolas, monospace;
+    font-size: 1rem; background: var(--bgColor-inset); border: 1px solid var(--borderColor-default); color: var(--fgColor-accent);
+    margin-bottom: 20px; letter-spacing: 0.5px; }
+
+  /* ── Chart containers ── */
+  .chart-container { margin-bottom: 8px; min-height: 280px; }
+
+  /* ── 2×2 matrix ── */
+  .matrix-grid { display: grid; grid-template-columns: auto 1fr 1fr; grid-template-rows: auto 1fr 1fr; gap: 0; margin-bottom: 24px; }
+  .matrix-header { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--fgColor-muted); padding: 12px; text-align: center; }
+  .matrix-row-header { writing-mode: vertical-lr; transform: rotate(180deg); }
+  .matrix-cell { background: var(--bgColor-muted); border: 1px solid var(--borderColor-default); padding: 16px; border-radius: 6px;
+    text-align: center; font-size: 0.85rem; color: var(--fgColor-muted); }
+  .matrix-cell.highlight { background: var(--bgColor-accent-muted); border-color: var(--borderColor-accent-emphasis);
+    color: var(--fgColor-default); font-weight: 600; }
+
+  /* ── Summary cards (Section 8) ── */
+  .summary-card { background: var(--bgColor-muted); border: 1px solid var(--borderColor-default); border-radius: 8px;
+    padding: 24px; text-align: center; }
+  .summary-card h3 { font-size: 1.2rem; font-weight: 600; margin: 0 0 8px; color: var(--fgColor-accent); }
+  .summary-card p { margin: 0; font-size: 0.9rem; color: var(--fgColor-muted); line-height: 1.5; }
+
+  /* ── Final statement ── */
+  .final-statement { text-align: center; padding: 40px 24px; margin-top: 16px;
+    border-top: 1px solid var(--borderColor-muted); }
+  .final-statement p { font-size: 1.05rem; color: var(--fgColor-default); max-width: 680px; margin: 0 auto;
+    line-height: 1.6; font-style: italic; }
+
+  /* ── Flow indicator ── */
+  .flow-bar { display: flex; align-items: center; justify-content: center; gap: 0; margin: 20px 0 32px;
+    flex-wrap: wrap; }
+  .flow-step { padding: 6px 16px; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+    background: var(--bgColor-muted); border: 1px solid var(--borderColor-default); color: var(--fgColor-muted); }
+  .flow-step:first-child { border-radius: 6px 0 0 6px; }
+  .flow-step:last-child { border-radius: 0 6px 6px 0; }
+  .flow-step.active { background: var(--bgColor-accent-muted); border-color: var(--borderColor-accent-emphasis); color: var(--fgColor-accent); }
+  .flow-arrow { padding: 0 2px; color: var(--fgColor-muted); font-size: 0.9rem; }
+
+  /* ── Before/after table ── */
+  .ba-table th.before { color: var(--fgColor-muted); }
+  .ba-table th.after { color: #3fb950; }
+  .ba-table td.delta { color: #3fb950; font-weight: 600; }
+  .ba-table td.delta-neutral { color: var(--fgColor-muted); }
+
+  /* ── Responsive ── */
+  @media (max-width: 680px) {
+    .demo-page { padding: 24px 16px 48px; }
+    .page-title { font-size: 1.5rem; }
+    .comparison-grid { grid-template-columns: 1fr; }
+    .metric-cards.cols-4 { grid-template-columns: repeat(2, 1fr); }
+    .metric-cards.cols-3 { grid-template-columns: 1fr; }
+  }
+
+  /* ── Highcharts ── */
+  .highcharts-background { fill: transparent !important; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-type="module">
+
+/* ═══════════════════════════════════════════════════════
+   HIGHCHARTS DARK THEME
+   ═══════════════════════════════════════════════════════ */
+Highcharts.setOptions({
+  chart: { backgroundColor: 'transparent', style: { fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif' } },
+  colors: ['#58a6ff','#3fb950','#d29922','#f85149','#bc8cff','#f778ba','#79c0ff','#56d364'],
+  title: { style: { color: '#e6edf3', fontSize: '14px', fontWeight: '600' } },
+  subtitle: { style: { color: '#8b949e', fontSize: '12px' } },
+  xAxis: { labels: { style: { color: '#8b949e' } }, gridLineColor: '#30363d', lineColor: '#30363d', tickColor: '#30363d' },
+  yAxis: { labels: { style: { color: '#8b949e' } }, gridLineColor: '#30363d', title: { style: { color: '#8b949e' } } },
+  legend: { itemStyle: { color: '#e6edf3' }, itemHoverStyle: { color: '#58a6ff' } },
+  tooltip: { backgroundColor: '#161b22', borderColor: '#30363d', style: { color: '#e6edf3' } },
+  plotOptions: { series: { animation: { duration: 600 } } },
+  credits: { enabled: false },
+});
+
+/* ═══════════════════════════════════════════════════════
+   STATIC DATA
+   ═══════════════════════════════════════════════════════ */
+const DEMO_DATA = {
+  summary: {
+    totalDeveloperHours: 5000,
+    modeledDeveloperHours: 3850,
+    modeledHoursPercent: 0.77,
+    areasModeled: 6,
+    largestCapacityArea: 'AI-Assisted Coding',
+    combinedLeverageBefore: 0.30,
+    combinedLeverageAfter: 0.38,
+    projectedSavingsHours: 420,
+  },
+  areas: [
+    { area: 'AI-Assisted Coding',            hours: 1200, attempts: 670, completions: 480, desc: 'AI-assisted PR merged',                   yield: 0.72, leverage: 0.40, efficiencyGain: 0.28, structuralGain: 0.16, leverageDelta: 0.08 },
+    { area: 'PR Review',                      hours:  900, attempts: 353, completions: 300, desc: 'Review completed',                         yield: 0.85, leverage: 0.33, efficiencyGain: 0.10, structuralGain: 0.18, leverageDelta: 0.04 },
+    { area: 'Vulnerability Remediation',      hours:  700, attempts: 233, completions: 140, desc: 'Vulnerability resolved',                   yield: 0.60, leverage: 0.20, efficiencyGain: 0.08, structuralGain: 0.30, leverageDelta: 0.07 },
+    { area: 'Test/CI Execution',              hours:  500, attempts: 400, completions: 340, desc: 'Successful test or CI execution',           yield: 0.85, leverage: 0.68, efficiencyGain: 0.12, structuralGain: 0.22, leverageDelta: 0.06 },
+    { area: 'Agentic Coding',                 hours:  300, attempts:  95, completions:  60, desc: 'Copilot-authored PR completed',             yield: 0.63, leverage: 0.20, efficiencyGain: 0.18, structuralGain: 0.22, leverageDelta: 0.05 },
+    { area: 'Creating CI/CD/etc Automation',  hours:  250, attempts:  80, completions:  50, desc: 'Reusable automation created or improved',   yield: 0.63, leverage: 0.20, efficiencyGain: 0.10, structuralGain: 0.38, leverageDelta: 0.09 },
+  ],
+  beforeAfter: {
+    before: { modeledHours: 3850, validCompletions: 1155, averageYield: 0.69, combinedLeverage: 0.30 },
+    after:  { modeledHours: 3850, validCompletions: 1463, averageYield: 0.76, combinedLeverage: 0.38, projectedSavingsHours: 420 },
+  },
+};
+
+const AREA_COLORS = ['#58a6ff','#3fb950','#d29922','#f85149','#bc8cff','#f778ba'];
+
+/* ═══════════════════════════════════════════════════════
+   HELPERS
+   ═══════════════════════════════════════════════════════ */
+const fmt = (n, d = 0) => n == null ? '—' : n.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
+const pct = (n) => n == null ? '—' : (n * 100).toFixed(0) + '%';
+
+/* ═══════════════════════════════════════════════════════
+   REUSABLE COMPONENTS
+   ═══════════════════════════════════════════════════════ */
+
+function NarrativeSection({ number, title, explanation, activeStep, children }) {
+  return React.createElement('section', { className: 'narrative-section' },
+    React.createElement('div', { className: 'section-number' }, `Section ${number}`),
+    React.createElement('h2', { className: 'section-title' }, title),
+    explanation && React.createElement('p', { className: 'section-explanation' }, explanation),
+    activeStep != null && React.createElement(FlowBar, { active: activeStep }),
+    children
+  );
+}
+
+function FlowBar({ active }) {
+  const steps = ['Hours', 'Completions', 'Yield', 'Leverage', 'Decision Signal'];
+  return React.createElement('div', { className: 'flow-bar' },
+    ...steps.flatMap((s, i) => {
+      const els = [React.createElement('div', { key: s, className: `flow-step${i === active ? ' active' : ''}` }, s)];
+      if (i < steps.length - 1) els.push(React.createElement('span', { key: 'a' + i, className: 'flow-arrow' }, '→'));
+      return els;
+    })
+  );
+}
+
+function MetricCard({ value, label, className = '' }) {
+  return React.createElement('div', { className: `metric-card ${className}` },
+    React.createElement('div', { className: 'metric-value' }, value),
+    React.createElement('div', { className: 'metric-label' }, label),
+  );
+}
+
+function TakeawayCallout({ text }) {
+  return React.createElement('div', { className: 'takeaway' },
+    React.createElement('p', null, text)
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   CHART HOOKS
+   ═══════════════════════════════════════════════════════ */
+
+function useChart(renderFn, deps) {
+  const ref = React.useRef(null);
+  const chartRef = React.useRef(null);
+  React.useEffect(() => {
+    if (!ref.current) return;
+    if (chartRef.current) chartRef.current.destroy();
+    chartRef.current = renderFn(ref.current);
+    return () => { if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; } };
+  }, deps);
+  return ref;
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION 1: WHY ACTIVITY METRICS ARE NOT ENOUGH
+   ═══════════════════════════════════════════════════════ */
+
+function Section1() {
+  const traditional = [
+    { icon: '📊', text: 'Activity counts' },
+    { icon: '📈', text: 'Usage trends' },
+    { icon: '📦', text: 'Output volume' },
+    { icon: '⚡', text: 'Local productivity' },
+    { icon: '📋', text: 'Status reporting' },
+  ];
+  const leverage = [
+    { icon: '🎯', text: 'Capacity allocation' },
+    { icon: '✅', text: 'Valid completions' },
+    { icon: '📐', text: 'Yield' },
+    { icon: '🔗', text: 'Leverage' },
+    { icon: '💡', text: 'Decision signal' },
+  ];
+
+  return React.createElement(NarrativeSection, {
+    number: 1,
+    title: 'Why Activity Metrics Are Not Enough',
+    explanation: 'Most dashboards show activity, but activity alone does not tell us whether developer capacity is becoming more valuable.',
+  },
+    React.createElement('div', { className: 'comparison-grid' },
+      React.createElement('div', { className: 'comparison-col' },
+        React.createElement('h3', null, 'Traditional View'),
+        React.createElement('p', { style: { fontSize: '0.85rem', color: 'var(--fgColor-muted)', margin: '0 0 12px', fontStyle: 'italic' } }, 'What happened?'),
+        ...traditional.map(t => React.createElement('div', { key: t.text, className: 'comparison-item' },
+          React.createElement('span', { className: 'comparison-icon' }, t.icon), t.text))
+      ),
+      React.createElement('div', { className: 'comparison-col highlight' },
+        React.createElement('h3', null, 'Leverage View'),
+        React.createElement('p', { style: { fontSize: '0.85rem', color: 'var(--fgColor-accent)', margin: '0 0 12px', fontStyle: 'italic' } },
+          'Did our decisions improve the value created per developer hour?'),
+        ...leverage.map(t => React.createElement('div', { key: t.text, className: 'comparison-item' },
+          React.createElement('span', { className: 'comparison-icon' }, t.icon), t.text))
+      ),
+    ),
+    React.createElement(TakeawayCallout, { text: 'The goal is not to count more activity. The goal is to understand whether capacity is becoming more valuable.' })
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION 2: AREAS OF IMPROVEMENT
+   ═══════════════════════════════════════════════════════ */
+
+function Section2() {
+  const { areas, summary } = DEMO_DATA;
+  const totalHours = areas.reduce((s, a) => s + a.hours, 0);
+
+  const chartRef = useChart((el) => {
+    return Highcharts.chart(el, {
+      chart: { type: 'bar', height: 280 },
+      title: { text: 'Developer Hours by Area of Improvement' },
+      xAxis: { categories: areas.map(a => a.area), lineWidth: 0, tickWidth: 0 },
+      yAxis: { title: { text: 'Hours' }, gridLineWidth: 1 },
+      legend: { enabled: false },
+      plotOptions: { bar: { borderWidth: 0, borderRadius: 3, dataLabels: { enabled: true, format: '{y:,.0f} hrs', style: { color: '#8b949e', fontSize: '11px', fontWeight: '400', textOutline: 'none' } } } },
+      series: [{ name: 'Hours', data: areas.map((a, i) => ({ y: a.hours, color: AREA_COLORS[i] })) }],
+      tooltip: { pointFormat: '<b>{point.y:,.0f}</b> developer hours' },
+    });
+  }, []);
+
+  return React.createElement(NarrativeSection, {
+    number: 2,
+    title: 'Work Is Broken Into Areas of Improvement',
+    explanation: 'Each area consumes developer hours and produces a measurable kind of completion. Before we can understand improvement, we need to understand where developer capacity is going.',
+    activeStep: 0,
+  },
+    React.createElement('div', { className: 'metric-cards cols-4' },
+      React.createElement(MetricCard, { value: React.createElement(React.Fragment, null, fmt(totalHours), React.createElement('span', { className: 'unit' }, 'hrs')), label: 'Total Modeled Hours', className: 'accent' }),
+      React.createElement(MetricCard, { value: pct(summary.modeledHoursPercent), label: '% of Dev Hours Modeled' }),
+      React.createElement(MetricCard, { value: summary.areasModeled, label: 'Areas Modeled' }),
+      React.createElement(MetricCard, { value: summary.largestCapacityArea, label: 'Largest Capacity Area' }),
+    ),
+    React.createElement('div', { className: 'chart-container', ref: chartRef }),
+    React.createElement(TakeawayCallout, { text: 'Before we can understand improvement, we need to understand where developer capacity is going.' })
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION 3: EACH AREA PRODUCES COMPLETIONS
+   ═══════════════════════════════════════════════════════ */
+
+function Section3() {
+  const { areas } = DEMO_DATA;
+
+  return React.createElement(NarrativeSection, {
+    number: 3,
+    title: 'Each Area Produces Completions',
+    explanation: 'Different areas produce different kinds of observable completions. The goal is not to make all work identical, but to make different work comparable.',
+    activeStep: 1,
+  },
+    React.createElement('div', { className: 'table-wrap', style: { marginBottom: 24 } },
+      React.createElement('table', { className: 'demo-table' },
+        React.createElement('thead', null,
+          React.createElement('tr', null,
+            React.createElement('th', null, 'Area of Improvement'),
+            React.createElement('th', null, 'What Counts as a Completion'),
+            React.createElement('th', { className: 'num' }, 'Attempts'),
+            React.createElement('th', { className: 'num' }, 'Completions'),
+          )
+        ),
+        React.createElement('tbody', null,
+          ...areas.map((a, i) => React.createElement('tr', { key: a.area },
+            React.createElement('td', null,
+              React.createElement('span', { style: { display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: AREA_COLORS[i], marginRight: 8, verticalAlign: 'middle' } }),
+              a.area
+            ),
+            React.createElement('td', { className: 'muted' }, a.desc),
+            React.createElement('td', { className: 'num' }, fmt(a.attempts)),
+            React.createElement('td', { className: 'num' }, fmt(a.completions)),
+          ))
+        )
+      )
+    ),
+    React.createElement(TakeawayCallout, { text: 'Different areas produce different completions, but each can be modeled as attempts, valid completions, and time spent.' })
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION 4: YIELD
+   ═══════════════════════════════════════════════════════ */
+
+function Section4() {
+  const { areas } = DEMO_DATA;
+  const sorted = [...areas].sort((a, b) => b.yield - a.yield);
+
+  const chartRef = useChart((el) => {
+    return Highcharts.chart(el, {
+      chart: { type: 'bar', height: 280 },
+      title: { text: 'Completion Yield by Area' },
+      xAxis: { categories: sorted.map(a => a.area), lineWidth: 0, tickWidth: 0 },
+      yAxis: { title: { text: 'Yield' }, max: 1, labels: { format: '{value:.0%}' }, gridLineWidth: 1 },
+      legend: { enabled: false },
+      plotOptions: { bar: { borderWidth: 0, borderRadius: 3,
+        dataLabels: { enabled: true, format: '{y:.0%}', style: { color: '#e6edf3', fontSize: '12px', fontWeight: '600', textOutline: 'none' } }
+      } },
+      series: [{ name: 'Yield', data: sorted.map(a => {
+        const idx = areas.indexOf(a);
+        return { y: a.yield, color: AREA_COLORS[idx] };
+      }) }],
+      tooltip: { pointFormat: 'Yield: <b>{point.y:.1%}</b>' },
+    });
+  }, []);
+
+  return React.createElement(NarrativeSection, {
+    number: 4,
+    title: 'Yield Separates Activity From Valid Completion',
+    explanation: 'Yield prevents the dashboard from treating all attempts as equally valuable. Not all activity leads to a valid completion.',
+    activeStep: 2,
+  },
+    React.createElement('div', { className: 'formula-box' }, 'Yield = Valid Completions ÷ Attempts'),
+    React.createElement('div', { className: 'chart-container', ref: chartRef }),
+    React.createElement(TakeawayCallout, { text: 'Higher activity is not automatically better. Yield shows how much activity becomes valid completion.' })
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION 5: LEVERAGE
+   ═══════════════════════════════════════════════════════ */
+
+function Section5() {
+  const { areas, summary } = DEMO_DATA;
+  const sorted = [...areas].sort((a, b) => b.leverage - a.leverage);
+  const totalCompletions = areas.reduce((s, a) => s + a.completions, 0);
+  const totalHours = areas.reduce((s, a) => s + a.hours, 0);
+  const combinedLeverage = totalCompletions / totalHours;
+  const lowestYield = [...areas].sort((a, b) => a.yield - b.yield)[0];
+
+  return React.createElement(NarrativeSection, {
+    number: 5,
+    title: 'Leverage Connects Work to Value Per Hour',
+    explanation: 'Leverage is a way to connect valid completions to developer hours so we can see efficiency improvement, capacity effects, and net progress across different areas of improvement.',
+    activeStep: 3,
+  },
+    React.createElement('div', { className: 'formula-box' }, 'Leverage = Valid Completions ÷ Developer Hours'),
+    React.createElement('div', { className: 'metric-cards cols-4', style: { marginBottom: 24 } },
+      React.createElement(MetricCard, { value: combinedLeverage.toFixed(2), label: 'Combined Leverage', className: 'accent' }),
+      React.createElement(MetricCard, { value: sorted[0].area, label: 'Highest Leverage Area', className: 'success' }),
+      React.createElement(MetricCard, { value: lowestYield.area, label: 'Lowest Yield Area', className: 'attention' }),
+      React.createElement(MetricCard, { value: sorted[sorted.length - 1].area, label: 'Largest Improvement Opportunity' }),
+    ),
+    React.createElement('div', { className: 'table-wrap' },
+      React.createElement('table', { className: 'demo-table' },
+        React.createElement('thead', null,
+          React.createElement('tr', null,
+            React.createElement('th', null, 'Area'),
+            React.createElement('th', { className: 'num' }, 'Hours'),
+            React.createElement('th', { className: 'num' }, 'Attempts'),
+            React.createElement('th', { className: 'num' }, 'Completions'),
+            React.createElement('th', { className: 'num' }, 'Yield'),
+            React.createElement('th', { className: 'num' }, 'Leverage'),
+          )
+        ),
+        React.createElement('tbody', null,
+          ...sorted.map((a) => {
+            const idx = areas.indexOf(a);
+            return React.createElement('tr', { key: a.area },
+              React.createElement('td', null,
+                React.createElement('span', { style: { display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: AREA_COLORS[idx], marginRight: 8, verticalAlign: 'middle' } }),
+                a.area
+              ),
+              React.createElement('td', { className: 'num' }, fmt(a.hours)),
+              React.createElement('td', { className: 'num' }, fmt(a.attempts)),
+              React.createElement('td', { className: 'num' }, fmt(a.completions)),
+              React.createElement('td', { className: 'num' }, pct(a.yield)),
+              React.createElement('td', { className: 'num', style: { fontWeight: 600, color: a.leverage >= 0.4 ? '#3fb950' : a.leverage >= 0.3 ? '#58a6ff' : '#8b949e' } }, a.leverage.toFixed(2)),
+            );
+          })
+        )
+      )
+    ),
+    React.createElement(TakeawayCallout, { text: 'Leverage is more than a productivity metric: it connects valid completions to developer hours, making it a way to gauge efficiency improvement, capacity effects, and net progress across diverse areas of improvement.' })
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION 6: EFFICIENCY AND STRUCTURE
+   ═══════════════════════════════════════════════════════ */
+
+function Section6() {
+  const { areas } = DEMO_DATA;
+
+  const chartRef = useChart((el) => {
+    return Highcharts.chart(el, {
+      chart: { type: 'bubble', height: 380, plotBorderWidth: 1, plotBorderColor: '#30363d' },
+      title: { text: 'Efficiency Gain × Structural Gain' },
+      subtitle: { text: 'Bubble size = hours · Color intensity = leverage improvement' },
+      xAxis: { title: { text: 'Structural Gain', style: { color: '#8b949e' } }, min: 0, max: 0.5, gridLineWidth: 1,
+        plotLines: [{ value: 0.2, color: '#30363d', width: 1, dashStyle: 'Dash', label: { text: 'Low / High', style: { color: '#484f58', fontSize: '10px' }, y: -5 } }]
+      },
+      yAxis: { title: { text: 'Efficiency Gain', style: { color: '#8b949e' } }, min: 0, max: 0.35, gridLineWidth: 1, startOnTick: false,
+        plotLines: [{ value: 0.15, color: '#30363d', width: 1, dashStyle: 'Dash', label: { text: 'Low / High', style: { color: '#484f58', fontSize: '10px' }, x: 5 } }]
+      },
+      legend: { enabled: false },
+      plotOptions: { bubble: { minSize: 30, maxSize: 80, dataLabels: { enabled: true, format: '{point.name}', style: { color: '#e6edf3', fontSize: '10px', fontWeight: '400', textOutline: '1px #0d1117' } } } },
+      series: [{
+        name: 'Areas',
+        data: areas.map((a, i) => ({
+          x: a.structuralGain,
+          y: a.efficiencyGain,
+          z: a.hours,
+          name: a.area.length > 20 ? a.area.substring(0, 18) + '…' : a.area,
+          color: Highcharts.color(AREA_COLORS[i]).setOpacity(0.4 + a.leverageDelta * 5).get(),
+        })),
+      }],
+      tooltip: {
+        headerFormat: '',
+        pointFormat: '<b>{point.name}</b><br/>Structural: {point.x:.0%}<br/>Efficiency: {point.y:.0%}<br/>Hours: {point.z:,.0f}',
+      },
+    });
+  }, []);
+
+  return React.createElement(NarrativeSection, {
+    number: 6,
+    title: 'Improvements Come From Efficiency and Structure',
+    explanation: 'There are two main improvement mechanisms. Efficiency makes existing work faster. Structure changes which work should happen, where it should happen, and how it compounds.',
+  },
+    React.createElement('div', { className: 'comparison-grid', style: { marginBottom: 24 } },
+      React.createElement('div', { className: 'comparison-col' },
+        React.createElement('h3', { style: { color: '#3fb950' } }, '⚡ Efficiency Gain'),
+        React.createElement('p', { style: { fontSize: '0.9rem', color: 'var(--fgColor-muted)', margin: 0, lineHeight: 1.5 } },
+          'The same type of work requires fewer hours or produces more valid completions per hour.')
+      ),
+      React.createElement('div', { className: 'comparison-col' },
+        React.createElement('h3', { style: { color: '#bc8cff' } }, '🏗️ Structural Gain'),
+        React.createElement('p', { style: { fontSize: '0.9rem', color: 'var(--fgColor-muted)', margin: 0, lineHeight: 1.5 } },
+          'The system changes what work exists, where hours go, what is reused, what is eliminated, or how work is sequenced.')
+      ),
+    ),
+    React.createElement('div', { className: 'matrix-grid' },
+      React.createElement('div'),
+      React.createElement('div', { className: 'matrix-header' }, 'Low Structural Gain'),
+      React.createElement('div', { className: 'matrix-header' }, 'High Structural Gain'),
+      React.createElement('div', { className: 'matrix-header matrix-row-header' }, 'High Efficiency'),
+      React.createElement('div', { className: 'matrix-cell' }, 'Faster local work'),
+      React.createElement('div', { className: 'matrix-cell highlight' }, 'Compounding leverage'),
+      React.createElement('div', { className: 'matrix-header matrix-row-header' }, 'Low Efficiency'),
+      React.createElement('div', { className: 'matrix-cell' }, 'Stable baseline'),
+      React.createElement('div', { className: 'matrix-cell' }, 'Reallocation opportunity'),
+    ),
+    React.createElement('div', { className: 'chart-container', ref: chartRef }),
+    React.createElement(TakeawayCallout, { text: 'Efficiency makes existing work faster. Structure changes which work should happen, where it should happen, and how it compounds.' })
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION 7: DECISION SIGNAL
+   ═══════════════════════════════════════════════════════ */
+
+function Section7() {
+  const { beforeAfter } = DEMO_DATA;
+  const b = beforeAfter.before;
+  const a = beforeAfter.after;
+
+  const signals = [
+    { label: 'Modeled Hours',      before: fmt(b.modeledHours),      after: fmt(a.modeledHours),       interp: 'Same capacity',        delta: null },
+    { label: 'Valid Completions',   before: fmt(b.validCompletions),  after: fmt(a.validCompletions),   interp: 'More useful output',   delta: '+' + fmt(a.validCompletions - b.validCompletions) },
+    { label: 'Average Yield',      before: pct(b.averageYield),      after: pct(a.averageYield),       interp: 'Less wasted effort',   delta: '+' + ((a.averageYield - b.averageYield) * 100).toFixed(0) + 'pp' },
+    { label: 'Combined Leverage',  before: b.combinedLeverage.toFixed(2), after: a.combinedLeverage.toFixed(2), interp: 'More value per hour', delta: '+' + (a.combinedLeverage - b.combinedLeverage).toFixed(2) },
+    { label: 'Projected Savings',  before: '—',                      after: fmt(a.projectedSavingsHours) + ' hrs', interp: 'Capacity released',   delta: '+' + fmt(a.projectedSavingsHours) + ' hrs' },
+  ];
+
+  const hoursShifted = 0;
+  const yieldImprovement = a.averageYield - b.averageYield;
+  const leverageDelta = a.combinedLeverage - b.combinedLeverage;
+
+  return React.createElement(NarrativeSection, {
+    number: 7,
+    title: 'Decision Signal',
+    explanation: 'We do not need to know every developer\'s intent hour by hour. If hours move, yield changes, completions improve, waste shrinks, or leverage rises, we can infer that decisions changed.',
+    activeStep: 4,
+  },
+    React.createElement('div', { className: 'metric-cards cols-4', style: { marginBottom: 24 } },
+      React.createElement(MetricCard, { value: fmt(b.modeledHours), label: 'Hours (unchanged)', className: '' }),
+      React.createElement(MetricCard, { value: '+' + ((yieldImprovement) * 100).toFixed(0) + 'pp', label: 'Yield Improvement', className: 'success' }),
+      React.createElement(MetricCard, { value: '+' + leverageDelta.toFixed(2), label: 'Leverage Delta', className: 'accent' }),
+      React.createElement(MetricCard, { value: React.createElement(React.Fragment, null, fmt(a.projectedSavingsHours), React.createElement('span', { className: 'unit' }, 'hrs')), label: 'Projected Savings', className: 'success' }),
+    ),
+    React.createElement('div', { className: 'table-wrap' },
+      React.createElement('table', { className: 'demo-table ba-table' },
+        React.createElement('thead', null,
+          React.createElement('tr', null,
+            React.createElement('th', null, 'Signal'),
+            React.createElement('th', { className: 'num before' }, 'Before'),
+            React.createElement('th', { className: 'num after' }, 'After'),
+            React.createElement('th', { className: 'num' }, 'Change'),
+            React.createElement('th', null, 'Interpretation'),
+          )
+        ),
+        React.createElement('tbody', null,
+          ...signals.map(s => React.createElement('tr', { key: s.label },
+            React.createElement('td', { style: { fontWeight: 600 } }, s.label),
+            React.createElement('td', { className: 'num' }, s.before),
+            React.createElement('td', { className: 'num', style: { color: '#3fb950' } }, s.after),
+            React.createElement('td', { className: s.delta ? 'num delta' : 'num delta-neutral' }, s.delta || '—'),
+            React.createElement('td', { className: 'muted' }, s.interp),
+          ))
+        )
+      )
+    ),
+    React.createElement(TakeawayCallout, { text: 'The dashboard does not claim to know intent. It shows the observable consequences of changed decisions.' })
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION 8: WHAT THIS ENABLES
+   ═══════════════════════════════════════════════════════ */
+
+function Section8() {
+  const cards = [
+    { title: 'Diagnose', icon: '🔍', text: 'Where is developer capacity going?' },
+    { title: 'Improve',  icon: '📈', text: 'Which areas are gaining efficiency or structure?' },
+    { title: 'Decide',   icon: '🎯', text: 'Where should we shift attention to increase leverage?' },
+  ];
+
+  return React.createElement(NarrativeSection, {
+    number: 8,
+    title: 'What This Enables',
+    explanation: 'The leverage framework turns observable signals into actionable insight.',
+  },
+    React.createElement('div', { className: 'metric-cards cols-3', style: { marginBottom: 32 } },
+      ...cards.map(c => React.createElement('div', { key: c.title, className: 'summary-card' },
+        React.createElement('div', { style: { fontSize: '2rem', marginBottom: 8 } }, c.icon),
+        React.createElement('h3', null, c.title),
+        React.createElement('p', null, c.text),
+      ))
+    ),
+    React.createElement('div', { className: 'final-statement' },
+      React.createElement('p', null,
+        'As more areas of improvement are modeled, the dashboard becomes a stronger proxy for how developer capacity is being allocated — and whether those allocation decisions are increasing leverage.'
+      ),
+    ),
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   APP
+   ═══════════════════════════════════════════════════════ */
+
+function App() {
+  return React.createElement('div', { className: 'demo-page' },
+    React.createElement('div', { className: 'page-header' },
+      React.createElement('div', { className: 'demo-badge' }, '✦ Illustrative Demo Data'),
+      React.createElement('h1', { className: 'page-title' }, 'From Activity Metrics to Leverage Signals'),
+      React.createElement('p', { className: 'page-subtitle' },
+        'A practical way to infer decision quality from observable changes in capacity, completions, yield, and structure.'
+      ),
+    ),
+    React.createElement(Section1, null),
+    React.createElement(Section2, null),
+    React.createElement(Section3, null),
+    React.createElement(Section4, null),
+    React.createElement(Section5, null),
+    React.createElement(Section6, null),
+    React.createElement(Section7, null),
+    React.createElement(Section8, null),
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+
+</script>
+</body>
+</html>
