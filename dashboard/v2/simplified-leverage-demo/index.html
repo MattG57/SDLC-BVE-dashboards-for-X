@@ -144,11 +144,12 @@
   /* ── Flow indicator ── */
   .flow-bar { display: flex; align-items: center; justify-content: center; gap: 0; margin: 20px 0 32px;
     flex-wrap: wrap; }
-  .flow-step { padding: 6px 16px; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+  .flow-step { padding: 6px 16px; font-size: 0.8rem; font-weight: 400; text-transform: uppercase; letter-spacing: 0.5px;
     background: var(--bgColor-muted); border: 1px solid var(--borderColor-default); color: var(--fgColor-muted); }
   .flow-step:first-child { border-radius: 6px 0 0 6px; }
   .flow-step:last-child { border-radius: 0 6px 6px 0; }
-  .flow-step.active { background: var(--bgColor-accent-muted); border-color: var(--borderColor-accent-emphasis); color: var(--fgColor-accent); }
+  .flow-step.active { background: var(--bgColor-accent-muted); border-color: var(--borderColor-accent-emphasis);
+    color: var(--fgColor-accent); font-weight: 700; font-size: 0.85rem; }
   .flow-arrow { padding: 0 2px; color: var(--fgColor-muted); font-size: 0.9rem; }
 
   /* ── Before/after table ── */
@@ -241,15 +242,10 @@ function NarrativeSection({ number, title, explanation, activeStep, children }) 
 }
 
 function FlowBar({ active }) {
-  const steps = ['Hours', 'Completions', 'Yield', 'Leverage', 'Decision Signal'];
+  const steps = ['Hours', 'Completions', 'Yield', 'Leverage', 'Intent / Justification'];
   return React.createElement('div', { className: 'flow-bar' },
     ...steps.flatMap((s, i) => {
-      const isActive = i === active;
-      const els = [React.createElement('div', {
-        key: s,
-        className: `flow-step${isActive ? ' active' : ''}`,
-        style: isActive ? { fontWeight: 700, fontSize: '0.85rem' } : {},
-      }, s)];
+      const els = [React.createElement('div', { key: s, className: `flow-step${i === active ? ' active' : ''}` }, s)];
       if (i < steps.length - 1) els.push(React.createElement('span', { key: 'a' + i, className: 'flow-arrow' }, '→'));
       return els;
     })
@@ -305,27 +301,27 @@ function Section1() {
     { icon: '✅', text: 'Valid completions' },
     { icon: '📐', text: 'Yield' },
     { icon: '🔗', text: 'Leverage' },
-    { icon: '💡', text: 'Decision signal' },
+    { icon: '💡', text: 'Intent / Justification' },
   ];
 
   return React.createElement(NarrativeSection, {
     number: 1,
     title: 'From Intent to Value',
-    explanation: 'Organizations intend to spend developer time in valuable ways. That intention leads to decisions, which lead to activity, usage, and output. The question is whether we can trace that chain — from intent to value — or only see disconnected snapshots at the end.',
+    explanation: 'Organizations intend to spend developer time in valuable ways. That intention leads to decisions, which lead to activity, usage, and output. The question is whether we can trace that full chain — or only see disconnected snapshots at the end.',
   },
     React.createElement('p', { style: { fontSize: '0.9rem', color: 'var(--fgColor-muted)', lineHeight: 1.6, marginBottom: 8 } },
-      'Every developer hour starts with an intent to create value. But most measurement systems only capture what happens at the tail end of that chain:'),
+      'Every developer hour starts with an intent to create value. Traditional dashboards only capture activity, usage, and output — ignoring the intent and decisions that drove them:'),
 
     React.createElement('div', null,
       React.createElement('div', { className: 'intent-chain' },
         ...intentSteps.flatMap((s, i) => {
-          const isTraditional = i >= 2;
-          const els = [React.createElement('div', { key: s, className: `intent-step${isTraditional ? ' dim' : ' lit'}` }, s)];
+          const isIgnored = i < 2;
+          const els = [React.createElement('div', { key: s, className: `intent-step${isIgnored ? ' dim' : ''}` }, s)];
           if (i < intentSteps.length - 1) els.push(React.createElement('span', { key: 'a' + i, className: 'intent-arrow' }, '→'));
           return els;
         })
       ),
-      React.createElement('p', { className: 'intent-label' }, '← Traditional dashboards only see this end'),
+      React.createElement('p', { className: 'intent-label' }, 'Traditional dashboards measure activity, usage, and output — but ignore intent and decisions'),
     ),
 
     React.createElement('div', null,
@@ -336,25 +332,26 @@ function Section1() {
           return els;
         })
       ),
-      React.createElement('p', { className: 'intent-label' }, 'Leverage view: systematic intent → value conversion'),
+      React.createElement('p', { className: 'intent-label' }, 'Leverage view: trace the full chain from intent to value'),
     ),
 
     React.createElement('div', { className: 'comparison-grid', style: { marginTop: 28 } },
       React.createElement('div', { className: 'comparison-col' },
         React.createElement('h3', null, 'Traditional View'),
-        React.createElement('p', { style: { fontSize: '0.85rem', color: 'var(--fgColor-muted)', margin: '0 0 12px', fontStyle: 'italic' } }, 'What happened?'),
+        React.createElement('p', { style: { fontSize: '0.85rem', color: 'var(--fgColor-muted)', margin: '0 0 12px', fontStyle: 'italic' } },
+          'What happened? (activity, usage, output only)'),
         ...traditional.map(t => React.createElement('div', { key: t.text, className: 'comparison-item' },
           React.createElement('span', { className: 'comparison-icon' }, t.icon), t.text))
       ),
       React.createElement('div', { className: 'comparison-col highlight' },
         React.createElement('h3', null, 'Leverage View'),
         React.createElement('p', { style: { fontSize: '0.85rem', color: 'var(--fgColor-accent)', margin: '0 0 12px', fontStyle: 'italic' } },
-          'Did our decisions improve the value created per developer hour?'),
+          'Are decisions improving the value created per developer hour?'),
         ...leverage.map(t => React.createElement('div', { key: t.text, className: 'comparison-item' },
           React.createElement('span', { className: 'comparison-icon' }, t.icon), t.text))
       ),
     ),
-    React.createElement(TakeawayCallout, { text: 'Instead of disconnected snapshots of activity, usage, and output, we can look systematically at intent-to-value conversion: how capacity is allocated, what it produces, and whether decisions are making each developer hour more valuable.' })
+    React.createElement(TakeawayCallout, { text: 'Instead of disconnected snapshots of activity, usage, and output, we can look systematically at intent-to-value conversion: how capacity is allocated, what it produces, and whether decisions are justified by improved leverage.' })
   );
 }
 
@@ -478,111 +475,79 @@ function Section4() {
    SECTION 5: LEVERAGE AND IMPROVEMENT PATTERNS
    ═══════════════════════════════════════════════════════ */
 
-const IMPROVEMENT_PATTERNS = [
-  {
-    name: 'Task Efficiency',
-    icon: '⚡',
-    color: '#3fb950',
-    description: 'The same type of work requires fewer hours per valid completion. This is a local, task-level gain.',
-    example: 'AI-assisted coding reduces average time per PR from 4 hrs to 2.8 hrs.',
-    rows: [
-      { area: 'AI-Assisted Coding',            current: '4.0 hrs/PR',    unimproved: '4.0 hrs/PR',   improved: '2.8 hrs/PR',   room: '30%' },
-      { area: 'PR Review',                      current: '1.2 hrs/review', unimproved: '1.2 hrs/review', improved: '0.9 hrs/review', room: '25%' },
-      { area: 'Test/CI Execution',              current: '0.8 hrs/run',  unimproved: '0.8 hrs/run',  improved: '0.6 hrs/run',  room: '25%' },
-      { area: 'Agentic Coding',                 current: '2.5 hrs/PR',   unimproved: '2.5 hrs/PR',   improved: '1.5 hrs/PR',   room: '40%' },
-      { area: 'Vulnerability Remediation',      current: '3.0 hrs/vuln', unimproved: '3.0 hrs/vuln', improved: '2.4 hrs/vuln', room: '20%' },
-      { area: 'Creating CI/CD/etc Automation',  current: '5.0 hrs/item', unimproved: '5.0 hrs/item', improved: '4.0 hrs/item', room: '20%' },
-    ],
+const PATTERN_SUMMARY = [
+  { name: 'Task Efficiency', icon: '⚡', type: 'Efficiency', description: 'Same work requires fewer hours per valid completion', scaleNote: 'Local — applies to individual tasks' },
+  { name: 'Sequential → Parallel', icon: '🔀', type: 'Structural', description: 'Work that was sequential becomes concurrent', scaleNote: 'Throughput increases without changing per-task speed' },
+  { name: 'Disposable → Reusable', icon: '♻️', type: 'Structural', description: 'One-off work becomes shared components', scaleNote: 'Amortized cost drops as reuse spreads' },
+  { name: 'Manual → Automated', icon: '🤖', type: 'Structural', description: 'Human effort replaced by automated processes', scaleNote: 'Hours freed grow with number of eligible items' },
+  { name: 'Limited → Widespread', icon: '📢', type: 'Structural', description: 'An efficient practice reaches more developers', scaleNote: 'Same per-person gain multiplied across more hours' },
+];
+
+const AREA_IMPROVEMENTS = [
+  { area: 'AI-Assisted Coding', pattern: 'Limited → Widespread', icon: '📢',
+    current:     { hours: 1200, completions: 480, yield: 0.72 },
+    unimproved:  { hours: 1200, completions: 280, yield: 0.42 },
+    targeted:    { hours: 1200, completions: 620, yield: 0.82 },
   },
-  {
-    name: 'Sequential → Parallel',
-    icon: '🔀',
-    color: '#bc8cff',
-    description: 'Work that was sequential becomes concurrent. Throughput increases without changing per-task speed.',
-    example: 'PR reviews happen concurrently instead of blocking each other; merge queues decouple review from deployment.',
-    rows: [
-      { area: 'PR Review',                      current: '300 / mo',     unimproved: '210 / mo',     improved: '390 / mo',     room: '30%' },
-      { area: 'Test/CI Execution',              current: '340 / mo',     unimproved: '280 / mo',     improved: '420 / mo',     room: '24%' },
-      { area: 'AI-Assisted Coding',            current: '480 / mo',     unimproved: '480 / mo',     improved: '530 / mo',     room: '10%' },
-      { area: 'Agentic Coding',                 current: '60 / mo',      unimproved: '60 / mo',      improved: '85 / mo',      room: '42%' },
-      { area: 'Vulnerability Remediation',      current: '140 / mo',     unimproved: '140 / mo',     improved: '170 / mo',     room: '21%' },
-      { area: 'Creating CI/CD/etc Automation',  current: '50 / mo',      unimproved: '50 / mo',      improved: '55 / mo',      room: '10%' },
-    ],
+  { area: 'PR Review', pattern: 'Sequential → Parallel', icon: '🔀',
+    current:     { hours: 900, completions: 300, yield: 0.85 },
+    unimproved:  { hours: 900, completions: 210, yield: 0.60 },
+    targeted:    { hours: 750, completions: 390, yield: 0.88 },
   },
-  {
-    name: 'Disposable → Reusable',
-    icon: '♻️',
-    color: '#d29922',
-    description: 'One-off work becomes shared components. Amortized cost per completion drops as reuse spreads.',
-    example: 'Shared CI templates replace per-project configurations; one fix improves all repos.',
-    rows: [
-      { area: 'Creating CI/CD/etc Automation',  current: '250 hrs',      unimproved: '400 hrs',      improved: '120 hrs',      room: '52%' },
-      { area: 'Test/CI Execution',              current: '500 hrs',      unimproved: '600 hrs',      improved: '380 hrs',      room: '24%' },
-      { area: 'Vulnerability Remediation',      current: '700 hrs',      unimproved: '700 hrs',      improved: '550 hrs',      room: '21%' },
-      { area: 'AI-Assisted Coding',            current: '1,200 hrs',    unimproved: '1,200 hrs',    improved: '1,100 hrs',    room: '8%' },
-      { area: 'PR Review',                      current: '900 hrs',      unimproved: '900 hrs',      improved: '850 hrs',      room: '6%' },
-      { area: 'Agentic Coding',                 current: '300 hrs',      unimproved: '300 hrs',      improved: '280 hrs',      room: '7%' },
-    ],
+  { area: 'Vulnerability Remediation', pattern: 'Manual → Automated', icon: '🤖',
+    current:     { hours: 700, completions: 140, yield: 0.60 },
+    unimproved:  { hours: 900, completions: 100, yield: 0.43 },
+    targeted:    { hours: 400, completions: 200, yield: 0.77 },
   },
-  {
-    name: 'Manual → Automated',
-    icon: '🤖',
-    color: '#f85149',
-    description: 'Human effort is replaced by automated processes. Hours freed grow with the number of eligible items.',
-    example: 'Agents auto-remediate known vulnerability patterns; developers only review exceptions.',
-    rows: [
-      { area: 'Vulnerability Remediation',      current: '700 hrs',      unimproved: '900 hrs',      improved: '350 hrs',      room: '50%' },
-      { area: 'Agentic Coding',                 current: '300 hrs',      unimproved: '0 hrs',        improved: '300 hrs',      room: 'new' },
-      { area: 'Test/CI Execution',              current: '500 hrs',      unimproved: '650 hrs',      improved: '400 hrs',      room: '20%' },
-      { area: 'Creating CI/CD/etc Automation',  current: '250 hrs',      unimproved: '350 hrs',      improved: '180 hrs',      room: '28%' },
-      { area: 'PR Review',                      current: '900 hrs',      unimproved: '950 hrs',      improved: '800 hrs',      room: '11%' },
-      { area: 'AI-Assisted Coding',            current: '1,200 hrs',    unimproved: '1,200 hrs',    improved: '1,200 hrs',    room: '0%' },
-    ],
+  { area: 'Test/CI Execution', pattern: 'Task Efficiency', icon: '⚡',
+    current:     { hours: 500, completions: 340, yield: 0.85 },
+    unimproved:  { hours: 650, completions: 340, yield: 0.85 },
+    targeted:    { hours: 400, completions: 380, yield: 0.90 },
   },
-  {
-    name: 'Limited → Widespread',
-    icon: '📢',
-    color: '#58a6ff',
-    description: 'An efficient practice exists but few use it. When adoption widens, the same per-person gain multiplies across more developer-hours.',
-    example: 'AI-assisted coding goes from 15% to 70% adoption — same per-developer efficiency, 4.7× more hours affected.',
-    rows: [
-      { area: 'AI-Assisted Coding',            current: '70% adopted',  unimproved: '15% adopted',  improved: '85% adopted',  room: '21%' },
-      { area: 'Agentic Coding',                 current: '20% adopted',  unimproved: '5% adopted',   improved: '50% adopted',  room: '150%' },
-      { area: 'PR Review',                      current: '60% adopted',  unimproved: '60% adopted',  improved: '80% adopted',  room: '33%' },
-      { area: 'Test/CI Execution',              current: '75% adopted',  unimproved: '75% adopted',  improved: '90% adopted',  room: '20%' },
-      { area: 'Vulnerability Remediation',      current: '40% adopted',  unimproved: '30% adopted',  improved: '65% adopted',  room: '63%' },
-      { area: 'Creating CI/CD/etc Automation',  current: '35% adopted',  unimproved: '20% adopted',  improved: '60% adopted',  room: '71%' },
-    ],
+  { area: 'Agentic Coding', pattern: 'Manual → Automated', icon: '🤖',
+    current:     { hours: 300, completions: 60, yield: 0.63 },
+    unimproved:  { hours: 0,   completions: 0,  yield: 0 },
+    targeted:    { hours: 300, completions: 95, yield: 0.75 },
+  },
+  { area: 'Creating CI/CD/etc Automation', pattern: 'Disposable → Reusable', icon: '♻️',
+    current:     { hours: 250, completions: 50, yield: 0.63 },
+    unimproved:  { hours: 400, completions: 30, yield: 0.38 },
+    targeted:    { hours: 150, completions: 70, yield: 0.78 },
   },
 ];
 
-function ImprovementPattern({ pattern, index }) {
-  return React.createElement('div', { style: { marginBottom: 32 } },
-    React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 } },
-      React.createElement('span', { style: { fontSize: '1.3rem' } }, pattern.icon),
-      React.createElement('h4', { style: { margin: 0, fontSize: '1rem', fontWeight: 600, color: pattern.color } },
-        index === 0 ? pattern.name : `Structural: ${pattern.name}`),
+function AreaImprovementCard({ item }) {
+  const lev = (c, h) => h > 0 ? (c / h).toFixed(2) : '—';
+  const cols = [
+    { label: 'Current', data: item.current, color: 'var(--fgColor-default)' },
+    { label: 'Unimproved', data: item.unimproved, color: 'var(--fgColor-muted)' },
+    { label: 'Targeted', data: item.targeted, color: '#3fb950' },
+  ];
+
+  return React.createElement('div', { style: { marginBottom: 28 } },
+    React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 } },
+      React.createElement('span', { style: { fontSize: '1.1rem' } }, item.icon),
+      React.createElement('span', { style: { fontWeight: 600, fontSize: '0.95rem', color: 'var(--fgColor-default)' } }, item.area),
+      React.createElement('span', { style: { fontSize: '0.8rem', color: 'var(--fgColor-muted)', fontStyle: 'italic' } }, `— ${item.pattern}`),
     ),
-    React.createElement('p', { style: { fontSize: '0.85rem', color: 'var(--fgColor-muted)', margin: '0 0 6px', lineHeight: 1.5 } }, pattern.description),
-    React.createElement('p', { style: { fontSize: '0.8rem', color: pattern.color, margin: '0 0 12px', fontStyle: 'italic' } }, pattern.example),
     React.createElement('div', { className: 'table-wrap' },
       React.createElement('table', { className: 'demo-table' },
         React.createElement('thead', null,
           React.createElement('tr', null,
-            React.createElement('th', null, 'Area'),
-            React.createElement('th', { className: 'num' }, 'Current Level'),
-            React.createElement('th', { className: 'num' }, 'Without This Pattern'),
-            React.createElement('th', { className: 'num' }, 'Improved Projection'),
-            React.createElement('th', { className: 'num' }, 'Room'),
+            React.createElement('th', null, ''),
+            React.createElement('th', { className: 'num' }, 'Hours'),
+            React.createElement('th', { className: 'num' }, 'Completions'),
+            React.createElement('th', { className: 'num' }, 'Yield'),
+            React.createElement('th', { className: 'num' }, 'Leverage'),
           )
         ),
         React.createElement('tbody', null,
-          ...pattern.rows.map(r => React.createElement('tr', { key: r.area },
-            React.createElement('td', null, r.area),
-            React.createElement('td', { className: 'num' }, r.current),
-            React.createElement('td', { className: 'num muted' }, r.unimproved),
-            React.createElement('td', { className: 'num', style: { color: '#3fb950' } }, r.improved),
-            React.createElement('td', { className: 'num', style: { fontWeight: 600, color: r.room === 'new' ? '#58a6ff' : r.room === '0%' ? 'var(--fgColor-muted)' : '#d29922' } }, r.room),
+          ...cols.map(c => React.createElement('tr', { key: c.label },
+            React.createElement('td', { style: { fontWeight: 600, color: c.color } }, c.label),
+            React.createElement('td', { className: 'num', style: { color: c.color } }, fmt(c.data.hours)),
+            React.createElement('td', { className: 'num', style: { color: c.color } }, fmt(c.data.completions)),
+            React.createElement('td', { className: 'num', style: { color: c.color } }, c.data.yield > 0 ? pct(c.data.yield) : '—'),
+            React.createElement('td', { className: 'num', style: { color: c.color, fontWeight: 600 } }, lev(c.data.completions, c.data.hours)),
           ))
         )
       )
@@ -591,7 +556,7 @@ function ImprovementPattern({ pattern, index }) {
 }
 
 function Section5() {
-  const { areas, summary } = DEMO_DATA;
+  const { areas } = DEMO_DATA;
   const sorted = [...areas].sort((a, b) => b.leverage - a.leverage);
   const totalCompletions = areas.reduce((s, a) => s + a.completions, 0);
   const totalHours = areas.reduce((s, a) => s + a.hours, 0);
@@ -644,49 +609,49 @@ function Section5() {
       React.createElement(MetricCard, { value: lowestYield.area, label: 'Lowest Yield Area', className: 'attention' }),
       React.createElement(MetricCard, { value: sorted[sorted.length - 1].area, label: 'Largest Improvement Opportunity' }),
     ),
+
+    React.createElement('h3', { style: { fontSize: '1.1rem', fontWeight: 600, margin: '32px 0 8px', color: 'var(--fgColor-default)' } }, 'Five Improvement Patterns'),
+    React.createElement('p', { style: { fontSize: '0.9rem', color: 'var(--fgColor-muted)', margin: '0 0 16px', lineHeight: 1.5 } },
+      'Task efficiency is local — it makes individual work faster. The four structural patterns change the conditions under which efficiency compounds.'),
     React.createElement('div', { className: 'table-wrap', style: { marginBottom: 32 } },
       React.createElement('table', { className: 'demo-table' },
         React.createElement('thead', null,
           React.createElement('tr', null,
-            React.createElement('th', null, 'Area'),
-            React.createElement('th', { className: 'num' }, 'Hours'),
-            React.createElement('th', { className: 'num' }, 'Attempts'),
-            React.createElement('th', { className: 'num' }, 'Completions'),
-            React.createElement('th', { className: 'num' }, 'Yield'),
-            React.createElement('th', { className: 'num' }, 'Leverage'),
+            React.createElement('th', null, ''),
+            React.createElement('th', null, 'Pattern'),
+            React.createElement('th', null, 'Type'),
+            React.createElement('th', null, 'What Changes'),
+            React.createElement('th', null, 'Why It Scales'),
           )
         ),
         React.createElement('tbody', null,
-          ...sorted.map((a) => {
-            const idx = areas.indexOf(a);
-            return React.createElement('tr', { key: a.area },
-              React.createElement('td', null,
-                React.createElement('span', { style: { display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: AREA_COLORS[idx], marginRight: 8, verticalAlign: 'middle' } }),
-                a.area
-              ),
-              React.createElement('td', { className: 'num' }, fmt(a.hours)),
-              React.createElement('td', { className: 'num' }, fmt(a.attempts)),
-              React.createElement('td', { className: 'num' }, fmt(a.completions)),
-              React.createElement('td', { className: 'num' }, pct(a.yield)),
-              React.createElement('td', { className: 'num', style: { fontWeight: 600, color: a.leverage >= 0.4 ? '#3fb950' : a.leverage >= 0.3 ? '#58a6ff' : '#8b949e' } }, a.leverage.toFixed(2)),
-            );
-          })
+          ...PATTERN_SUMMARY.map(p => React.createElement('tr', { key: p.name },
+            React.createElement('td', { style: { fontSize: '1.1rem', textAlign: 'center' } }, p.icon),
+            React.createElement('td', { style: { fontWeight: 600 } }, p.name),
+            React.createElement('td', null, React.createElement('span', { style: {
+              fontSize: '0.75rem', padding: '2px 8px', borderRadius: 10, fontWeight: 600,
+              background: p.type === 'Efficiency' ? 'rgba(63,185,80,0.15)' : 'rgba(188,140,255,0.15)',
+              color: p.type === 'Efficiency' ? '#3fb950' : '#bc8cff',
+            } }, p.type)),
+            React.createElement('td', { className: 'muted' }, p.description),
+            React.createElement('td', { className: 'muted' }, p.scaleNote),
+          ))
         )
       )
     ),
 
-    React.createElement('h3', { style: { fontSize: '1.1rem', fontWeight: 600, margin: '0 0 8px', color: 'var(--fgColor-default)' } }, 'Five Improvement Patterns'),
-    React.createElement('p', { style: { fontSize: '0.9rem', color: 'var(--fgColor-muted)', margin: '0 0 24px', lineHeight: 1.5 } },
-      'Task efficiency is local — it makes individual work faster. The four structural patterns change the conditions under which efficiency compounds: parallelism, reuse, automation, and adoption.'),
+    React.createElement('h3', { style: { fontSize: '1.1rem', fontWeight: 600, margin: '0 0 8px', color: 'var(--fgColor-default)' } }, 'Improvement by Area'),
+    React.createElement('p', { style: { fontSize: '0.9rem', color: 'var(--fgColor-muted)', margin: '0 0 20px', lineHeight: 1.5 } },
+      'Each area has a dominant improvement pattern. The tables below show current performance, what it would look like without any improvement, and a targeted projection.'),
 
-    ...IMPROVEMENT_PATTERNS.map((p, i) => React.createElement(ImprovementPattern, { key: p.name, pattern: p, index: i })),
+    ...AREA_IMPROVEMENTS.map(a => React.createElement(AreaImprovementCard, { key: a.area, item: a })),
 
-    React.createElement(TakeawayCallout, { text: 'Efficiency without structure is local. Structure without efficiency is potential. When adoption widens, work becomes reusable instead of disposable, and processes shift from sequential to parallel, efficiency gains compound across the system instead of staying locked to individual tasks.' })
+    React.createElement(TakeawayCallout, { text: 'Efficiency without structure is local. Structure without efficiency is potential. When adoption widens, work becomes reusable instead of disposable, and processes shift from sequential to parallel, efficiency gains compound across the system.' })
   );
 }
 
 /* ═══════════════════════════════════════════════════════
-   SECTION 6: DECISION SIGNAL
+   SECTION 6: INTENT / JUSTIFICATION
    ═══════════════════════════════════════════════════════ */
 
 function Section6() {
@@ -702,14 +667,13 @@ function Section6() {
     { label: 'Projected Savings',  before: '—',                      after: fmt(a.projectedSavingsHours) + ' hrs', interp: 'Capacity released',   delta: '+' + fmt(a.projectedSavingsHours) + ' hrs' },
   ];
 
-  const hoursShifted = 0;
   const yieldImprovement = a.averageYield - b.averageYield;
   const leverageDelta = a.combinedLeverage - b.combinedLeverage;
 
   return React.createElement(NarrativeSection, {
     number: 6,
-    title: 'Decision Signal',
-    explanation: 'We do not need to know every developer\'s intent hour by hour. If hours move, yield changes, completions improve, waste shrinks, or leverage rises, we can infer that decisions changed.',
+    title: 'Intent and Justification',
+    explanation: 'We do not need to observe every developer\'s intent directly. If hours move, yield changes, completions improve, waste shrinks, or leverage rises, we can see whether decisions are justified by the results they produce.',
     activeStep: 4,
   },
     React.createElement('div', { className: 'metric-cards cols-4', style: { marginBottom: 24 } },
@@ -740,7 +704,7 @@ function Section6() {
         )
       )
     ),
-    React.createElement(TakeawayCallout, { text: 'The dashboard does not claim to know intent. It shows the observable consequences of changed decisions.' })
+    React.createElement(TakeawayCallout, { text: 'The dashboard does not claim to know intent directly. It shows whether the observable consequences of decisions — shifts in hours, yield, and leverage — justify the intent behind them.' })
   );
 }
 
