@@ -327,6 +327,16 @@ async function main() {
 
   // ── Produce artifacts ──
   const config = getAllDefaults();
+
+  // Merge dashboard-config.json overrides into config
+  const configPath = join(ROOT, 'dashboard-config.json');
+  if (existsSync(configPath)) {
+    try {
+      const orgConfig = JSON.parse(readFileSync(configPath, 'utf-8'));
+      Object.assign(config, orgConfig);
+    } catch(e) { /* ignore parse errors */ }
+  }
+
   const artifactFiles = [];
   const artifactMap = {};
   const edges = [];
@@ -426,12 +436,7 @@ async function main() {
   }
 
   if (Object.keys(leverageInputArtifacts).length > 0) {
-    const configPath = join(ROOT, 'dashboard-config.json');
-    let orgConfig = {};
-    if (existsSync(configPath)) {
-      try { orgConfig = JSON.parse(readFileSync(configPath, 'utf-8')); } catch(e) {}
-    }
-    const leverageResult = materializeLeverageSummary(leverageInputArtifacts, orgConfig, {
+    const leverageResult = materializeLeverageSummary(leverageInputArtifacts, config, {
       inputFiles: Object.entries(artifactMap).map(([name, file]) => ({ file, artifact: name })),
     });
     const fname = writeArtifact('leverage-summary', leverageResult);
