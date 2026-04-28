@@ -32,6 +32,7 @@ declare -A DASHBOARDS=(
   ["v2/agentic-element"]="dashboard/v2/agentic-element"
   ["v2/integrated"]="dashboard/v2/integrated"
   ["v2/simplified-leverage-demo"]="dashboard/v2/simplified-leverage-demo"
+  ["v2/leverage-demo-live"]="dashboard/v2/leverage-demo-live"
 )
 
 for slug in "${!DASHBOARDS[@]}"; do
@@ -294,91 +295,99 @@ cat > "$SITE_DIR/index.html" << 'LANDING_EOF'
     <p class="f4 color-fg-muted mt-2">Business Value Engineering dashboards for GitHub Copilot and SDLC metrics</p>
   </div>
 
-  <!-- Row 1: Integrated -->
-  <p class="row-label">Integrated</p>
-  <div class="icon-grid">
-    <div class="spacer"></div>
-    <a class="app-icon" href="integrated/">
-      <div class="icon-tile tile-leverage">⚡</div>
-      <span class="icon-label">Leverage</span>
+  <!-- Demo Dashboards -->
+  <p class="row-label">Demo — Leverage Framework</p>
+  <div class="icon-grid" style="grid-template-columns: repeat(2, 1fr);">
+    <a class="app-icon" href="v2/simplified-leverage-demo/">
+      <div class="icon-tile" style="background: linear-gradient(135deg, #58a6ff, #bc8cff);">💡</div>
+      <span class="icon-label">Concepts &amp; Rationale</span>
     </a>
-    <div class="spacer"></div>
-  </div>
-
-  <!-- Row 2: AI Assisted Coding -->
-  <p class="row-label">AI Assisted Coding</p>
-  <div class="icon-grid">
-    <a class="app-icon" href="ai-assisted-coding/element/">
-      <div class="icon-tile tile-leverage">⚡</div>
-      <span class="icon-label">Leverage</span>
-    </a>
-    <a class="app-icon" href="ai-assisted-coding/efficiency/">
-      <div class="icon-tile tile-efficiency">📈</div>
-      <span class="icon-label">Efficiency</span>
-    </a>
-    <a class="app-icon" href="ai-assisted-coding/structural/">
-      <div class="icon-tile tile-structure">🏗️</div>
-      <span class="icon-label">Structure</span>
+    <a class="app-icon" href="v2/leverage-demo-live/">
+      <div class="icon-tile" style="background: linear-gradient(135deg, #3fb950, #58a6ff);">📊</div>
+      <span class="icon-label">Live Examples</span>
     </a>
   </div>
 
-  <!-- Row 3: Agentic AI Coding -->
-  <p class="row-label">Agentic AI Coding</p>
-  <div class="icon-grid">
-    <a class="app-icon" href="agentic-ai-coding/element/">
-      <div class="icon-tile tile-leverage">⚡</div>
-      <span class="icon-label">Leverage</span>
-    </a>
-    <a class="app-icon" href="agentic-ai-coding/efficiency/">
-      <div class="icon-tile tile-efficiency">📈</div>
-      <span class="icon-label">Efficiency</span>
-    </a>
-    <a class="app-icon disabled" href="#">
-      <div class="icon-tile tile-structure">🏗️</div>
-      <span class="icon-label">Structure</span>
-    </a>
+  <!-- v2 Dashboards -->
+  <div class="mt-6 pt-4" style="border-top: 1px solid var(--borderColor-default);">
+    <p class="row-label">Integrated</p>
+    <div class="icon-grid">
+      <div class="spacer"></div>
+      <a class="app-icon" href="v2/integrated/">
+        <div class="icon-tile tile-leverage">⚡</div>
+        <span class="icon-label">Leverage</span>
+      </a>
+      <div class="spacer"></div>
+    </div>
+
+    <p class="row-label">AI Assisted Coding</p>
+    <div class="icon-grid">
+      <a class="app-icon" href="v2/ai-assisted-element/">
+        <div class="icon-tile tile-leverage">⚡</div>
+        <span class="icon-label">Element</span>
+      </a>
+      <a class="app-icon" href="v2/ai-assisted-efficiency/">
+        <div class="icon-tile tile-efficiency">📈</div>
+        <span class="icon-label">Efficiency</span>
+      </a>
+      <a class="app-icon" href="v2/ai-assisted-structural/">
+        <div class="icon-tile tile-structure">🏗️</div>
+        <span class="icon-label">Structure</span>
+      </a>
+    </div>
+
+    <p class="row-label">Agentic AI Coding</p>
+    <div class="icon-grid">
+      <a class="app-icon" href="v2/agentic-element/">
+        <div class="icon-tile tile-leverage">⚡</div>
+        <span class="icon-label">Element</span>
+      </a>
+      <a class="app-icon" href="v2/agentic-efficiency/">
+        <div class="icon-tile tile-efficiency">📈</div>
+        <span class="icon-label">Efficiency</span>
+      </a>
+      <a class="app-icon disabled" href="#">
+        <div class="icon-tile tile-structure">🏗️</div>
+        <span class="icon-label">Structure</span>
+      </a>
+    </div>
   </div>
 
   <div class="mt-4 color-fg-muted f6 text-center">
-    <p>Data is collected nightly via <code>run-query.sh --all</code>. Dashboards auto-load the latest available data.</p>
-    <p>Manual file upload is still available as a fallback on each dashboard.</p>
+    <p>Data is collected nightly via the pipeline. Dashboards auto-load the latest materialized artifacts.</p>
     <p class="mt-2"><a href="data-status/" class="color-fg-accent">🔧 Data Status</a> · <a href="dataflow/" class="color-fg-accent">🔀 Dataflow</a> — view collection results, data inventory, and pipeline health.</p>
   </div>
 
-  <!-- v2 Dashboards — materialized artifact versions -->
+  <!-- v1 Archived -->
   <div class="mt-6 pt-4" style="border-top: 1px solid var(--borderColor-default);">
-    <p class="row-label">v2 — Materialized (comparison)</p>
-    <div class="icon-grid" style="grid-template-columns: repeat(3, 1fr);">
-      <a class="app-icon" href="v2/integrated/">
-        <div class="icon-tile tile-leverage" style="opacity:0.8;">⚡</div>
-        <span class="icon-label">Integrated v2</span>
+    <p class="row-label" style="opacity: 0.5;">v1 — Archived</p>
+    <div class="icon-grid" style="opacity: 0.4;">
+      <a class="app-icon" href="integrated/">
+        <div class="icon-tile tile-leverage">⚡</div>
+        <span class="icon-label">Integrated v1</span>
       </a>
-      <a class="app-icon" href="v2/ai-assisted-efficiency/">
-        <div class="icon-tile tile-efficiency" style="opacity:0.8;">📈</div>
-        <span class="icon-label">AI Efficiency v2</span>
+      <a class="app-icon" href="ai-assisted-coding/element/">
+        <div class="icon-tile tile-leverage">⚡</div>
+        <span class="icon-label">AI Element v1</span>
       </a>
-      <a class="app-icon" href="v2/ai-assisted-structural/">
-        <div class="icon-tile tile-structure" style="opacity:0.8;">🏗️</div>
-        <span class="icon-label">AI Structure v2</span>
+      <a class="app-icon" href="ai-assisted-coding/efficiency/">
+        <div class="icon-tile tile-efficiency">📈</div>
+        <span class="icon-label">AI Efficiency v1</span>
       </a>
-      <a class="app-icon" href="v2/ai-assisted-element/">
-        <div class="icon-tile tile-leverage" style="opacity:0.8;">⚡</div>
-        <span class="icon-label">AI Element v2</span>
+      <a class="app-icon" href="ai-assisted-coding/structural/">
+        <div class="icon-tile tile-structure">🏗️</div>
+        <span class="icon-label">AI Structure v1</span>
       </a>
-      <a class="app-icon" href="v2/agentic-efficiency/">
-        <div class="icon-tile tile-efficiency" style="opacity:0.8;">📈</div>
-        <span class="icon-label">Agentic Eff v2</span>
+      <a class="app-icon" href="agentic-ai-coding/element/">
+        <div class="icon-tile tile-leverage">⚡</div>
+        <span class="icon-label">Agentic Elem v1</span>
       </a>
-      <a class="app-icon" href="v2/agentic-element/">
-        <div class="icon-tile tile-leverage" style="opacity:0.8;">⚡</div>
-        <span class="icon-label">Agentic Elem v2</span>
-      </a>
-      <a class="app-icon" href="v2/simplified-leverage-demo/">
-        <div class="icon-tile" style="opacity:0.8; background: linear-gradient(135deg, #58a6ff, #bc8cff);">💡</div>
-        <span class="icon-label">Leverage Demo</span>
+      <a class="app-icon" href="agentic-ai-coding/efficiency/">
+        <div class="icon-tile tile-efficiency">📈</div>
+        <span class="icon-label">Agentic Eff v1</span>
       </a>
     </div>
-    <p class="f6 color-fg-muted text-center">v2 dashboards load from materialized artifacts (~5MB vs ~100MB raw). Compare side-by-side with v1 above.</p>
+    <p class="f6 color-fg-muted text-center" style="opacity: 0.5;">v1 dashboards load raw data directly (~100MB). Kept for reference.</p>
   </div>
 </div>
 </body>

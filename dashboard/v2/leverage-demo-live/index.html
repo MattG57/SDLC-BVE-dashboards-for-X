@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark" data-dark-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BVE — Leverage in Practice</title>
+
+<!-- Primer CSS -->
+<link rel="stylesheet" href="https://unpkg.com/@primer/css@21.3.1/dist/primer.css">
+
+<!-- Highcharts -->
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/highcharts.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/highcharts-more.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/modules/accessibility.js"></script>
+
+<!-- React -->
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<style>
+  html { scroll-behavior: smooth; }
+  body { background: var(--bgColor-default); }
+
+  .demo-page { max-width: 1200px; margin: 0 auto; padding: 48px 24px 80px; }
+
+  .page-header { text-align: center; margin-bottom: 48px; padding-bottom: 32px; border-bottom: 1px solid var(--borderColor-muted); }
+  .page-title { font-size: 2rem; font-weight: 700; color: var(--fgColor-default); margin: 0 0 8px; }
+  .page-subtitle { font-size: 1rem; color: var(--fgColor-muted); margin: 0 auto; max-width: 640px; line-height: 1.5; }
+
+  .live-badge { display: inline-block; padding: 3px 12px; border-radius: 12px; font-size: 0.75rem; font-weight: 600;
+    background: var(--bgColor-success-muted); color: var(--fgColor-success); border: 1px solid var(--borderColor-success-muted);
+    margin-bottom: 16px; letter-spacing: 0.3px; text-transform: uppercase; }
+
+  .narrative-section { margin-bottom: 56px; }
+  .section-number { font-size: 0.75rem; font-weight: 600; color: var(--fgColor-accent); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  .section-title { font-size: 1.4rem; font-weight: 600; color: var(--fgColor-default); margin: 0 0 8px; }
+  .section-intro { font-size: 0.9rem; color: var(--fgColor-muted); line-height: 1.6; margin-bottom: 8px; max-width: 780px; }
+  .section-source { font-size: 0.75rem; color: var(--fgColor-muted); font-style: italic; margin-bottom: 16px; }
+  .section-insight { border-left: 3px solid var(--borderColor-accent-emphasis); padding: 12px 16px;
+    background: var(--bgColor-accent-muted); border-radius: 0 6px 6px 0; margin-top: 16px; }
+  .section-insight p { margin: 0; font-size: 0.85rem; color: var(--fgColor-default); line-height: 1.4; font-style: italic; }
+
+  .kpi-card { text-align: center; background: var(--bgColor-muted); border: 1px solid var(--borderColor-default);
+    border-radius: 8px; padding: 16px 12px; }
+  .kpi-value { font-size: 1.8rem; font-weight: 700; line-height: 1.2; }
+  .kpi-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--fgColor-muted); margin-top: 4px; }
+  .kpi-sub { font-size: 0.7rem; color: var(--fgColor-muted); margin-top: 2px; }
+  .kpi-unit { font-size: 1rem; font-weight: 400; opacity: 0.65; margin-left: 2px; }
+  .kpi-hero { border-top: 3px solid var(--borderColor-accent-emphasis); }
+  .kpi-hero .kpi-value { font-size: 2.5rem; }
+
+  .evidence-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+  .evidence-table th { text-align: left; padding: 6px 8px; border-bottom: 2px solid var(--borderColor-default); color: var(--fgColor-muted); font-weight: 600; white-space: nowrap; }
+  .evidence-table td { padding: 5px 8px; border-bottom: 1px solid var(--borderColor-muted); }
+  .evidence-table .cell-sublabel { display: block; font-size: 0.7rem; color: var(--fgColor-muted); font-weight: 400; margin-top: 1px; }
+
+  .rect-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 800px) { .rect-pair { grid-template-columns: 1fr; } }
+
+  .config-panel { background: var(--bgColor-muted); border: 1px solid var(--borderColor-default); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  .config-panel label { font-size: 0.8rem; color: var(--fgColor-muted); display: block; margin-bottom: 4px; }
+  .config-panel input { background: var(--bgColor-inset); color: var(--fgColor-default); border: 1px solid var(--borderColor-default); border-radius: 4px; padding: 4px 8px; font-size: 0.85rem; width: 120px; }
+  .config-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: end; }
+
+  .estimate-card { border: 1px solid var(--borderColor-default); border-radius: 8px; padding: 12px 16px; cursor: pointer; transition: border-color 0.15s; }
+  .estimate-card.selected { border-width: 2px; }
+  .estimate-card .est-label { font-size: 0.75rem; color: var(--fgColor-muted); font-weight: 600; margin-bottom: 4px; }
+  .estimate-card .est-value { font-size: 1.6rem; font-weight: 700; line-height: 1.2; }
+
+  .loading { text-align: center; padding: 80px 0; color: var(--fgColor-muted); font-size: 1.1rem; }
+
+  .highcharts-background { fill: transparent !important; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-type="module">
+
+/* ═══════════════════════════════════════════════════════
+   HIGHCHARTS DARK THEME
+   ═══════════════════════════════════════════════════════ */
+Highcharts.setOptions({
+  chart: { backgroundColor: 'transparent', style: { fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif' } },
+  colors: ['#58a6ff','#3fb950','#d29922','#f85149','#bc8cff','#f778ba'],
+  title: { style: { color: '#e6edf3', fontSize: '14px', fontWeight: '600' } },
+  subtitle: { style: { color: '#8b949e', fontSize: '12px' } },
+  xAxis: { labels: { style: { color: '#8b949e' } }, gridLineColor: '#30363d', lineColor: '#30363d', tickColor: '#30363d' },
+  yAxis: { labels: { style: { color: '#8b949e' } }, gridLineColor: '#30363d', title: { style: { color: '#8b949e' } } },
+  legend: { itemStyle: { color: '#e6edf3' }, itemHoverStyle: { color: '#58a6ff' } },
+  tooltip: { backgroundColor: '#161b22', borderColor: '#30363d', style: { color: '#e6edf3' } },
+  plotOptions: { series: { animation: { duration: 600 } } },
+  credits: { enabled: false },
+});
+
+/* ═══════════════════════════════════════════════════════
+   HELPERS
+   ═══════════════════════════════════════════════════════ */
+function safeDiv(a, b) { return b > 0 ? a / b : null; }
+const fmt = (n) => n == null ? '—' : Math.round(n).toLocaleString();
+const fmtDec = (n, d = 2) => n == null ? '—' : n.toFixed(d);
+const fmtPct = (n) => n == null ? '—' : (n * 100).toFixed(1) + '%';
+const fmtCompact = (n) => n == null ? '—' : n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'K' : Math.round(n).toLocaleString();
+
+const ELEMENT_COLORS = {
+  'ai-assisted': { color: '#58a6ff', bg: 'rgba(88,166,255,0.15)' },
+  'agentic':     { color: '#bc8cff', bg: 'rgba(188,140,255,0.15)' },
+};
+
+/* ═══════════════════════════════════════════════════════
+   DATA LOADING
+   ═══════════════════════════════════════════════════════ */
+async function fetchLeverageSummary() {
+  const bases = ['../../dataflow/data/', '../dataflow/data/'];
+  for (const base of bases) {
+    try {
+      const r = await fetch(base + 'pipeline-manifest.json');
+      if (!r.ok) continue;
+      const manifest = await r.json();
+      const artFile = (manifest.artifacts || []).find(f => f.startsWith('leverage-summary'));
+      if (!artFile) continue;
+      const art = await fetch(base + 'materialized/' + artFile).then(r => r.ok ? r.json() : null);
+      if (art) return art;
+    } catch(e) {}
+  }
+  return null;
+}
+
+async function fetchConfig() {
+  try {
+    const r = await fetch('./data/config.json');
+    if (r.ok) return await r.json();
+  } catch(e) {}
+  return {};
+}
+
+/* ═══════════════════════════════════════════════════════
+   REUSABLE COMPONENTS
+   ═══════════════════════════════════════════════════════ */
+
+function NarrativeSection({ number, title, intro, source, children, insight }) {
+  return (
+    <section className="narrative-section">
+      <div className="section-number">Section {number}</div>
+      <h2 className="section-title">{title}</h2>
+      {intro && <p className="section-intro">{intro}</p>}
+      {source && <p className="section-source">Source: {source}</p>}
+      {children}
+      {insight && <div className="section-insight"><p>{insight}</p></div>}
+    </section>
+  );
+}
+
+function KpiCard({ label, value, sub, unit, hero, color }) {
+  return (
+    <div className={`kpi-card${hero ? ' kpi-hero' : ''}`}>
+      <div className="kpi-value" style={color ? { color } : {}}>
+        {value}{unit && <span className="kpi-unit">{unit}</span>}
+      </div>
+      <div className="kpi-label">{label}</div>
+      {sub && <div className="kpi-sub">{sub}</div>}
+    </div>
+  );
+}
+
+function useChart(renderFn, deps) {
+  const ref = React.useRef(null);
+  const chartRef = React.useRef(null);
+  React.useEffect(() => {
+    if (!ref.current) return;
+    if (chartRef.current) chartRef.current.destroy();
+    chartRef.current = renderFn(ref.current);
+    return () => { if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; } };
+  }, deps);
+  return ref;
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION 1: EVIDENCE & LEVERAGE TABLE
+   ═══════════════════════════════════════════════════════ */
+function Section1({ elements, recomputeRow, selections, onSelectionChange }) {
+  const rows = elements.map(el => {
+    const sel = selections[el.elementKey] || {};
+    return recomputeRow(el, sel.estimateId, sel.projectionId);
+  });
+
+  return (
+    <NarrativeSection number={1} title="The Full Chain in One View"
+      intro="The Evidence & Leverage table traces every area from raw capacity through attempts, completions, yield, and leverage — all the way to projected savings. This is the intent-to-value chain made visible."
+      source="Integrated Leverage Dashboard (v2)"
+      insight="Each row is a complete leverage story: hours consumed → work attempted → valid completions produced → yield rate → leverage ratio → projected improvement. The estimate and projection selectors let you test different assumptions.">
+      <div className="Box mb-3" style={{ overflowX: 'auto' }}>
+        <table className="evidence-table">
+          <thead>
+            <tr>
+              <th>Area</th>
+              <th>Attempts</th>
+              <th>Completions</th>
+              <th>Time Spent</th>
+              <th>Time Saved</th>
+              <th>Yield</th>
+              <th>Leverage</th>
+              <th>Proj. Savings</th>
+              <th>Estimate</th>
+              <th>Projection</th>
+            </tr>
+          </thead>
+          <tbody>
+            {elements.map((el, i) => {
+              const r = rows[i];
+              const sel = selections[el.elementKey] || {};
+              const elColor = (ELEMENT_COLORS[el.elementKey] || {}).color || '#8b949e';
+              return (
+                <tr key={el.elementKey}>
+                  <td style={{ fontWeight: 600, color: elColor }}>{r.area}</td>
+                  <td>{fmt(r.attempts)}<span className="cell-sublabel">{r.attemptType || ''}</span></td>
+                  <td>{fmt(r.completionCount)}<span className="cell-sublabel">{r.completionType || ''}</span></td>
+                  <td>{fmt(r.timeSpentHours)}<span className="kpi-unit"> hrs</span></td>
+                  <td style={{ color: '#3fb950' }}>{fmt(r.timeSavedHours)}<span className="kpi-unit"> hrs</span></td>
+                  <td>{fmtPct(r.currentYield)}</td>
+                  <td>{fmtDec(r.leverage, 3)}</td>
+                  <td>{r.projTimeSavedHours != null ? fmt(r.projTimeSavedHours) + ' hrs' : '—'}</td>
+                  <td onClick={e => e.stopPropagation()}>
+                    <select className="form-select" style={{ fontSize: '0.75rem', padding: '2px 4px', background: 'var(--bgColor-muted)', color: 'var(--fgColor-default)', border: '1px solid var(--borderColor-default)', borderRadius: 4 }}
+                      value={sel.estimateId || ''} onChange={e => onSelectionChange(el.elementKey, 'estimateId', e.target.value)}>
+                      {el.worksheet.improvementEstimates.map(est => <option key={est.estimateId} value={est.estimateId}>{est.name}</option>)}
+                    </select>
+                  </td>
+                  <td onClick={e => e.stopPropagation()}>
+                    <select className="form-select" style={{ fontSize: '0.75rem', padding: '2px 4px', background: 'var(--bgColor-muted)', color: 'var(--fgColor-default)', border: '1px solid var(--borderColor-default)', borderRadius: 4 }}
+                      value={sel.projectionId || ''} onChange={e => onSelectionChange(el.elementKey, 'projectionId', e.target.value)}
+                      disabled={el.worksheet.projectedImprovements.length === 0}>
+                      {el.worksheet.projectedImprovements.length === 0
+                        ? <option value="">none</option>
+                        : el.worksheet.projectedImprovements.map(p => <option key={p.projectionId} value={p.projectionId}>{p.name}</option>)}
+                    </select>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </NarrativeSection>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION 2: APERTURE KPIs
+   ═══════════════════════════════════════════════════════ */
+function Section2({ elements, rows, config }) {
+  const totalDevHours = (config.cfg_total_developers || 100) * 28 * 0.5 * 8;
+  const modeledHours = rows.reduce((s, r) => s + (r.timeSpentHours || 0), 0);
+  const totalCompletions = rows.reduce((s, r) => s + (r.completionCount || 0), 0);
+  const aperture = safeDiv(modeledHours, totalDevHours);
+  const combinedLeverage = safeDiv(totalCompletions, modeledHours);
+
+  return (
+    <NarrativeSection number={2} title="Where Is Developer Capacity Going?"
+      intro="Before we can understand improvement, we need to understand the aperture — how much total capacity is represented and how it breaks down across areas."
+      source="Integrated Leverage Dashboard (v2)"
+      insight="Aperture shows what fraction of total org capacity the dashboard can see. A narrow aperture means most developer hours are outside the measurement system.">
+      <div className="d-flex flex-wrap mb-3" style={{ gap: 12 }}>
+        <div style={{ flex: '1 1 180px' }}>
+          <KpiCard label="Total Org Dev-Hours" value={fmtCompact(totalDevHours)} sub={`${config.cfg_total_developers || '?'} devs × 28d × 50% × 8h`} />
+        </div>
+        <div style={{ flex: '1 1 180px' }}>
+          <KpiCard label="Modeled Dev-Hours" value={fmtCompact(modeledHours)} sub="across all elements" />
+        </div>
+        <div style={{ flex: '1 1 140px' }}>
+          <KpiCard hero label="Aperture" value={fmtPct(aperture)} color="#58a6ff" sub="% of org capacity modeled" />
+        </div>
+        <div style={{ flex: '1 1 180px' }}>
+          <KpiCard label="Combined Leverage" value={fmtDec(combinedLeverage, 3)} sub="completions / dev-hour" />
+        </div>
+      </div>
+    </NarrativeSection>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION 3: COMPLETIONS — JTBD + CONFIG
+   ═══════════════════════════════════════════════════════ */
+function Section3({ elements, rows, config, onConfigChange }) {
+  return (
+    <NarrativeSection number={3} title="What Counts as a Completion?"
+      intro="Each area defines its own completion — a PR merged, a review completed, a vulnerability resolved. The config panel sets organizational parameters used across all calculations."
+      source="Element Dashboards (v2) — Job to Be Done definitions"
+      insight="Defining completions explicitly prevents apples-to-oranges comparisons. The config panel (total developers, coding time %) feeds into every calculation on this page.">
+
+      <div className="config-panel">
+        <div className="f6 color-fg-muted text-bold mb-2">⚙️ Configuration</div>
+        <div className="config-row">
+          <div>
+            <label>Total Developers</label>
+            <input type="number" value={config.cfg_total_developers || ''} onChange={e => onConfigChange('cfg_total_developers', parseInt(e.target.value) || 0)} />
+          </div>
+          <div>
+            <label>% Time Coding</label>
+            <input type="number" step="0.05" value={config.cfg_pct_time_coding || ''} onChange={e => onConfigChange('cfg_pct_time_coding', parseFloat(e.target.value) || 0)} />
+          </div>
+          <div>
+            <label>Est Hrs / KLoC</label>
+            <input type="number" step="0.5" value={config.est_hrs_per_kloc || ''} onChange={e => onConfigChange('est_hrs_per_kloc', parseFloat(e.target.value) || 0)} />
+          </div>
+          <div>
+            <label>Est Duration Factor</label>
+            <input type="number" step="0.5" value={config.est_duration_factor || ''} onChange={e => onConfigChange('est_duration_factor', parseFloat(e.target.value) || 0)} />
+          </div>
+        </div>
+      </div>
+
+      <div className="d-flex flex-wrap" style={{ gap: 16 }}>
+        {elements.map((el, i) => {
+          const r = rows[i];
+          const defs = el.worksheet?.definitions || {};
+          const elColor = (ELEMENT_COLORS[el.elementKey] || {}).color || '#8b949e';
+          return (
+            <div key={el.elementKey} className="Box p-3" style={{ flex: '1 1 300px', borderLeft: `3px solid ${elColor}` }}>
+              <div className="f5 text-bold mb-2" style={{ color: elColor }}>{r.area}</div>
+              <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
+                <tbody>
+                  <tr><td className="color-fg-muted" style={{ padding: '4px 8px 4px 0', fontWeight: 600 }}>Job to Be Done</td>
+                    <td style={{ padding: '4px 0' }}>{defs.jobToBeDone || '—'}</td></tr>
+                  <tr><td className="color-fg-muted" style={{ padding: '4px 8px 4px 0', fontWeight: 600 }}>Completion</td>
+                    <td style={{ padding: '4px 0' }}>{defs.completion || r.completionType || '—'}</td></tr>
+                  <tr><td className="color-fg-muted" style={{ padding: '4px 8px 4px 0', fontWeight: 600 }}>Job Class</td>
+                    <td style={{ padding: '4px 0' }}>{defs.jobClass || '—'}</td></tr>
+                  <tr><td className="color-fg-muted" style={{ padding: '4px 8px 4px 0', fontWeight: 600 }}>Attempts</td>
+                    <td style={{ padding: '4px 0' }}>{fmt(r.attempts)} {r.attemptType}</td></tr>
+                  <tr><td className="color-fg-muted" style={{ padding: '4px 8px 4px 0', fontWeight: 600 }}>Completions</td>
+                    <td style={{ padding: '4px 0', color: '#3fb950' }}>{fmt(r.completionCount)} {r.completionType}</td></tr>
+                </tbody>
+              </table>
+            </div>
+          );
+        })}
+      </div>
+    </NarrativeSection>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION 4: YIELD — MERGE RATE DONUT
+   ═══════════════════════════════════════════════════════ */
+function Section4({ elements, rows }) {
+  return (
+    <NarrativeSection number={4} title="Yield — How Much Activity Becomes Valid Completion?"
+      intro="Yield is the ratio of valid completions to attempts. This donut chart from the Agentic Element dashboard shows the merge rate — what percentage of agent-created PRs actually merged."
+      source="Agentic Element Dashboard (v2) — Merge Rate donut"
+      insight="A high number of attempts with low yield means wasted effort. Tracking yield separately from activity prevents inflating leverage with failed work.">
+      <div className="d-flex flex-wrap" style={{ gap: 16, justifyContent: 'center' }}>
+        {elements.map((el, i) => {
+          const r = rows[i];
+          const elColor = (ELEMENT_COLORS[el.elementKey] || {}).color || '#8b949e';
+          return <YieldDonut key={el.elementKey} area={r.area} yield_={r.currentYield} color={elColor} attempts={r.attempts} completions={r.completionCount} />;
+        })}
+      </div>
+    </NarrativeSection>
+  );
+}
+
+function YieldDonut({ area, yield_, color, attempts, completions }) {
+  const ref = useChart((el) => {
+    const val = yield_ != null ? Math.min(yield_ * 100, 100) : 0;
+    return Highcharts.chart(el, {
+      chart: { type: 'pie', height: 200, margin: [0, 0, 40, 0] },
+      title: { text: fmtPct(yield_), verticalAlign: 'middle', y: -12, style: { fontSize: '28px', fontWeight: '700', color: '#e6edf3' } },
+      subtitle: { text: `${area}`, align: 'center', verticalAlign: 'bottom', y: -5, style: { fontSize: '11px' } },
+      tooltip: { pointFormat: '<b>{point.percentage:.1f}%</b>' },
+      plotOptions: { pie: { innerSize: '70%', borderWidth: 0, dataLabels: { enabled: false } } },
+      series: [{ data: [{ name: 'Yield', y: val, color }, { name: 'Gap', y: Math.max(100 - val, 0), color: '#30363d' }] }],
+    });
+  }, [yield_, color]);
+
+  return (
+    <div style={{ flex: '0 1 220px', textAlign: 'center' }}>
+      <div ref={ref} />
+      <div style={{ fontSize: '0.75rem', color: 'var(--fgColor-muted)', marginTop: -4 }}>
+        {fmt(completions)} completions / {fmt(attempts)} attempts
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION 5: LEVERAGE RECTANGLES — SIDE BY SIDE
+   ═══════════════════════════════════════════════════════ */
+function Section5({ elements, rows, selections }) {
+  return (
+    <NarrativeSection number={5} title="Leverage Rectangles — Comparing Areas Side by Side"
+      intro="The leverage rectangle visualizes completions (height) against dev-hours (width). A narrower rectangle means higher leverage — more completions per hour. Comparing areas reveals where leverage is strongest and where the most room exists."
+      source="Element Dashboards (v2) — Leverage Rectangle charts"
+      insight="The red dashed rectangle shows what hours would look like without AI (counterfactual). The gap between the blue rectangle and the red one is the time saved. The projected rectangle shows what's possible with higher structural adoption.">
+      <div className="rect-pair">
+        {elements.map((el, i) => {
+          const r = rows[i];
+          const sel = selections[el.elementKey] || {};
+          return <LeverageRect key={el.elementKey} element={el} row={r} sel={sel} />;
+        })}
+      </div>
+    </NarrativeSection>
+  );
+}
+
+function LeverageRect({ element, row, sel }) {
+  const elColor = (ELEMENT_COLORS[element.elementKey] || {}).color || '#8b949e';
+  const elBg = (ELEMENT_COLORS[element.elementKey] || {}).bg || 'rgba(139,148,158,0.15)';
+
+  const est = element.worksheet.improvementEstimates.find(e => e.estimateId === (sel.estimateId || element.worksheet.improvementEstimates[0]?.estimateId));
+  const proj = element.worksheet.projectedImprovements.find(p => p.projectionId === (sel.projectionId || element.worksheet.projectedImprovements[0]?.projectionId));
+
+  const activeDevHours = row.timeSpentHours || 0;
+  const completions = row.completionCount || 0;
+  const timeSaved = est?.timeSavedHours || row.timeSavedHours || 0;
+  const withoutAiHours = activeDevHours + timeSaved;
+  const projSaved = proj?.projTimeSavedHours || 0;
+  const projHours = Math.max(activeDevHours - projSaved, 0);
+  const currentLeverage = safeDiv(completions, activeDevHours);
+
+  const xMax = Math.max(withoutAiHours, activeDevHours) * 1.15;
+  const yMax = completions * 1.5;
+
+  const series = [];
+  if (timeSaved > 0) {
+    series.push({ type: 'polygon', name: 'Without AI',
+      data: [[0,0],[withoutAiHours,0],[withoutAiHours,completions],[0,completions]],
+      color: 'rgba(248,81,73,0.08)', lineWidth: 1, lineColor: '#f85149', dashStyle: 'ShortDot',
+      enableMouseTracking: true,
+      tooltip: { headerFormat: '', pointFormat: `<b>Without AI</b><br/>Hours: ${fmtCompact(withoutAiHours)}<br/>Leverage: ${fmtDec(safeDiv(completions, withoutAiHours), 3)}` },
+    });
+  }
+  series.push({ type: 'polygon', name: 'Current',
+    data: [[0,0],[activeDevHours,0],[activeDevHours,completions],[0,completions]],
+    color: elBg, lineWidth: 2, lineColor: elColor,
+    enableMouseTracking: true,
+    tooltip: { headerFormat: '', pointFormat: `<b>Current</b><br/>Hours: ${fmtCompact(activeDevHours)}<br/>Completions: ${fmtCompact(completions)}<br/>Leverage: ${fmtDec(currentLeverage, 3)}` },
+  });
+  if (projSaved > 0) {
+    series.push({ type: 'polygon', name: 'Projected',
+      data: [[0,0],[projHours,0],[projHours,completions],[0,completions]],
+      color: 'rgba(63,185,80,0.08)', lineWidth: 1, lineColor: '#3fb950', dashStyle: 'ShortDash',
+      enableMouseTracking: true,
+      tooltip: { headerFormat: '', pointFormat: `<b>Projected</b><br/>Hours: ${fmtCompact(projHours)}<br/>Leverage: ${fmtDec(safeDiv(completions, projHours), 3)}<br/>Savings: ${fmtCompact(projSaved)} hrs` },
+    });
+  }
+  series.push({ type: 'line', name: `Leverage = ${fmtDec(currentLeverage, 3)}`,
+    data: [[0,0],[activeDevHours,completions]], color: '#3fb950', dashStyle: 'Dash', lineWidth: 2,
+    marker: { enabled: true, radius: 4, symbol: 'circle' }, enableMouseTracking: false,
+  });
+
+  const ref = useChart((el) => {
+    return Highcharts.chart(el, {
+      chart: { type: 'scatter', height: 340 },
+      title: { text: row.area, style: { color: elColor } },
+      subtitle: { text: `${fmtCompact(completions)} completions / ${fmtCompact(activeDevHours)} hrs` },
+      xAxis: { title: { text: 'Dev Hours' }, min: 0, max: xMax, gridLineWidth: 1, labels: { formatter() { return fmtCompact(this.value); } } },
+      yAxis: { title: { text: 'Completions' }, min: 0, max: yMax, labels: { formatter() { return fmtCompact(this.value); } } },
+      tooltip: { useHTML: true },
+      legend: { enabled: true, align: 'center', verticalAlign: 'bottom', itemStyle: { fontSize: '10px' } },
+      series,
+    });
+  }, [row, sel]);
+
+  return <div ref={ref} />;
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION 6: ESTIMATES & PROJECTIONS
+   ═══════════════════════════════════════════════════════ */
+function Section6({ elements, rows, selections, onSelectionChange }) {
+  const el = elements.find(e => e.elementKey === 'ai-assisted') || elements[0];
+  if (!el) return null;
+  const elIdx = elements.indexOf(el);
+  const r = rows[elIdx];
+  const sel = selections[el.elementKey] || {};
+  const elColor = (ELEMENT_COLORS[el.elementKey] || {}).color || '#58a6ff';
+
+  const estimates = el.worksheet.improvementEstimates || [];
+  const projections = el.worksheet.projectedImprovements || [];
+  const selectedEstId = sel.estimateId || estimates[0]?.estimateId;
+  const selectedProjId = sel.projectionId || projections[0]?.projectionId;
+
+  const selectedEst = estimates.find(e => e.estimateId === selectedEstId);
+  const selectedProj = projections.find(p => p.projectionId === selectedProjId);
+
+  const estColors = ['#58a6ff', '#3fb950', '#d29922', '#bc8cff'];
+
+  return (
+    <NarrativeSection number={6} title="Intent and Justification — Estimates & Projections"
+      intro="This section replicates the AI-Assisted Element dashboard's estimate and projection selectors. Click an estimate method to choose how time saved is calculated, then select a projection to see how structural improvements would scale that savings."
+      source="AI-Assisted Element Dashboard (v2) — Estimate & Projection selectors"
+      insight="The dashboard does not claim to know intent directly. It shows whether the observable consequences of decisions — shifts in hours, yield, and leverage — justify the intent behind them.">
+
+      <h3 className="f5 color-fg-default mb-2" style={{ color: elColor }}>{r.area}</h3>
+
+      <div className="f6 color-fg-muted text-bold mb-2">Time Saved Estimates <span className="f6 color-fg-muted" style={{ fontWeight: 400 }}>(click to select)</span></div>
+      <div className="d-flex flex-wrap mb-3" style={{ gap: 12 }}>
+        {estimates.map((est, i) => {
+          const isSelected = est.estimateId === selectedEstId;
+          const color = estColors[i % estColors.length];
+          return (
+            <div key={est.estimateId} className={`estimate-card${isSelected ? ' selected' : ''}`}
+              style={{ flex: '1 1 200px', borderColor: isSelected ? color : undefined }}
+              onClick={() => onSelectionChange(el.elementKey, 'estimateId', est.estimateId)}>
+              <div className="est-label">{est.name}</div>
+              <div className="est-value" style={{ color }}>{fmtCompact(est.timeSavedHours)}<span className="kpi-unit">hrs</span></div>
+              <div className="f6 color-fg-muted mt-1">{est.formula || ''}</div>
+              {isSelected && <div className="f6 mt-1" style={{ color }}>▲ Using for projections</div>}
+            </div>
+          );
+        })}
+      </div>
+
+      {projections.length > 0 && (
+        <>
+          <div className="f6 color-fg-muted text-bold mb-2">Structural Projections <span className="f6 color-fg-muted" style={{ fontWeight: 400 }}>(select scaling factor)</span></div>
+          <div className="d-flex flex-wrap mb-3" style={{ gap: 12 }}>
+            {projections.map((proj) => {
+              const isSelected = proj.projectionId === selectedProjId;
+              return (
+                <div key={proj.projectionId} className={`estimate-card${isSelected ? ' selected' : ''}`}
+                  style={{ flex: '1 1 200px', borderColor: isSelected ? '#bc8cff' : undefined }}
+                  onClick={() => onSelectionChange(el.elementKey, 'projectionId', proj.projectionId)}>
+                  <div className="est-label">{proj.name}</div>
+                  <div className="est-value" style={{ color: '#bc8cff' }}>{fmtCompact(proj.projTimeSavedHours)}<span className="kpi-unit">hrs saved</span></div>
+                  <div className="f6 color-fg-muted mt-1">{proj.formula || ''}</div>
+                  {isSelected && <div className="f6 mt-1" style={{ color: '#bc8cff' }}>▲ Selected projection</div>}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      <div className="Box p-3">
+        <div className="f6 color-fg-muted mb-2">Selected: <strong>{selectedEst?.name || '—'}</strong> estimate + <strong>{selectedProj?.name || 'none'}</strong> projection</div>
+        <div className="d-flex flex-wrap" style={{ gap: 16 }}>
+          <KpiCard label="Time Saved" value={fmtCompact(selectedEst?.timeSavedHours)} unit="hrs" />
+          <KpiCard label="Proj. Savings" value={fmtCompact(selectedProj?.projTimeSavedHours)} unit="hrs" color="#bc8cff" />
+          <KpiCard label="Proj. Completions" value={selectedProj?.projCompletionGain != null ? '+' + fmt(selectedProj.projCompletionGain) : '—'} />
+          <KpiCard label="Proj. Yield" value={selectedProj?.projYield != null ? fmtPct(selectedProj.projYield) : '—'} />
+        </div>
+      </div>
+    </NarrativeSection>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   APP
+   ═══════════════════════════════════════════════════════ */
+function recomputeRow(element, selectedEstimateId, selectedProjectionId) {
+  const est = element.worksheet.improvementEstimates.find(e => e.estimateId === selectedEstimateId)
+    || element.worksheet.improvementEstimates[0];
+  const proj = element.worksheet.projectedImprovements.find(p => p.projectionId === selectedProjectionId)
+    || element.worksheet.projectedImprovements[0];
+  return {
+    ...element.row,
+    timeSavedHours: est?.timeSavedHours ?? element.row.timeSavedHours,
+    estimateName: est?.name,
+    projTimeSavedHours: proj?.projTimeSavedHours ?? null,
+    projCompletionGain: proj?.projCompletionGain ?? null,
+    projYield: proj?.projYield ?? null,
+    modeNote: est?.method || '',
+  };
+}
+
+function App() {
+  const [data, setData] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [config, setConfig] = React.useState({});
+  const [selections, setSelections] = React.useState({});
+
+  React.useEffect(() => {
+    Promise.all([fetchLeverageSummary(), fetchConfig()]).then(([art, cfg]) => {
+      if (art) {
+        setData(art);
+        const initSel = {};
+        for (const el of art.elements || []) {
+          const est0 = el.worksheet?.improvementEstimates?.[0];
+          const proj0 = el.worksheet?.projectedImprovements?.[0];
+          initSel[el.elementKey] = { estimateId: est0?.estimateId, projectionId: proj0?.projectionId };
+        }
+        setSelections(initSel);
+      }
+      if (cfg && Object.keys(cfg).length > 0) setConfig(prev => ({ ...prev, ...cfg }));
+      setLoading(false);
+    });
+  }, []);
+
+  if (loading) return <div className="demo-page"><div className="loading">Loading leverage data…</div></div>;
+  if (!data) return <div className="demo-page"><div className="loading">No leverage-summary artifact found. Run the pipeline first.</div></div>;
+
+  const elements = data.elements || [];
+  const rows = elements.map(el => {
+    const sel = selections[el.elementKey] || {};
+    return recomputeRow(el, sel.estimateId, sel.projectionId);
+  });
+
+  const handleSelectionChange = (elementKey, field, value) => {
+    setSelections(prev => ({ ...prev, [elementKey]: { ...prev[elementKey], [field]: value } }));
+  };
+
+  const handleConfigChange = (field, value) => {
+    setConfig(prev => ({ ...prev, [field]: value }));
+  };
+
+  return (
+    <div className="demo-page">
+      <div className="page-header">
+        <div className="live-badge">✦ Live Data from V2 Pipeline</div>
+        <h1 className="page-title">Leverage in Practice</h1>
+        <p className="page-subtitle">
+          Real examples from the V2 dashboard system, showing how each concept from the leverage framework appears with live data.
+        </p>
+      </div>
+
+      <Section1 elements={elements} recomputeRow={recomputeRow} selections={selections} onSelectionChange={handleSelectionChange} />
+      <Section2 elements={elements} rows={rows} config={config} />
+      <Section3 elements={elements} rows={rows} config={config} onConfigChange={handleConfigChange} />
+      <Section4 elements={elements} rows={rows} />
+      <Section5 elements={elements} rows={rows} selections={selections} />
+      <Section6 elements={elements} rows={rows} selections={selections} onSelectionChange={handleSelectionChange} />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
+</script>
+</body>
+</html>
