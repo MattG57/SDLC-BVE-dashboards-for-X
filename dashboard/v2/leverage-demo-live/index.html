@@ -41,19 +41,34 @@
     background: var(--bgColor-accent-muted); border-radius: 0 6px 6px 0; margin-top: 16px; }
   .section-insight p { margin: 0; font-size: 0.85rem; color: var(--fgColor-default); line-height: 1.4; font-style: italic; }
 
-  .kpi-card { text-align: center; background: var(--bgColor-muted); border: 1px solid var(--borderColor-default);
-    border-radius: 8px; padding: 16px 12px; }
-  .kpi-value { font-size: 1.8rem; font-weight: 700; line-height: 1.2; }
-  .kpi-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--fgColor-muted); margin-top: 4px; }
-  .kpi-sub { font-size: 0.7rem; color: var(--fgColor-muted); margin-top: 2px; }
-  .kpi-unit { font-size: 1rem; font-weight: 400; opacity: 0.65; margin-left: 2px; }
+  .kpi-card { text-align: center; }
+  .kpi-value { font-size: 2rem; font-weight: 600; line-height: 1.2; }
+  .kpi-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; }
+  .kpi-sub { font-size: 0.75rem; }
+  .kpi-unit { font-size: 1.1rem; font-weight: 400; opacity: 0.65; margin-left: 2px; }
   .kpi-hero { border-top: 3px solid var(--borderColor-accent-emphasis); }
-  .kpi-hero .kpi-value { font-size: 2.5rem; }
+  .kpi-hero .kpi-value { font-size: 3rem; }
+  .kpi-hero .kpi-label { font-size: 0.85rem; }
+  .kpi-hero .kpi-sub { font-size: 0.85rem; }
 
   .evidence-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
   .evidence-table th { text-align: left; padding: 6px 8px; border-bottom: 2px solid var(--borderColor-default); color: var(--fgColor-muted); font-weight: 600; white-space: nowrap; }
   .evidence-table td { padding: 5px 8px; border-bottom: 1px solid var(--borderColor-muted); }
-  .evidence-table .cell-sublabel { display: block; font-size: 0.7rem; color: var(--fgColor-muted); font-weight: 400; margin-top: 1px; }
+  .evidence-table select { background: var(--bgColor-muted); color: var(--fgColor-default); border: 1px solid var(--borderColor-default); border-radius: 4px; padding: 2px 4px; font-size: 0.8rem; max-width: 150px; }
+  .cell-sublabel { display: block; font-size: 0.7rem; color: var(--fgColor-muted); font-weight: 400; margin-top: 1px; }
+  .wip-growing { color: #d29922; }
+  .wip-shrinking { color: #3fb950; }
+  .wip-neutral { color: var(--fgColor-muted); }
+
+  .time-window-badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 0.8rem; background: var(--bgColor-accent-muted); color: var(--fgColor-accent); border: 1px solid var(--borderColor-accent-emphasis); }
+
+  .mode-toggle { display: inline-flex; border: 1px solid var(--borderColor-default); border-radius: 6px; overflow: hidden; }
+  .mode-toggle button {
+    padding: 4px 16px; font-size: 0.85rem; border: none; cursor: pointer;
+    background: var(--bgColor-muted); color: var(--fgColor-muted); transition: all 0.15s;
+  }
+  .mode-toggle button + button { border-left: 1px solid var(--borderColor-default); }
+  .mode-toggle button.active { background: var(--bgColor-accent-muted); color: var(--fgColor-accent); font-weight: 600; }
 
   .rect-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   @media (max-width: 800px) { .rect-pair { grid-template-columns: 1fr; } }
@@ -103,8 +118,43 @@ const fmtPct = (n) => n == null ? '—' : (n * 100).toFixed(1) + '%';
 const fmtCompact = (n) => n == null ? '—' : n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'K' : Math.round(n).toLocaleString();
 
 const ELEMENT_COLORS = {
-  'ai-assisted': { color: '#58a6ff', bg: 'rgba(88,166,255,0.15)' },
-  'agentic':     { color: '#bc8cff', bg: 'rgba(188,140,255,0.15)' },
+  'ai-assisted-coding': { color: '#58a6ff', bg: 'rgba(88,166,255,0.18)' },
+  'agentic-ai-coding':  { color: '#3fb950', bg: 'rgba(63,185,80,0.18)' },
+};
+
+const fmtCurrency = n => {
+  if (n == null) return '—';
+  if (Math.abs(n) >= 1e6) return '$' + (n / 1e6).toFixed(1) + 'M';
+  if (Math.abs(n) >= 1e3) return '$' + (n / 1e3).toFixed(1) + 'k';
+  return '$' + Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+};
+const fmtShortDate = d => {
+  if (!d) return '—';
+  const dt = new Date(d + 'T12:00:00Z');
+  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+};
+
+function wipLabel(row) {
+  const wp = row.wipPlus ?? 0;
+  const wm = row.wipMinus ?? 0;
+  const delta = row.wipDelta ?? (wp - wm);
+  if (delta == null && wp === 0 && wm === 0) return { text: '—', cls: 'wip-neutral', sub: '' };
+  const sign = delta > 0 ? '+' : delta < 0 ? '' : '';
+  const cls = delta > 0 ? 'wip-growing' : delta < 0 ? 'wip-shrinking' : 'wip-neutral';
+  return { text: `${sign}${fmt(delta)}`, cls, sub: `WIP+ ${fmt(wp)} / WIP− ${fmt(wm)}` };
+}
+
+const MODES = [
+  { key: 'current', label: 'Current' },
+  { key: 'unimproved', label: 'Unimproved' },
+  { key: 'composite', label: 'Current Composite' },
+  { key: 'projected', label: 'Projected' },
+];
+const MODE_DESCRIPTIONS = {
+  current: 'Current modeled leverage for each element, shown against total organizational capacity.',
+  unimproved: 'Counterfactual: AI-assisted time saved is added back to dev-hours. Agentic capacity would not exist without the agent.',
+  composite: 'Current modeled leverage rectangles for each element only, without org capacity reference.',
+  projected: 'Projects current leverage using the selected projection for each element.',
 };
 
 /* ═══════════════════════════════════════════════════════
@@ -153,12 +203,12 @@ function NarrativeSection({ number, title, intro, source, children, insight }) {
 
 function KpiCard({ label, value, sub, unit, hero, color }) {
   return (
-    <div className={`kpi-card${hero ? ' kpi-hero' : ''}`}>
+    <div className={`Box p-3 kpi-card${hero ? ' kpi-hero' : ''}`}>
+      <div className="kpi-label color-fg-muted mb-1">{label}</div>
       <div className="kpi-value" style={color ? { color } : {}}>
         {value}{unit && <span className="kpi-unit">{unit}</span>}
       </div>
-      <div className="kpi-label">{label}</div>
-      {sub && <div className="kpi-sub">{sub}</div>}
+      {sub && <div className="kpi-sub color-fg-muted mt-1">{sub}</div>}
     </div>
   );
 }
@@ -196,11 +246,15 @@ function Section1({ elements, recomputeRow, selections, onSelectionChange }) {
               <th>Area</th>
               <th>Attempts</th>
               <th>Completions</th>
+              <th>WIP Δ</th>
               <th>Time Spent</th>
               <th>Time Saved</th>
               <th>Yield</th>
               <th>Leverage</th>
               <th>Proj. Savings</th>
+              <th>Proj. Completions</th>
+              <th>Proj. Yield</th>
+              <th>Mode</th>
               <th>Estimate</th>
               <th>Projection</th>
             </tr>
@@ -210,25 +264,49 @@ function Section1({ elements, recomputeRow, selections, onSelectionChange }) {
               const r = rows[i];
               const sel = selections[el.elementKey] || {};
               const elColor = (ELEMENT_COLORS[el.elementKey] || {}).color || '#8b949e';
+              const wip = wipLabel(r);
               return (
                 <tr key={el.elementKey}>
                   <td style={{ fontWeight: 600, color: elColor }}>{r.area}</td>
-                  <td>{fmt(r.attempts)}<span className="cell-sublabel">{r.attemptType || ''}</span></td>
-                  <td>{fmt(r.completionCount)}<span className="cell-sublabel">{r.completionType || ''}</span></td>
-                  <td>{fmt(r.timeSpentHours)}<span className="kpi-unit"> hrs</span></td>
-                  <td style={{ color: '#3fb950' }}>{fmt(r.timeSavedHours)}<span className="kpi-unit"> hrs</span></td>
-                  <td>{fmtPct(r.currentYield)}</td>
-                  <td>{fmtDec(r.leverage, 3)}</td>
+                  <td>
+                    {fmt(r.attempts)}
+                    <span className="cell-sublabel">{r.attemptType || ''}</span>
+                  </td>
+                  <td>
+                    {fmt(r.completionCount)}
+                    <span className="cell-sublabel">{r.completionType || ''}</span>
+                  </td>
+                  <td className={wip.cls}>
+                    {wip.text}
+                    <span className="cell-sublabel">{wip.sub}</span>
+                  </td>
+                  <td>
+                    {fmt(r.timeSpentHours)}<span className="color-fg-muted"> hrs</span>
+                    {r.timeSpentBasis && <span className="cell-sublabel">{r.timeSpentBasis}</span>}
+                  </td>
+                  <td style={{ color: '#3fb950' }}>
+                    {fmt(r.timeSavedHours)}<span className="color-fg-muted"> hrs</span>
+                    {r.estimateName && <span className="cell-sublabel">{r.estimateName}</span>}
+                  </td>
+                  <td>
+                    {fmtPct(r.currentYield)}
+                    <span className="cell-sublabel">completions / attempts</span>
+                  </td>
+                  <td>
+                    {fmtDec(r.leverage, 3)}
+                    <span className="cell-sublabel">completions / dev-hrs</span>
+                  </td>
                   <td>{r.projTimeSavedHours != null ? fmt(r.projTimeSavedHours) + ' hrs' : '—'}</td>
+                  <td>{r.projCompletionGain != null ? '+' + fmt(r.projCompletionGain) : '—'}</td>
+                  <td>{r.projYield != null ? fmtPct(r.projYield) : '—'}</td>
+                  <td className="color-fg-muted" style={{ fontSize: '0.75rem' }}>{r.modeNote}</td>
                   <td onClick={e => e.stopPropagation()}>
-                    <select className="form-select" style={{ fontSize: '0.75rem', padding: '2px 4px', background: 'var(--bgColor-muted)', color: 'var(--fgColor-default)', border: '1px solid var(--borderColor-default)', borderRadius: 4 }}
-                      value={sel.estimateId || ''} onChange={e => onSelectionChange(el.elementKey, 'estimateId', e.target.value)}>
+                    <select value={sel.estimateId || ''} onChange={e => onSelectionChange(el.elementKey, 'estimateId', e.target.value)}>
                       {el.worksheet.improvementEstimates.map(est => <option key={est.estimateId} value={est.estimateId}>{est.name}</option>)}
                     </select>
                   </td>
                   <td onClick={e => e.stopPropagation()}>
-                    <select className="form-select" style={{ fontSize: '0.75rem', padding: '2px 4px', background: 'var(--bgColor-muted)', color: 'var(--fgColor-default)', border: '1px solid var(--borderColor-default)', borderRadius: 4 }}
-                      value={sel.projectionId || ''} onChange={e => onSelectionChange(el.elementKey, 'projectionId', e.target.value)}
+                    <select value={sel.projectionId || ''} onChange={e => onSelectionChange(el.elementKey, 'projectionId', e.target.value)}
                       disabled={el.worksheet.projectedImprovements.length === 0}>
                       {el.worksheet.projectedImprovements.length === 0
                         ? <option value="">none</option>
@@ -249,30 +327,49 @@ function Section1({ elements, recomputeRow, selections, onSelectionChange }) {
    SECTION 2: APERTURE KPIs
    ═══════════════════════════════════════════════════════ */
 function Section2({ elements, rows, config }) {
-  const totalDevHours = (config.cfg_total_developers || 100) * 28 * 0.5 * 8;
+  const timeWindow = elements?.[0]?.worksheet?.timeWindow || { label: 'Previous 28 Days', days: 28 };
+  const windowDays = timeWindow.days || 28;
+  const totalDevs = config.cfg_total_developers || 100;
+  const hrsPerDay = config.cfg_hrs_per_dev_per_day || 8;
+  const totalOrgDevHours = totalDevs * windowDays * hrsPerDay;
   const modeledHours = rows.reduce((s, r) => s + (r.timeSpentHours || 0), 0);
-  const totalCompletions = rows.reduce((s, r) => s + (r.completionCount || 0), 0);
-  const aperture = safeDiv(modeledHours, totalDevHours);
-  const combinedLeverage = safeDiv(totalCompletions, modeledHours);
+  const totalHoursSaved = rows.reduce((s, r) => s + (r.timeSavedHours || 0), 0);
+  const aperture = safeDiv(modeledHours, totalOrgDevHours);
+  const laborCost = config.cfg_labor_cost_per_hour;
+  const economicValue = laborCost != null ? totalHoursSaved * laborCost : null;
 
   return (
     <NarrativeSection number={2} title="Where Is Developer Capacity Going?"
       intro="Before we can understand improvement, we need to understand the aperture — how much total capacity is represented and how it breaks down across areas."
       source="Integrated Leverage Dashboard (v2)"
       insight="Aperture shows what fraction of total org capacity the dashboard can see. A narrow aperture means most developer hours are outside the measurement system.">
-      <div className="d-flex flex-wrap mb-3" style={{ gap: 12 }}>
-        <div style={{ flex: '1 1 180px' }}>
-          <KpiCard label="Total Org Dev-Hours" value={fmtCompact(totalDevHours)} sub={`${config.cfg_total_developers || '?'} devs × 28d × 50% × 8h`} />
-        </div>
-        <div style={{ flex: '1 1 180px' }}>
-          <KpiCard label="Modeled Dev-Hours" value={fmtCompact(modeledHours)} sub="across all elements" />
-        </div>
-        <div style={{ flex: '1 1 140px' }}>
-          <KpiCard hero label="Aperture" value={fmtPct(aperture)} color="#58a6ff" sub="% of org capacity modeled" />
-        </div>
-        <div style={{ flex: '1 1 180px' }}>
-          <KpiCard label="Combined Leverage" value={fmtDec(combinedLeverage, 3)} sub="completions / dev-hour" />
-        </div>
+
+      <div className="d-flex flex-items-center flex-wrap mb-3" style={{ gap: '8px' }}>
+        <span className="time-window-badge">⏱ Time Window: {timeWindow.label}</span>
+        {elements.map(el => {
+          const dr = el.worksheet?.dateRange;
+          if (!dr) return null;
+          return (
+            <span key={el.elementKey} className="f6 color-fg-muted">
+              {el.row.area}: {fmtShortDate(dr.first)} → {fmtShortDate(dr.last)} ({dr.days}d)
+            </span>
+          );
+        })}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '12px' }}>
+        <KpiCard label="Org Capacity" value={fmtCompact(totalOrgDevHours)} unit="hrs"
+          sub={`${totalDevs} devs × ${windowDays}d × ${hrsPerDay}h`} />
+        <KpiCard label="Modeled Dev-Hours" value={fmtCompact(modeledHours)} unit="hrs"
+          sub="observed across elements" color="#58a6ff" />
+        <KpiCard label="Aperture" value={fmtPct(aperture)}
+          sub="modeled / org capacity" color="#d29922" />
+        <KpiCard label="Total Hours Saved" value={fmtDec(totalHoursSaved, 0)} unit="hrs"
+          sub="AI-assisted + agentic" color="#3fb950" />
+        <KpiCard label="Economic Value"
+          value={economicValue != null ? fmtCurrency(economicValue) : '—'}
+          sub={economicValue != null ? `at $${laborCost}/hr` : 'set cfg_labor_cost_per_hour in config'}
+          color={economicValue != null ? '#d29922' : undefined} />
       </div>
     </NarrativeSection>
   );
@@ -386,18 +483,157 @@ function YieldDonut({ area, yield_, color, attempts, completions }) {
 /* ═══════════════════════════════════════════════════════
    SECTION 5: LEVERAGE RECTANGLES — SIDE BY SIDE
    ═══════════════════════════════════════════════════════ */
-function Section5({ elements, rows, selections }) {
+function Section5({ elements, rows, selections, config }) {
+  const [rectMode, setRectMode] = React.useState('current');
+
+  const timeWindow = elements?.[0]?.worksheet?.timeWindow || { days: 28 };
+  const windowDays = timeWindow.days || 28;
+  const cfg = config || {};
+  const totalDevs = cfg.cfg_total_developers || 100;
+  const hrsPerDay = cfg.cfg_hrs_per_dev_per_day || 8;
+  const totalOrgDevHours = totalDevs * windowDays * hrsPerDay;
+
+  const rectData = React.useMemo(() => {
+    return elements.map((el, i) => {
+      const r = rows[i];
+      const colors = ELEMENT_COLORS[el.elementKey] || { color: '#8b949e', bg: 'rgba(139,148,158,0.18)' };
+      const isAgentic = el.elementKey === 'agentic-ai-coding';
+      let devHours, completions;
+      if (rectMode === 'current' || rectMode === 'composite') {
+        devHours = r.timeSpentHours || 0;
+        completions = r.completionCount || 0;
+      } else if (rectMode === 'unimproved') {
+        if (isAgentic) { devHours = 0; completions = 0; }
+        else { devHours = (r.timeSpentHours || 0) + (r.timeSavedHours || 0); completions = r.completionCount || 0; }
+      } else {
+        devHours = r.projTimeSavedHours != null ? r.projTimeSavedHours : (r.timeSpentHours || 0);
+        completions = (r.completionCount || 0) + (r.projCompletionGain || 0);
+      }
+      return { name: r.area, devHours, completions, ...colors, isAgentic };
+    });
+  }, [elements, rows, rectMode]);
+
+  const capacity = React.useMemo(() => {
+    if (rectMode !== 'current' || windowDays === 0) return null;
+    const totalCompletions = rectData.reduce((s, e) => s + e.completions, 0);
+    return { devHours: totalOrgDevHours, completions: totalCompletions };
+  }, [rectMode, windowDays, totalOrgDevHours, rectData]);
+
+  const fixedScales = React.useMemo(() => {
+    let maxW = 0, maxH = 0;
+    for (const m of ['current', 'unimproved', 'composite', 'projected']) {
+      let w = 0, h = 0;
+      for (let i = 0; i < elements.length; i++) {
+        const r = rows[i];
+        const isAg = elements[i].elementKey === 'agentic-ai-coding';
+        if (m === 'unimproved' && isAg) continue;
+        const dh = m === 'unimproved' && !isAg ? (r.timeSpentHours || 0) + (r.timeSavedHours || 0)
+          : m === 'projected' && r.projTimeSavedHours != null ? r.projTimeSavedHours
+          : (r.timeSpentHours || 0);
+        const c = m === 'projected' ? (r.completionCount || 0) + (r.projCompletionGain || 0) : (r.completionCount || 0);
+        w += dh; h += c;
+      }
+      if (m === 'current' && windowDays > 0) w = Math.max(w, totalOrgDevHours);
+      if (w > maxW) maxW = w;
+      if (h > maxH) maxH = h;
+    }
+    return { fixedXMax: maxW > 0 ? maxW * 1.15 : 10, fixedYMax: maxH > 0 ? maxH * 1.15 : 10 };
+  }, [elements, rows, totalOrgDevHours, windowDays]);
+
+  const totalDevHours = rectData.reduce((s, e) => s + e.devHours, 0);
+  const totalCompletions = rectData.reduce((s, e) => s + e.completions, 0);
+  const integratedLeverage = safeDiv(totalCompletions, totalDevHours);
+  const aperturePct = capacity ? safeDiv(totalDevHours, capacity.devHours) : null;
+
+  const series = [];
+  if (capacity && capacity.devHours > 0 && capacity.completions > 0) {
+    series.push({
+      type: 'polygon', name: 'Org Capacity',
+      data: [[0,0],[capacity.devHours,0],[capacity.devHours,capacity.completions],[0,capacity.completions]],
+      color: 'rgba(139,148,158,0.06)', lineWidth: 2, lineColor: '#8b949e', dashStyle: 'ShortDash',
+      enableMouseTracking: true,
+      tooltip: { headerFormat: '', pointFormat: `<b>Org Capacity</b><br/>Dev-Hours: ${fmtCompact(capacity.devHours)}<br/>Aperture: ${fmtPct(aperturePct)}` },
+    });
+  }
+  let xOffset = 0;
+  for (const elem of rectData) {
+    const w = elem.devHours, h = elem.completions;
+    if (w > 0 && h > 0) {
+      series.push({
+        type: 'polygon', name: elem.name,
+        data: [[xOffset,0],[xOffset+w,0],[xOffset+w,h],[xOffset,h]],
+        color: elem.bg, lineWidth: 2, lineColor: elem.color,
+        enableMouseTracking: true,
+        tooltip: { headerFormat: '', pointFormat: `<b>${elem.name}</b><br/>Dev-Hours: ${fmtCompact(w)}<br/>Completions: ${fmtCompact(h)}<br/>Leverage: ${fmtDec(safeDiv(h,w),3)}` },
+      });
+    } else if (w === 0 && h === 0 && rectMode === 'unimproved' && elem.isAgentic) {
+      series.push({
+        type: 'scatter', name: `${elem.name} (zero)`,
+        data: [{ x: xOffset, y: 0 }],
+        color: elem.color,
+        marker: { radius: 8, symbol: 'circle', lineWidth: 2, lineColor: elem.color, fillColor: 'rgba(63,185,80,0.3)' },
+        tooltip: { headerFormat: '', pointFormat: `<b>${elem.name} (Counterfactual)</b><br/>Without the agent: 0 dev-hours, 0 completions.` },
+      });
+    }
+    xOffset += w;
+  }
+  if (totalDevHours > 0 && totalCompletions > 0) {
+    series.push({
+      type: 'line', name: `Leverage = ${fmtDec(integratedLeverage, 3)}`,
+      data: [[0,0],[totalDevHours, totalCompletions]],
+      color: '#d29922', dashStyle: 'Dash', lineWidth: 2,
+      marker: { enabled: true, radius: 5, symbol: 'circle' },
+      enableMouseTracking: false,
+    });
+  }
+
+  const chartRef = useChart((el) => {
+    return Highcharts.chart(el, {
+      chart: { type: 'scatter', height: 480 },
+      title: { text: 'Integrated Leverage Rectangle' },
+      xAxis: { title: { text: 'Dev-Hours', style: { fontSize: '13px', fontWeight: '600' } }, min: 0, max: fixedScales.fixedXMax, gridLineWidth: 1, labels: { formatter() { return fmtCompact(this.value); } } },
+      yAxis: { title: { text: 'Completions', style: { fontSize: '13px', fontWeight: '600' } }, min: 0, max: fixedScales.fixedYMax, labels: { formatter() { return fmtCompact(this.value); } } },
+      tooltip: { useHTML: true, headerFormat: '' },
+      legend: { enabled: true, align: 'center', verticalAlign: 'bottom' },
+      plotOptions: { series: { animation: { duration: 600 }, states: { inactive: { opacity: 0.6 } } } },
+      series,
+    });
+  }, [rectData, capacity, rectMode, fixedScales]);
+
   return (
-    <NarrativeSection number={5} title="Leverage Rectangles — Comparing Areas Side by Side"
-      intro="The leverage rectangle visualizes completions (height) against dev-hours (width). A narrower rectangle means higher leverage — more completions per hour. Comparing areas reveals where leverage is strongest and where the most room exists."
-      source="Element Dashboards (v2) — Leverage Rectangle charts"
-      insight="The red dashed rectangle shows what hours would look like without AI (counterfactual). The gap between the blue rectangle and the red one is the time saved. The projected rectangle shows what's possible with higher structural adoption.">
-      <div className="rect-pair">
-        {elements.map((el, i) => {
-          const r = rows[i];
-          const sel = selections[el.elementKey] || {};
-          return <LeverageRect key={el.elementKey} element={el} row={r} sel={sel} />;
-        })}
+    <NarrativeSection number={5} title="Leverage Rectangles — Integrated View"
+      intro="The leverage rectangle visualizes completions (height) against dev-hours (width). The integrated view stacks element rectangles side by side within the total org capacity. Switch modes to see counterfactual, composite, and projected views."
+      source="Integrated Leverage Dashboard (v2) — Leverage Rectangle chart"
+      insight="The mode toggle reveals different perspectives: Current shows elements within org capacity (aperture). Unimproved adds back time saved. Composite removes the org capacity reference. Projected shows the impact of structural improvements.">
+
+      <div className="d-flex flex-items-center flex-wrap mb-3" style={{ gap: '12px' }}>
+        <div className="mode-toggle">
+          {MODES.map(m => (
+            <button key={m.key} className={rectMode === m.key ? 'active' : ''} onClick={() => setRectMode(m.key)}>{m.label}</button>
+          ))}
+        </div>
+        <span className="f6 color-fg-muted" style={{ fontStyle: 'italic' }}>{MODE_DESCRIPTIONS[rectMode]}</span>
+      </div>
+
+      <div className="d-flex flex-wrap mb-3" style={{ gap: '12px' }}>
+        <div style={{ flex: '1 1 140px' }}>
+          <KpiCard label="Total Dev-Hours" value={fmtCompact(totalDevHours)} sub="sum across elements" />
+        </div>
+        <div style={{ flex: '1 1 140px' }}>
+          <KpiCard label="Total Completions" value={fmtCompact(totalCompletions)} sub="sum across elements" />
+        </div>
+        <div style={{ flex: '0 0 200px' }}>
+          <KpiCard hero label="Integrated Leverage" value={fmtDec(integratedLeverage, 3)} sub="completions / dev-hours" color="#3fb950" />
+        </div>
+        {rectMode === 'current' && aperturePct != null && (
+          <div style={{ flex: '1 1 140px' }}>
+            <KpiCard label="Aperture" value={fmtPct(aperturePct)} sub="modeled / capacity" color="#d29922" />
+          </div>
+        )}
+      </div>
+
+      <div className="Box p-3">
+        <div ref={chartRef} style={{ minHeight: 480 }} />
       </div>
     </NarrativeSection>
   );
@@ -554,14 +790,16 @@ function recomputeRow(element, selectedEstimateId, selectedProjectionId) {
     || element.worksheet.improvementEstimates[0];
   const proj = element.worksheet.projectedImprovements.find(p => p.projectionId === selectedProjectionId)
     || element.worksheet.projectedImprovements[0];
+  const fs = element.worksheet?.factSummary;
   return {
     ...element.row,
     timeSavedHours: est?.timeSavedHours ?? element.row.timeSavedHours,
-    estimateName: est?.name,
+    estimateName: est?.name || null,
+    timeSpentBasis: fs?.timeSpentBasis || null,
     projTimeSavedHours: proj?.projTimeSavedHours ?? null,
     projCompletionGain: proj?.projCompletionGain ?? null,
     projYield: proj?.projYield ?? null,
-    modeNote: est?.method || '',
+    modeNote: proj?.name || 'no projection',
   };
 }
 
@@ -582,6 +820,9 @@ function App() {
           initSel[el.elementKey] = { estimateId: est0?.estimateId, projectionId: proj0?.projectionId };
         }
         setSelections(initSel);
+        // Merge artifact config (has cfg_hrs_per_dev_per_day, etc.)
+        const artCfg = art.profile?.config_used || {};
+        setConfig(prev => ({ ...artCfg, ...cfg, ...prev }));
       }
       if (cfg && Object.keys(cfg).length > 0) setConfig(prev => ({ ...prev, ...cfg }));
       setLoading(false);
@@ -619,7 +860,7 @@ function App() {
       <Section2 elements={elements} rows={rows} config={config} />
       <Section3 elements={elements} rows={rows} config={config} onConfigChange={handleConfigChange} />
       <Section4 elements={elements} rows={rows} />
-      <Section5 elements={elements} rows={rows} selections={selections} />
+      <Section5 elements={elements} rows={rows} selections={selections} config={config} />
       <Section6 elements={elements} rows={rows} selections={selections} onSelectionChange={handleSelectionChange} />
     </div>
   );
