@@ -139,6 +139,7 @@ If query scripts fail with GitHub authentication errors:
 
 - run `gh auth login`
 - confirm the token or CLI session has `copilot` plus `read:org` or `read:enterprise` access
+- if your org uses SAML SSO, authorize the token for the org (see [PAT setup](pat-setup.md))
 - retry with a small target first, such as `./run-query.sh --dry-run ai-assisted-efficiency`
 
 ### Empty or incomplete output
@@ -159,6 +160,7 @@ npm install --include=dev
 
 This repo expects dev dependencies to be present for tests and validation.
 
+For PAT creation and org authorization, see [pat-setup.md](pat-setup.md).
 For detailed collection examples, see [data-collection.md](data-collection.md).
 For current readiness and migration state, see [dashboard-status.md](dashboard-status.md).
 For contributor workflows, see [development.md](development.md).

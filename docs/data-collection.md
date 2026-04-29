@@ -99,7 +99,7 @@ A GitHub Actions workflow (`.github/workflows/deploy-dashboards.yml`) runs `run-
 
 ### Setup
 
-1. **Create a GitHub PAT** with `copilot`, `read:org` (and `read:enterprise` if using enterprise-level metrics) scopes.
+1. **Create a GitHub PAT** with `copilot`, `read:org` (and `read:enterprise` if using enterprise-level metrics) scopes — see [PAT setup](pat-setup.md) for detailed instructions including org SSO authorization.
 2. **Add the PAT** as a repository secret named `DASHBOARD_GH_TOKEN`.
 3. **Set repository variables** for the query parameters:
    - `ENTERPRISE` — GitHub Enterprise slug (if applicable)
