@@ -89,10 +89,6 @@ load_profile() {
   if [[ "${SKIP_DATA_COLLECTION:-}" == "true" ]]; then
     MATERIALIZE_ONLY=true
   fi
-
-  if [[ -n "${MAX_REPOS:-}" ]]; then
-    export MAX_REPOS
-  fi
 }
 
 # ─── Query targets ─────────────────────────────────────────────────────────────
@@ -347,9 +343,9 @@ main() {
 
   # Apply PIPELINE_STEP from profile/env if not already set by flags
   if [[ -n "${PIPELINE_STEP:-}" ]]; then
-    if [[ "$PIPELINE_STEP" == *"collect"* ]]; then
+    if [[ ",${PIPELINE_STEP}," == *",collect,"* ]]; then
       : # collection will run
-    elif [[ "$PIPELINE_STEP" == *"materialize"* || "$PIPELINE_STEP" == *"deploy"* ]]; then
+    elif [[ ",${PIPELINE_STEP}," == *",materialize,"* || ",${PIPELINE_STEP}," == *",deploy,"* ]]; then
       MATERIALIZE_ONLY=true
     fi
   fi
