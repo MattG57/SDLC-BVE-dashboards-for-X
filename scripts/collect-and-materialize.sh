@@ -41,13 +41,14 @@ PROFILE="default"
 MATERIALIZE_ONLY=false
 SESSION_LOGS_ONLY=false
 USE_STREAMING=true
+USE_STREAMING_OVERRIDE=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --profile) PROFILE="$2"; shift 2 ;;
     --materialize-only) MATERIALIZE_ONLY=true; shift ;;
     --session-logs-only) SESSION_LOGS_ONLY=true; shift ;;
-    --no-streaming) USE_STREAMING=false; shift ;;
+    --no-streaming) USE_STREAMING=false; USE_STREAMING_OVERRIDE=true; shift ;;
     *) echo "Unknown argument: $1"; exit 1 ;;
   esac
 done
@@ -67,7 +68,7 @@ load_profile() {
     return
   fi
 
-  # Export each key as an environment variable (only if not already set)
+  # Export each key as an environment variable (only if not already set via env/flags)
   while IFS='=' read -r key val; do
     if [[ -z "${!key:-}" ]]; then
       export "$key=$val"
@@ -75,6 +76,23 @@ load_profile() {
   done < <(echo "$profile_json" | jq -r 'to_entries[] | "\(.key)=\(.value)"')
 
   echo "✔ Loaded profile: $PROFILE"
+
+  # Apply profile-driven overrides for pipeline behavior (env/flags always win)
+  if [[ -z "${USE_STREAMING_OVERRIDE:-}" ]]; then
+    if [[ "${STREAM_MODE:-}" == "false" ]]; then
+      USE_STREAMING=false
+    elif [[ "${STREAM_MODE:-}" == "true" ]]; then
+      USE_STREAMING=true
+    fi
+  fi
+
+  if [[ "${SKIP_DATA_COLLECTION:-}" == "true" ]]; then
+    MATERIALIZE_ONLY=true
+  fi
+
+  if [[ -n "${MAX_REPOS:-}" ]]; then
+    export MAX_REPOS
+  fi
 }
 
 # ─── Query targets ─────────────────────────────────────────────────────────────
@@ -321,6 +339,21 @@ main() {
   # Register query targets
   register_targets
 
+  # Load profile early to pick up PIPELINE_STEP and other settings
+  # (env vars and flags always take precedence over profile values)
+  if ! $MATERIALIZE_ONLY && ! $SESSION_LOGS_ONLY; then
+    load_profile
+  fi
+
+  # Apply PIPELINE_STEP from profile/env if not already set by flags
+  if [[ -n "${PIPELINE_STEP:-}" ]]; then
+    if [[ "$PIPELINE_STEP" == *"collect"* ]]; then
+      : # collection will run
+    elif [[ "$PIPELINE_STEP" == *"materialize"* || "$PIPELINE_STEP" == *"deploy"* ]]; then
+      MATERIALIZE_ONLY=true
+    fi
+  fi
+
   if $MATERIALIZE_ONLY; then
     echo "Skipping collection (--materialize-only)"
 
@@ -341,9 +374,6 @@ main() {
     # Run session logs collection
     run_session_logs
   else
-    # Load profile and run collection
-    load_profile
-
     echo ""
     echo "Running data collection..."
     local targets_run=0

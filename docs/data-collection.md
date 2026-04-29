@@ -16,6 +16,8 @@ Use the top-level runner from the repository root:
 
 The runner resolves required environment variables, writes output into the matching dashboard `data/` directory, and can save settings to `query-settings.json`.
 
+For full documentation on configuration keys, profiles, and override precedence, see [query-settings.md](query-settings.md).
+
 ## Available Targets
 
 | Target | Query script | Required env | Optional env | Output directory |

@@ -1,7 +1,26 @@
 {
   "default": {
-    "DAYS": "30",
+    "ORG": "octodemo",
     "ENTERPRISE": "octodemo",
-    "ORG": "octodemo"
+    "DAYS": "30",
+    "MAX_REPOS": "",
+    "GH_TOKEN_NAME": "DASHBOARD_GH_TOKEN",
+    "STREAM_MODE": "true",
+    "SKIP_DATA_COLLECTION": "false",
+    "PIPELINE_STEP": "",
+    "RUNNER_LABEL": "ubuntu-latest",
+    "SETTINGS_VERSION": "1"
+  },
+  "alt-demo": {
+    "ORG": "acmeinc",
+    "ENTERPRISE": "",
+    "DAYS": "14",
+    "MAX_REPOS": "10",
+    "GH_TOKEN_NAME": "ACME_SPECIAL_TOKEN",
+    "STREAM_MODE": "false",
+    "SKIP_DATA_COLLECTION": "true",
+    "PIPELINE_STEP": "deploy",
+    "RUNNER_LABEL": "ubuntu-22.04",
+    "SETTINGS_VERSION": "1"
   }
 }
