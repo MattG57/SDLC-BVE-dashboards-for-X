@@ -2,80 +2,83 @@
 
 Business Value Engineering dashboards for measuring GitHub Copilot and SDLC impact across organizations.
 
-## Overview
+## Quick Setup
 
-This repository contains browser-run dashboards plus the scripts and tests needed to collect, validate, and explain their inputs.
+```bash
+git clone <repo-url>
+cd SDLC-BVE-dashboards-for-X
+npm install --include=dev
+```
 
-- Self-contained dashboard HTML files
-- Modular source and tests for migrated dashboards
-- Shared build and validation scripts
-- Query runners for AI-assisted and agentic metrics
+**1. Configure data collection** — edit `query-settings.json`:
+```json
+{ "default": { "ORG": "your-org", "ENTERPRISE": "your-enterprise", "DAYS": "28" } }
+```
+
+**2. Configure dashboard parameters** — edit `dashboard-config.json`:
+```json
+{ "cfg_total_developers": 500, "cfg_pct_time_coding": 0.25, "cfg_labor_cost_per_hour": 100 }
+```
+
+**3. Verify configuration**:
+```bash
+./run-query.sh --dry-run
+```
+
+**4. Run the pipeline**:
+```bash
+export GITHUB_TOKEN="ghp_..."
+./run-query.sh
+```
+
+**5. Deploy to GitHub Pages** — add `DASHBOARD_GH_TOKEN` secret, enable Pages, and the nightly pipeline publishes automatically.
+
+For the full setup guide including PAT creation, SSO authorization,
+and deployment details, see [docs/getting-started.md](docs/getting-started.md).
 
 ## Dashboards
 
-### AI-Assisted Coding
+### V2 (Auto-loading from pipeline)
 
-- Efficiency dashboard: estimates time and labor-cost savings from Copilot IDE usage
-- Structural dashboard: analyzes adoption patterns, consistency, and output correlation
-- Element dashboard: leverage rectangle view showing dev-hours × completions with structural factor projections
+| Dashboard | Purpose |
+|---|---|
+| **Integrated Leverage** | Combined leverage across all elements |
+| **AI-Assisted Efficiency** | Time and cost savings from Copilot IDE usage |
+| **AI-Assisted Structural** | Adoption patterns, consistency, output correlation |
+| **AI-Assisted Element** | Leverage rectangle with structural projections |
+| **Agentic Efficiency** | Value from Copilot Coding Agent PRs |
+| **Agentic Element** | Agent leverage with scaling projections |
+| **Demo — Concepts** | Narrative walkthrough of the leverage framework |
+| **Demo — Live Examples** | Live data examples from V2 dashboards |
 
-### Agentic AI Coding
+### V1 (Manual file upload)
 
-- Efficiency dashboard: estimates human-equivalent value from Copilot Coding Agent pull requests
-- Element dashboard: leverage rectangle view for agent PR completions with additive scaling projections
-
-### Integrated Leverage
-
-- Combined dashboard: aggregates AI-Assisted and Agentic elements into a single leverage view with mode selection (Current, Unimproved, Projected Conservative/Aggressive)
-- Clickable sub-rectangles navigate to element dashboards
-
-For current readiness and migration state, see [docs/dashboard-status.md](docs/dashboard-status.md).
-
-## Quick Start
-
-```bash
-npm install --include=dev
-./run-query.sh ai-assisted-efficiency
-npm run dev:efficiency --workspace=BVE-dashboards-for-ai-assisted-coding
-```
-
-For contributor workflows and the full command set, including `npm run lint`, `npm run format`, and the AI-assisted `dev:*` helpers, see [docs/development.md](docs/development.md).
-
-Use `./run-query.sh --list` to see all data-collection targets.
-
-## Which Dashboard Should I Use?
-
-- Use AI-assisted efficiency when you want to estimate time savings and labor-cost impact from Copilot IDE usage.
-- Use AI-assisted structural when you want to understand adoption spread, consistency, and output correlation across the organization.
-- Use agentic efficiency when you want to estimate human-equivalent value from Copilot Coding Agent pull requests.
-- Use the element dashboards when you want a leverage-focused view of a single element with structural factor projections.
-- Use the integrated dashboard when you want to see the combined leverage across both AI-assisted and agentic elements.
-
-For a fuller decision guide and input expectations, see [docs/getting-started.md](docs/getting-started.md) and [docs/data-collection.md](docs/data-collection.md).
+Legacy dashboards in each workspace's `dashboard/` directory. See
+[docs/dashboard-status.md](docs/dashboard-status.md) for migration state.
 
 ## Common Commands
 
 ```bash
-npm test
-npm run build
-npm run validate
-npm run verify:all
+npm test                  # run all tests (740)
+npm run build             # build all dashboards
+npm run validate          # lint + format + test
+./run-query.sh --dry-run  # verify pipeline config
+./run-query.sh            # run full pipeline
 ```
 
-## Documentation Map
+## Documentation
 
-- [docs/getting-started.md](docs/getting-started.md): first successful run
-- [docs/data-collection.md](docs/data-collection.md): canonical query workflow
-- [docs/dashboard-status.md](docs/dashboard-status.md): readiness and migration state
-- [docs/development.md](docs/development.md): contributor workflow
-- [docs/BUILD-SYSTEM.md](docs/BUILD-SYSTEM.md): build internals
-- [dependencies/README.md](dependencies/README.md): dependency map and change-propagation checklists
-- [CONTRIBUTING.md](CONTRIBUTING.md): contributor entry point
-
-## Package Docs
-
-- [BVE-dashboards-for-ai-assisted-coding/README.md](BVE-dashboards-for-ai-assisted-coding/README.md)
-- [BVE-dashboards-for-agentic-ai-coding/README.md](BVE-dashboards-for-agentic-ai-coding/README.md)
+| Doc | Purpose |
+|---|---|
+| [getting-started.md](docs/getting-started.md) | Customer setup guide (step by step) |
+| [data-sources.md](docs/data-sources.md) | API endpoints, data filtering, execution plan |
+| [data-collection.md](docs/data-collection.md) | Pipeline steps, artifacts, dashboard mapping |
+| [query-settings.md](docs/query-settings.md) | Configuration keys and profiles |
+| [config-examples.md](docs/config-examples.md) | Common scheduled and ad-hoc scenarios |
+| [pat-setup.md](docs/pat-setup.md) | PAT creation and SSO authorization |
+| [development.md](docs/development.md) | Contributor workflow |
+| [BUILD-SYSTEM.md](docs/BUILD-SYSTEM.md) | Build internals |
+| [dependencies/README.md](dependencies/README.md) | Dependency map and change checklists |
 
 ## License
 

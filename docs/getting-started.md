@@ -1,6 +1,119 @@
 # Getting Started
 
-Use this guide for the fastest successful path from clone to dashboard.
+Use this guide for the fastest successful path from clone to running
+dashboards — locally or deployed via GitHub Pages.
+
+## Customer Setup — Step by Step
+
+### Step 1. Clone and install
+
+```bash
+git clone <your-fork-or-copy>
+cd SDLC-BVE-dashboards-for-X
+npm install --include=dev
+```
+
+### Step 2. Create a GitHub PAT
+
+Create a Personal Access Token (classic) with these scopes:
+
+| Scope | When Needed |
+|---|---|
+| `copilot` | Always — Copilot metrics |
+| `read:org` | Org-level data |
+| `read:enterprise` | Enterprise-level data |
+| `repo` | PR metrics and Actions logs |
+
+If your org uses SAML SSO, authorize the token for the org.
+See [pat-setup.md](pat-setup.md) for detailed instructions.
+
+### Step 3. Configure data collection
+
+Edit `query-settings.json` in the repo root:
+
+```json
+{
+  "default": {
+    "ORG": "your-org",
+    "ENTERPRISE": "your-enterprise-slug",
+    "DAYS": "28"
+  }
+}
+```
+
+Set `ENTERPRISE` if you have enterprise-level access (covers all orgs).
+Set `ORG` alone if you only have org-level access.
+See [query-settings.md](query-settings.md) for all available keys.
+
+### Step 4. Configure dashboard parameters
+
+Edit `dashboard-config.json` in the repo root. These values feed into
+every leverage calculation:
+
+```json
+{
+  "cfg_total_developers": 500,
+  "cfg_pct_time_coding": 0.25,
+  "cfg_labor_cost_per_hour": 100,
+  "est_hrs_per_kloc": 1,
+  "est_duration_factor": 10
+}
+```
+
+| Key | What It Controls | How to Determine |
+|---|---|---|
+| `cfg_total_developers` | Org capacity denominator | Number of developers in org |
+| `cfg_pct_time_coding` | Hours per dev per day | Fraction of workday spent coding (0.25 = 2h/day) |
+| `cfg_labor_cost_per_hour` | Economic value calculation | Fully loaded cost per developer hour |
+| `cfg_total_repos` | Repo coverage context | Number of active repositories |
+| `est_hrs_per_kloc` | Agentic time saved estimate | Estimated hours to write 1K lines manually |
+| `est_duration_factor` | Agentic duration-based estimate | Wall-clock to dev-hours multiplier |
+| `est_interactions_per_hour` | AI-assisted time saved estimate | Copilot interactions per coding hour |
+
+Getting `cfg_total_developers` right is critical — it sets the
+denominator for adoption rates and aperture. An incorrect value
+(e.g., the default 100 vs actual 1100) will produce wildly wrong
+percentages.
+
+### Step 5. Verify with dry-run
+
+```bash
+./run-query.sh --dry-run
+```
+
+This shows:
+- Resolved config (profile + env overrides)
+- Which API level each script will use (Enterprise vs Org)
+- Which artifacts and dashboards will have data
+- No API calls are made
+
+### Step 6. Run locally (optional)
+
+```bash
+export GITHUB_TOKEN="ghp_your_token_here"
+./run-query.sh
+```
+
+This collects data, materializes artifacts, and writes everything to
+`dashboard/dataflow/data/`. Open any dashboard `index.html` in your
+browser to see results.
+
+### Step 7. Deploy to GitHub Pages
+
+Push your configured repo and set up the nightly pipeline:
+
+1. **Add the PAT** as a repository secret named `DASHBOARD_GH_TOKEN`
+2. **Set repository variables**: `ENTERPRISE`, `ORG`, `DAYS`
+3. **Enable GitHub Pages** (Settings → Pages → Source: GitHub Actions)
+4. **Trigger the pipeline**: `gh workflow run pipeline-deploy.yml`
+
+The nightly workflow runs at 6 AM UTC automatically. Dashboards
+auto-load the latest materialized artifacts.
+
+See [config-examples.md](config-examples.md) for common scenarios
+and [data-sources.md](data-sources.md) for the full pipeline execution plan.
+
+---
 
 ## Prerequisites
 
@@ -17,18 +130,6 @@ If you use a token instead of the GitHub CLI session:
 export GITHUB_TOKEN="your_token_here"
 ```
 
-## Fastest Start
-
-```bash
-npm install --include=dev
-./run-query.sh                    # runs full pipeline with default profile
-./run-query.sh --help             # shows available flags and profiles
-```
-
-`run-query.sh` reads settings from `query-settings.json`. Set `ORG`
-and/or `ENTERPRISE` in your profile or as environment variables before
-the first run.
-
 The AI-assisted workspace also provides:
 
 ```bash
@@ -37,75 +138,27 @@ npm run dev:structural --workspace=BVE-dashboards-for-ai-assisted-coding
 
 These convenience scripts detect macOS, Linux, and Windows automatically and open the matching dashboard in your default browser.
 
-## Choose a Dashboard
+## V2 Dashboards
 
-### AI-Assisted Efficiency
+V2 dashboards auto-load from materialized artifacts when deployed to
+GitHub Pages. No file upload needed.
 
-Use this when you want to estimate Copilot IDE impact on developer time and labor cost.
+| Dashboard | What It Answers |
+|---|---|
+| **Integrated Leverage** | What is combined leverage across all elements? |
+| **AI-Assisted Efficiency** | How much time are IDE features saving? |
+| **AI-Assisted Structural** | Is adoption broad, steady, and correlated with output? |
+| **AI-Assisted Element** | What is AI-assisted leverage and how do structural factors affect it? |
+| **Agentic Efficiency** | What value are Copilot coding agent PRs delivering? |
+| **Agentic Element** | What is agentic leverage and how does it scale? |
 
-- Dashboard: `BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency/index.html`
-- Target: `ai-assisted-efficiency`
-- Input: Copilot metrics JSON
-- Best for: productivity and cost-savings conversations tied to IDE usage
+Start with **Integrated Leverage** for the org-wide view, then drill
+into element dashboards for per-area detail.
 
-### AI-Assisted Structural
+## V1 Dashboards (Legacy)
 
-Use this when you want to understand adoption patterns, usage consistency, and output correlation.
-
-- Dashboard: `BVE-dashboards-for-ai-assisted-coding/dashboard/structural/index.html`
-- Targets:
-  - `ai-assisted-structural`
-  - `pr-review-structural`
-- Input: Copilot metrics JSON plus PR review metrics JSON
-- Best for: organizational rollout, adoption, and behavior-pattern analysis
-
-### Agentic Efficiency
-
-Use this when you want to estimate human-equivalent value from Copilot Coding Agent pull requests.
-
-- Dashboard: `BVE-dashboards-for-agentic-ai-coding/dashboard/efficiency/index.html`
-- Target: `agentic-efficiency`
-- Input: coding-agent PR metrics JSON
-- Best for: autonomous-agent throughput, PR outcomes, and turbulence analysis
-
-### AI-Assisted Element (Leverage)
-
-Use this when you want a leverage-focused view of AI-assisted coding with structural factor projections.
-
-- Dashboard: `BVE-dashboards-for-ai-assisted-coding/dashboard/element/index.html`
-- Target: none — uses file upload with the same JSON as efficiency/structural dashboards
-- Input: Copilot metrics JSON (and optionally PR review JSON and config)
-- Best for: leverage rectangle visualization, dev-hours × completions, projection scenarios
-
-### Agentic Element (Leverage)
-
-Use this when you want a leverage-focused view of agentic coding with additive scaling projections.
-
-- Dashboard: `BVE-dashboards-for-agentic-ai-coding/dashboard/element/index.html`
-- Target: none — uses file upload with the same JSON as agentic efficiency
-- Input: Agentic PR metrics JSON (and optional config)
-- Best for: agent leverage rectangle, duration/LoC estimation methods, structural factor projections
-
-### Integrated Leverage
-
-Use this when you want to see the combined leverage across AI-assisted and agentic elements.
-
-- Dashboard: `dashboard/integrated/index.html`
-- Target: none — uses file upload (accepts both AI-assisted and agentic JSON files)
-- Input: Any combination of AI-assisted metrics, agentic metrics, PR review data, and config
-- Best for: org-wide leverage shape, comparing element contributions, projection scenarios
-
-## Decision Guide
-
-Choose AI-assisted efficiency if your core question is, "How much developer time or cost are IDE features saving?"
-
-Choose AI-assisted structural if your core question is, "Is adoption broad, steady, and correlated with output?" This dashboard requires two input files.
-
-Choose agentic efficiency if your core question is, "What value are we getting from Copilot Coding Agent PRs?" This dashboard is about merged agent work rather than IDE interactions.
-
-Choose an element dashboard if your core question is, "What is the leverage of this element and how does it change with structural improvements?" These dashboards visualize leverage as a rectangle.
-
-Choose the integrated dashboard if your core question is, "What is the combined leverage across all elements?" This dashboard aggregates AI-assisted and agentic data into a single view.
+V1 dashboards load data via browser file upload. Use `run-query-legacy.sh`
+to collect data into V1 dashboard directories.
 
 ## Typical Workflow
 
@@ -142,15 +195,15 @@ If query scripts fail with GitHub authentication errors:
 - run `gh auth login`
 - confirm the token or CLI session has `copilot` plus `read:org` or `read:enterprise` access
 - if your org uses SAML SSO, authorize the token for the org (see [PAT setup](pat-setup.md))
-- retry with a small target first, such as `./run-query.sh --dry-run ai-assisted-efficiency`
+- run `./run-query.sh --dry-run` to verify config before a full run
 
 ### Empty or incomplete output
 
 If a query completes but the data looks empty:
 
-- confirm you targeted the right `ORG` or `ENTERPRISE`
+- confirm you set the right `ORG` or `ENTERPRISE` in `query-settings.json`
 - increase or decrease `DAYS` to sanity-check the window
-- use `./run-query.sh --dry-run <target>` to confirm the resolved configuration
+- run `./run-query.sh --dry-run` to confirm the resolved configuration
 
 ### Test tools not installed
 
