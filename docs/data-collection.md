@@ -160,3 +160,5 @@ scripts/build-pages.sh
 ```
 
 For dependency mapping, expected schema details, and change-propagation checklists, see [../dependencies/README.md](../dependencies/README.md).
+
+For the full list of GitHub API endpoints, access levels, and required scopes, see [data-sources.md](data-sources.md).
