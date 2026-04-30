@@ -161,33 +161,102 @@ calculate actual compute time (vs wall-clock duration).
 
 ---
 
-## Data Flow Summary
+## Pipeline Execution Plan
+
+### Entry Point
+
+`./run-query.sh` is the single entry point for the data pipeline. It
+delegates to `scripts/collect-and-materialize.sh` which handles
+collection, materialization, and status tracking.
+
+```bash
+./run-query.sh                           # full pipeline, default profile
+./run-query.sh --profile short-window    # use a named profile
+./run-query.sh --materialize-only        # re-materialize cached data
+./run-query.sh --session-logs-only       # fetch agent session logs only
+DAYS=7 ./run-query.sh                    # override lookback window
+```
+
+> The legacy `run-query-legacy.sh` preserves the old per-target interface
+> for v1 dashboards. It is no longer the recommended entry point.
+
+### Pipeline Steps
+
+The pipeline runs three steps in sequence. Use `PIPELINE_STEP` or
+`--materialize-only` / `--collect` flags to run a subset.
+
+**Step 1 — Collect** (raw data from APIs)
+
+| Collection Target | Query Script | Raw Output File |
+|---|---|---|
+| `copilot-metrics` | `copilot-user-and-enterprise-metrics.sh` | `copilot-metrics-{timestamp}.json` |
+| `human-pr-metrics` | `human-pr-metrics.sh` | `human-pr-metrics-{timestamp}.json` |
+| `coding-agent-pr-metrics` | `coding-agent-pr-metrics.sh` | `coding-agent-pr-metrics-{timestamp}.json` |
+| *(session logs)* | `agent-session-logs.sh` | `agent-session-logs-{timestamp}.json` |
+
+**Step 2 — Materialize** (raw → artifacts)
+
+| Raw Input(s) | Materializer | Artifact | What It Contains |
+|---|---|---|---|
+| `copilot-metrics` | `ai-assisted-efficiency-days` | `ai-assisted-efficiency-days-{ts}.json` | Daily per-user Copilot usage: suggestions, acceptances, chat, lines |
+| `copilot-metrics` + `human-pr-metrics` | `ai-assisted-structural-days` | `ai-assisted-structural-days-{ts}.json` | Adoption, PR merge rates, review patterns, structural metrics |
+| `coding-agent-pr-metrics` | `agentic-efficiency-days` | `agentic-efficiency-days-{ts}.json` | Agent session duration, lines changed, review cycles |
+| `coding-agent-pr-metrics` | `agentic-pr-sessions` | `agentic-pr-sessions-{ts}.json` | Per-session detail: PR state, linked issues, timeline |
+| *all of the above* | `leverage-summary` | `leverage-summary-{ts}.json` | One row per element with leverage, yield, estimates, projections |
+
+**Step 3 — Deploy** (artifacts → GitHub Pages)
+
+The `build-pages.sh` script copies artifacts into the `_site/` directory
+and generates the landing page. GitHub Actions deploys to Pages.
+
+### Which Dashboards Use Which Artifacts
+
+| Dashboard | Artifact(s) Loaded | What Breaks If Missing |
+|---|---|---|
+| **V2 AI-Assisted Efficiency** | `ai-assisted-efficiency-days` | No data shown |
+| **V2 AI-Assisted Structural** | `ai-assisted-structural-days` | No data shown |
+| **V2 AI-Assisted Element** | `ai-assisted-efficiency-days` + `ai-assisted-structural-days` | Leverage calculations fail |
+| **V2 Agentic Efficiency** | `agentic-efficiency-days` | No data shown |
+| **V2 Agentic Element** | `agentic-efficiency-days` + `agentic-pr-sessions` | Leverage calculations fail |
+| **V2 Integrated Leverage** | `leverage-summary` | No data shown |
+| **Demo — Leverage in Practice** | `leverage-summary` | Shows "run the pipeline first" |
+| **V1 dashboards** | Load from v1 `data/` dirs via file upload | N/A (manual upload) |
+
+### End-to-End: API → Dashboard
 
 ```
-Enterprise/Org APIs          Repo APIs                  Actions APIs
-─────────────────           ──────────                  ────────────
-Copilot metrics ─┐     ┌─── PR search (GraphQL)        Agent run logs
-  (daily totals)  │     │    PR reviews                     │
-  (per-user)      │     │    PR comments                    │
-                  ▼     ▼    PR timelines                   ▼
-              ┌───────────────────────────────────────────────┐
-              │           Raw JSON files (_data/raw/)         │
-              └──────────────────┬────────────────────────────┘
-                                 │ materialize
-                                 ▼
-              ┌───────────────────────────────────────────────┐
-              │   Materialized artifacts (_data/materialized/) │
-              │   • ai-assisted-efficiency-days                │
-              │   • ai-assisted-structural-days                │
-              │   • agentic-efficiency-days                    │
-              │   • agentic-pr-sessions                        │
-              │   • leverage-summary                           │
-              └──────────────────┬────────────────────────────┘
-                                 │ deploy
-                                 ▼
-              ┌───────────────────────────────────────────────┐
-              │          GitHub Pages dashboards               │
-              └───────────────────────────────────────────────┘
+  copilot-user-and-enterprise-metrics.sh
+  ├─ Enterprise API: /enterprises/{slug}/copilot/metrics/...
+  └─ Org API:        /orgs/{org}/copilot/metrics/...
+       │
+       ▼ raw: copilot-metrics-{ts}.json
+       ├──▶ ai-assisted-efficiency-days ──▶ V2 AI-Assisted Efficiency
+       ├──▶ ai-assisted-structural-days ──▶ V2 AI-Assisted Structural
+       │       (+ human-pr-metrics)
+       └──▶ leverage-summary ─────────────▶ V2 Integrated Leverage
+                                            Demo Live page
+
+  human-pr-metrics.sh
+  └─ Repo API: GraphQL search + /pulls/{n}/reviews, comments, timeline
+       │
+       ▼ raw: human-pr-metrics-{ts}.json
+       └──▶ ai-assisted-structural-days ──▶ V2 AI-Assisted Structural
+            (combined with copilot-metrics)
+
+  coding-agent-pr-metrics.sh
+  └─ Repo API: /repos/{owner}/{repo}/pulls, issues, timeline
+       │
+       ▼ raw: coding-agent-pr-metrics-{ts}.json
+       ├──▶ agentic-efficiency-days ──────▶ V2 Agentic Efficiency
+       ├──▶ agentic-pr-sessions ──────────▶ V2 Agentic Element
+       └──▶ leverage-summary ─────────────▶ V2 Integrated Leverage
+                                            Demo Live page
+
+  agent-session-logs.sh
+  └─ Repo API: /repos/{owner}/{repo}/actions/runs + logs
+       │
+       ▼ raw: agent-session-logs-{ts}.json
+       └──▶ leverage-summary (compute time) ──▶ V2 Integrated Leverage
 ```
 
 ## See Also

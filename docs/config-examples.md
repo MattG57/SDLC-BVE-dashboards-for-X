@@ -65,8 +65,8 @@ with its own token secret.
 Run each profile in sequence or in separate workflow jobs:
 
 ```bash
-bash scripts/collect-and-materialize.sh --profile team-alpha
-bash scripts/collect-and-materialize.sh --profile team-beta
+./run-query.sh --profile team-alpha
+./run-query.sh --profile team-beta
 ```
 
 ### Nightly — deploy-only (no data collection)
@@ -101,7 +101,7 @@ Collect a 7-day window for a limited set of repos to verify the pipeline
 works before committing to a full run.
 
 ```bash
-DAYS=7 MAX_REPOS=5 bash scripts/collect-and-materialize.sh
+DAYS=7 MAX_REPOS=5 ./run-query.sh
 ```
 
 This uses the default profile but overrides `DAYS` and `MAX_REPOS` via
@@ -113,7 +113,7 @@ Re-run materialization on existing raw data — useful after updating
 materializer logic or config values.
 
 ```bash
-bash scripts/collect-and-materialize.sh --materialize-only
+./run-query.sh --materialize-only
 ```
 
 ### Force collection on a skip-by-default profile
@@ -122,7 +122,7 @@ If a profile sets `SKIP_DATA_COLLECTION: "true"` but you need a fresh
 collection run, use `--collect` to override:
 
 ```bash
-bash scripts/collect-and-materialize.sh --profile deploy-only --collect
+./run-query.sh --profile deploy-only --collect
 ```
 
 ### Non-streaming mode for debugging
@@ -131,7 +131,7 @@ Streaming materialization is faster but harder to debug. Fall back to
 standard mode to see full error context:
 
 ```bash
-bash scripts/collect-and-materialize.sh --no-streaming
+./run-query.sh --no-streaming
 ```
 
 ### Session logs only
@@ -139,7 +139,7 @@ bash scripts/collect-and-materialize.sh --no-streaming
 Fetch agent session logs without re-running the full collection:
 
 ```bash
-bash scripts/collect-and-materialize.sh --session-logs-only
+./run-query.sh --session-logs-only
 ```
 
 ### Workflow dispatch — selective steps

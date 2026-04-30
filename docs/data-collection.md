@@ -2,34 +2,58 @@
 
 This is the canonical guide for generating dashboard input JSON.
 
-## Recommended Path: `run-query.sh`
+## Running the Pipeline
 
-Use the top-level runner from the repository root:
+Use `run-query.sh` from the repository root. It wraps
+`scripts/collect-and-materialize.sh` and passes through all flags.
 
 ```bash
-./run-query.sh --list
-./run-query.sh ai-assisted-efficiency
-./run-query.sh agentic-efficiency myprofile
-./run-query.sh --dry-run ai-assisted-structural
-./run-query.sh --all
+./run-query.sh                             # full pipeline, default profile
+./run-query.sh --profile short-window      # use a named profile
+./run-query.sh --materialize-only          # re-materialize from cached data
+./run-query.sh --session-logs-only         # fetch agent session logs only
+./run-query.sh --no-streaming              # use standard materializer
+./run-query.sh --collect                   # force collection when profile skips it
+DAYS=7 ./run-query.sh                      # override lookback window
 ```
 
-The runner resolves required environment variables, writes output into the matching dashboard `data/` directory, and can save settings to `query-settings.json`.
+Settings are stored in `query-settings.json` as named profiles. CLI
+flags override profile values, and environment variables override both.
 
-For full documentation on configuration keys, profiles, and override precedence, see [query-settings.md](query-settings.md).
+For configuration keys, profiles, and override precedence, see
+[query-settings.md](query-settings.md). For common scenarios, see
+[config-examples.md](config-examples.md).
 
-## Available Targets
+## What Gets Collected
 
-| Target | Query script | Required env | Optional env | Output directory |
-|---|---|---|---|---|
-| `ai-assisted-efficiency` | `copilot-user-and-enterprise-metrics.sh` | `ENTERPRISE` or `ORG` | `DAYS` | `BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency/data/` |
-| `ai-assisted-structural` | `copilot-user-and-enterprise-metrics.sh` | `ENTERPRISE` or `ORG` | `DAYS` | `BVE-dashboards-for-ai-assisted-coding/dashboard/structural/data/` |
-| `pr-review-structural` | `human-pr-metrics.sh` | `ORG` | `REPO`, `DAYS`, `SINCE`, `UNTIL` | `BVE-dashboards-for-ai-assisted-coding/dashboard/structural/data/` |
-| `agentic-efficiency` | `coding-agent-pr-metrics.sh` | `ORG` | `REPO`, `DAYS`, `MAX_REPOS` | `BVE-dashboards-for-agentic-ai-coding/dashboard/efficiency/data/` |
+The pipeline collects raw data from three query scripts, plus optional
+agent session logs:
+
+| Collection Target | Query Script | Required Env | Optional Env |
+|---|---|---|---|
+| `copilot-metrics` | `copilot-user-and-enterprise-metrics.sh` | `ENTERPRISE` or `ORG` | `DAYS` |
+| `human-pr-metrics` | `human-pr-metrics.sh` | `ORG` | `REPO`, `DAYS`, `SINCE`, `UNTIL` |
+| `coding-agent-pr-metrics` | `coding-agent-pr-metrics.sh` | `ORG` | `REPO`, `DAYS`, `MAX_REPOS` |
+| *(session logs)* | `agent-session-logs.sh` | `ORG` | `IDLE_THRESHOLD_SECS`, `MAX_SESSIONS` |
+
+Raw output is written to `_data/raw/` as timestamped JSON files.
+
+## What Gets Materialized
+
+After collection, the materializer produces 5 artifacts in
+`_data/materialized/`:
+
+| Artifact | Raw Input(s) | Feeds Dashboards |
+|---|---|---|
+| `ai-assisted-efficiency-days` | `copilot-metrics` | V2 AI-Assisted Efficiency, Element |
+| `ai-assisted-structural-days` | `copilot-metrics` + `human-pr-metrics` | V2 AI-Assisted Structural, Element |
+| `agentic-efficiency-days` | `coding-agent-pr-metrics` | V2 Agentic Efficiency, Element |
+| `agentic-pr-sessions` | `coding-agent-pr-metrics` | V2 Agentic Element |
+| `leverage-summary` | *all of the above* | V2 Integrated Leverage, Demo Live |
 
 ## Direct Script Usage
 
-Use direct script execution only when you want to bypass the runner.
+Use direct script execution only when you want to bypass the pipeline.
 
 ### AI-Assisted Copilot Metrics
 
@@ -46,9 +70,6 @@ ORG="octodemo" DAYS=28 \
 ```bash
 ORG="octodemo" DAYS=28 \
   ./BVE-dashboards-for-ai-assisted-coding/data/queries/human-pr-metrics.sh > pr-review-metrics.json
-
-ORG="octodemo" REPO="my-repo" DAYS=14 \
-  ./BVE-dashboards-for-ai-assisted-coding/data/queries/human-pr-metrics.sh > pr-review-metrics.json
 ```
 
 ### Agentic PR Metrics
@@ -56,48 +77,13 @@ ORG="octodemo" REPO="my-repo" DAYS=14 \
 ```bash
 ORG="octodemo" DAYS=28 \
   ./BVE-dashboards-for-agentic-ai-coding/data/queries/coding-agent-pr-metrics.sh > agentic-metrics.json
-
-ORG="octodemo" REPO="my-repo" DAYS=28 \
-  ./BVE-dashboards-for-agentic-ai-coding/data/queries/coding-agent-pr-metrics.sh > agentic-metrics.json
 ```
 
-## Structural Dashboard Inputs
+## Automated Nightly Pipeline
 
-The AI-assisted structural dashboard expects two datasets:
-
-1. Copilot metrics from `copilot-user-and-enterprise-metrics.sh`
-2. PR review metrics from `human-pr-metrics.sh`
-
-Collect both before loading the dashboard.
-
-## Dashboard Input Matrix
-
-| Dashboard | Consumed files | Producing target(s) | Load rules |
-|---|---|---|---|
-| AI-assisted efficiency | Copilot metrics JSON | `ai-assisted-efficiency` | Can be loaded alone |
-| AI-assisted structural | Copilot metrics JSON + PR review metrics JSON | `ai-assisted-structural`, `pr-review-structural` | Must be paired |
-| Agentic efficiency | Agentic PR metrics JSON | `agentic-efficiency` | Can be loaded alone |
-| AI-assisted element | Copilot metrics JSON + optional PR review + config | File upload (no target) | Same data as efficiency/structural |
-| Agentic element | Agentic PR metrics JSON + optional config | File upload (no target) | Same data as agentic efficiency |
-| Integrated leverage | AI-assisted + agentic JSON + optional config | File upload (no target) | Auto-detects file types |
-
-> **Note:** The element and integrated dashboards do not have `run-query.sh` targets. They load data via browser file upload using the same JSON files produced by the existing targets.
-
-## From Collection to Dashboard
-
-1. Run the appropriate target or targets.
-2. Open the matching dashboard `index.html`.
-3. Upload the generated JSON file or files.
-
-Matching rules:
-
-- `ai-assisted-efficiency` output goes to the AI-assisted efficiency dashboard.
-- `ai-assisted-structural` output must be combined with `pr-review-structural` output in the AI-assisted structural dashboard.
-- `agentic-efficiency` output goes to the agentic efficiency dashboard.
-
-## Automated Nightly Collection & Publishing
-
-A GitHub Actions workflow (`.github/workflows/deploy-dashboards.yml`) runs `run-query.sh --all` on a nightly schedule and publishes every dashboard to GitHub Pages.
+The GitHub Actions workflow `.github/workflows/pipeline-deploy.yml` runs
+the full pipeline on a nightly schedule (6 AM UTC) and deploys dashboards
+to GitHub Pages.
 
 ### Setup
 
@@ -113,14 +99,16 @@ A GitHub Actions workflow (`.github/workflows/deploy-dashboards.yml`) runs `run-
 
 | Step | Description |
 |---|---|
-| **Collect** | The workflow runs `./run-query.sh --all` with env vars from secrets/variables. In CI mode the script skips interactive prompts and fails fast on missing variables. |
-| **Build** | `scripts/build-pages.sh` assembles the `_site/` directory: each dashboard's HTML, its `data/*.json` files, and a `data/manifest.json` listing available data files. A landing page links to all dashboards. |
-| **Deploy** | The site is uploaded and deployed to GitHub Pages via `actions/upload-pages-artifact` and `actions/deploy-pages`. |
-| **Auto-load** | When served from Pages, each dashboard fetches `./data/manifest.json` on load and automatically processes the listed data files. Manual file upload remains as a fallback. |
+| **Collect** | Runs all query scripts with env vars from secrets/variables. Writes timestamped JSON to `_data/raw/`. |
+| **Materialize** | Produces 5 artifacts in `_data/materialized/` from the raw data. |
+| **Deploy** | `scripts/build-pages.sh` assembles `_site/` with dashboards, artifacts, and landing page. Deploys to Pages. |
+| **Auto-load** | V2 dashboards fetch `pipeline-manifest.json` on load and render from materialized artifacts. Manual file upload remains as fallback. |
 
 ### Manual trigger
 
-The workflow also supports `workflow_dispatch` with optional overrides for `enterprise`, `org`, and `days`.
+The workflow supports `workflow_dispatch` with inputs for `pipeline_steps`,
+`enterprise`, `org`, and `days`. See [config-examples.md](config-examples.md)
+for selective step examples.
 
 ## Output Shapes
 

@@ -21,12 +21,13 @@ export GITHUB_TOKEN="your_token_here"
 
 ```bash
 npm install --include=dev
-./run-query.sh --list
-./run-query.sh ai-assisted-efficiency
-npm run dev:efficiency --workspace=BVE-dashboards-for-ai-assisted-coding
+./run-query.sh                    # runs full pipeline with default profile
+./run-query.sh --help             # shows available flags and profiles
 ```
 
-The first `run-query.sh` run prompts for the required variables and can save them in `query-settings.json` as a reusable profile.
+`run-query.sh` reads settings from `query-settings.json`. Set `ORG`
+and/or `ENTERPRISE` in your profile or as environment variables before
+the first run.
 
 The AI-assisted workspace also provides:
 
@@ -109,9 +110,10 @@ Choose the integrated dashboard if your core question is, "What is the combined 
 ## Typical Workflow
 
 1. Install dependencies with `npm install --include=dev`.
-2. Collect the dashboard input data with `./run-query.sh <target>`.
-3. Open the relevant `index.html` file directly in your browser.
-4. Upload the generated JSON file through the dashboard UI.
+2. Configure `query-settings.json` with your org/enterprise values.
+3. Run the pipeline with `./run-query.sh`.
+4. V2 dashboards auto-load from materialized artifacts when deployed.
+5. For local use, open `index.html` and upload JSON files via the dashboard UI.
 
 The AI-assisted workspace also has convenience scripts that handle cross-platform open:
 

@@ -18,7 +18,7 @@ npm run verify:all
 
 npm workspaces monorepo producing self-contained, browser-only HTML dashboards (React 18 + Highcharts via CDN, Primer CSS dark theme). No server required.
 
-`run-query.sh` collects data via `gh` CLI → JSON → dashboards load it via file upload. Query targets are registered in `run-query.sh`'s `get_target_config()` function.
+`run-query.sh` wraps `scripts/collect-and-materialize.sh` to collect data via `gh` CLI → raw JSON → materialized artifacts → dashboards auto-load. Collection targets are registered in `collect-and-materialize.sh`'s `register_targets()` function.
 
 ## Key Conventions
 
