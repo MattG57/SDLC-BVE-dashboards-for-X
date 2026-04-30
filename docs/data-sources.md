@@ -161,6 +161,85 @@ calculate actual compute time (vs wall-clock duration).
 
 ---
 
+## Data Filtering Between Scripts
+
+Some scripts use the output of earlier scripts to filter their own
+queries. The pipeline runs all collection scripts in sequence; each
+run accumulates raw files that are merged and deduplicated during
+materialization.
+
+### Agent PRs → Session Logs
+
+The session logs script depends on agent PR data to know which
+Actions workflow runs to fetch:
+
+```
+coding-agent-pr-metrics.sh
+  outputs pr_sessions[] with { repo, head_ref, pr_state, pr_merged_at }
+           │
+           │  --input flag (pipeline passes the raw output directly)
+           ▼
+agent-session-logs.sh
+  filters: pr_state == "closed" or pr_merged_at != null
+  queries: gh api "repos/{repo}/actions/runs?branch={head_ref}"
+  parses:  log timestamps → active_minutes, idle_minutes
+```
+
+### Copilot Users → User PR Metrics (manual only)
+
+`user-pr-metrics.sh` takes a copilot report as input, extracts active
+user logins, and queries their PRs via `author:{login}`. This script
+is **not part of the automated pipeline** — the pipeline collects
+org-wide PR data via `human-pr-metrics.sh` instead. Run it manually
+when user-level PR attribution is needed.
+
+### Accumulation and Deduplication
+
+Each pipeline run writes timestamped raw files to `_data/raw/`. Over
+multiple runs, these files accumulate. The materializer handles this
+by **merging all files of the same type** and then **deduplicating**
+overlapping records.
+
+**Merge step** — files classified as the same source type (copilot, PR,
+agentic) are concatenated:
+- Enterprise day records: merged across files
+- User-day records: merged across files
+- PR records: merged across files
+- Agent sessions + developer day summaries: merged across files
+
+**Dedup step** — each materializer removes duplicate records using a
+natural key:
+
+| Data Type | Dedup Key | Strategy |
+|---|---|---|
+| Enterprise days | `day` | Last entry wins per day |
+| User days | `day` + `user_login` | Last entry wins per day+user |
+| PR records | PR URL or number | Last entry wins, bots filtered out |
+| Agent sessions | session identifier | Merged by session |
+
+This means the pipeline is **idempotent** — running it multiple times
+with overlapping date ranges produces the same result. Newer data
+overwrites older data for the same key.
+
+**Materialization dependencies:**
+
+```
+Raw files                          Materializer                    Artifact
+─────────                          ────────────                    ────────
+copilot-metrics ──────────────────▶ ai-assisted-efficiency-days
+copilot-metrics + human-pr-metrics ▶ ai-assisted-structural-days
+coding-agent-pr-metrics ──────────▶ agentic-efficiency-days
+coding-agent-pr-metrics ──────────▶ agentic-pr-sessions
+
+All 4 artifacts + session-logs ───▶ leverage-summary
+```
+
+The `leverage-summary` materializer reads the 4 previously-written
+artifact files plus merged session logs to produce a single integrated
+row per element.
+
+---
+
 ## Pipeline Execution Plan
 
 ### Entry Point
@@ -182,17 +261,19 @@ DAYS=7 ./run-query.sh                    # override lookback window
 
 ### Pipeline Steps
 
-The pipeline runs three steps in sequence. Use `PIPELINE_STEP` or
+The pipeline runs all steps in sequence. Use `PIPELINE_STEP` or
 `--materialize-only` / `--collect` flags to run a subset.
 
 **Step 1 — Collect** (raw data from APIs)
 
-| Collection Target | Query Script | Raw Output File |
+All query scripts run each time data is collected:
+
+| Query Script | Raw Output File | Required Env |
 |---|---|---|
-| `copilot-metrics` | `copilot-user-and-enterprise-metrics.sh` | `copilot-metrics-{timestamp}.json` |
-| `human-pr-metrics` | `human-pr-metrics.sh` | `human-pr-metrics-{timestamp}.json` |
-| `coding-agent-pr-metrics` | `coding-agent-pr-metrics.sh` | `coding-agent-pr-metrics-{timestamp}.json` |
-| *(session logs)* | `agent-session-logs.sh` | `agent-session-logs-{timestamp}.json` |
+| `copilot-user-and-enterprise-metrics.sh` | `copilot-metrics-{timestamp}.json` | `ENTERPRISE` or `ORG` |
+| `human-pr-metrics.sh` | `human-pr-metrics-{timestamp}.json` | `ORG` |
+| `coding-agent-pr-metrics.sh` | `coding-agent-pr-metrics-{timestamp}.json` | `ORG` |
+| `agent-session-logs.sh` | `agent-session-logs-{timestamp}.json` | *(uses agent PR output)* |
 
 **Step 2 — Materialize** (raw → artifacts)
 
