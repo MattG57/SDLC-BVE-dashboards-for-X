@@ -38,16 +38,20 @@ RUN_TS=$(date -u +%Y-%m-%dT%H%MZ)
 # ─── Argument parsing ─────────────────────────────────────────────────────────
 
 PROFILE="default"
-MATERIALIZE_ONLY=false
+SKIP_COLLECTION=false
 SESSION_LOGS_ONLY=false
 USE_STREAMING=true
+# Track which flags were explicitly set on the CLI (these always win over profile)
+FLAG_SKIP_COLLECTION=""
+FLAG_STREAMING=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --profile) PROFILE="$2"; shift 2 ;;
-    --materialize-only) MATERIALIZE_ONLY=true; shift ;;
+    --materialize-only) SKIP_COLLECTION=true; FLAG_SKIP_COLLECTION=true; shift ;;
+    --collect) SKIP_COLLECTION=false; FLAG_SKIP_COLLECTION=true; shift ;;
     --session-logs-only) SESSION_LOGS_ONLY=true; shift ;;
-    --no-streaming) USE_STREAMING=false; shift ;;
+    --no-streaming) USE_STREAMING=false; FLAG_STREAMING=true; shift ;;
     *) echo "Unknown argument: $1"; exit 1 ;;
   esac
 done
@@ -67,7 +71,7 @@ load_profile() {
     return
   fi
 
-  # Export each key as an environment variable (only if not already set)
+  # Export each key as an environment variable (only if not already set via env/flags)
   while IFS='=' read -r key val; do
     if [[ -z "${!key:-}" ]]; then
       export "$key=$val"
@@ -75,6 +79,21 @@ load_profile() {
   done < <(echo "$profile_json" | jq -r 'to_entries[] | "\(.key)=\(.value)"')
 
   echo "✔ Loaded profile: $PROFILE"
+
+  # Apply profile-driven overrides only when CLI flags were not explicitly set
+  if [[ -z "$FLAG_STREAMING" ]]; then
+    if [[ "${STREAM_MODE:-}" == "false" ]]; then
+      USE_STREAMING=false
+    elif [[ "${STREAM_MODE:-}" == "true" ]]; then
+      USE_STREAMING=true
+    fi
+  fi
+
+  if [[ -z "$FLAG_SKIP_COLLECTION" ]]; then
+    if [[ "${SKIP_DATA_COLLECTION:-}" == "true" ]]; then
+      SKIP_COLLECTION=true
+    fi
+  fi
 }
 
 # ─── Query targets ─────────────────────────────────────────────────────────────
@@ -321,8 +340,22 @@ main() {
   # Register query targets
   register_targets
 
-  if $MATERIALIZE_ONLY; then
-    echo "Skipping collection (--materialize-only)"
+  # Load profile early to pick up PIPELINE_STEP and other settings
+  # (CLI flags always take precedence over profile values)
+  if ! $SKIP_COLLECTION && ! $SESSION_LOGS_ONLY; then
+    load_profile
+  fi
+
+  # Apply PIPELINE_STEP from profile/env when CLI flags were not explicit
+  if [[ -n "${PIPELINE_STEP:-}" && -z "$FLAG_SKIP_COLLECTION" ]]; then
+    if [[ ",${PIPELINE_STEP}," != *",collect,"* ]]; then
+      # "collect" not listed — skip data collection
+      SKIP_COLLECTION=true
+    fi
+  fi
+
+  if $SKIP_COLLECTION; then
+    echo "Skipping collection (--materialize-only or profile)"
 
     # If _data/raw/ is empty, collect from existing dashboard data dirs
     if ! ls "$RAW_DIR"/*.json > /dev/null 2>&1; then
@@ -341,9 +374,6 @@ main() {
     # Run session logs collection
     run_session_logs
   else
-    # Load profile and run collection
-    load_profile
-
     echo ""
     echo "Running data collection..."
     local targets_run=0

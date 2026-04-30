@@ -162,6 +162,10 @@ load_profile() {
   keys=$(jq -r --arg p "$profile" '.[$p] | keys[]' "$SETTINGS_FILE" 2>/dev/null) || return 0
 
   for key in $keys; do
+    # Environment variables / flags always take precedence over profile values
+    if [[ -n "${!key:-}" ]]; then
+      continue
+    fi
     local val
     val=$(jq -r --arg p "$profile" --arg k "$key" '.[$p][$k]' "$SETTINGS_FILE")
     if [[ -n "$val" && "$val" != "null" ]]; then
