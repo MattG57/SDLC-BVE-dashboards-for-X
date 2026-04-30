@@ -32,12 +32,12 @@ Each top-level key is a **profile name**. The `default` profile is used when no 
 
 Settings are resolved in the following order (highest wins):
 
-1. **Command-line flags** (e.g. `--no-streaming`, `--materialize-only`)
+1. **Command-line flags** (e.g. `--no-streaming`, `--materialize-only`, `--collect`)
 2. **Environment variables** (e.g. `DAYS=14 ./run-query.sh ...`)
 3. **Workflow inputs** (via `workflow_dispatch`)
 4. **Profile values** from `query-settings.json`
 
-This means you can set sensible defaults in a profile and override individual values per-run.
+This means you can set sensible defaults in a profile and override individual values per-run. For example, a profile with `SKIP_DATA_COLLECTION: "true"` can be overridden with `--collect` to force collection.
 
 ## Example Profiles
 
@@ -101,6 +101,9 @@ bash scripts/collect-and-materialize.sh --profile alt-demo
 
 # Override streaming mode from profile
 bash scripts/collect-and-materialize.sh --no-streaming
+
+# Force collection even if profile sets SKIP_DATA_COLLECTION
+bash scripts/collect-and-materialize.sh --profile alt-demo --collect
 ```
 
 ### In CI (pipeline-deploy.yml)
@@ -130,3 +133,8 @@ Add a new top-level key to `query-settings.json`:
 ```
 
 Or use the interactive save feature in `run-query.sh` which will prompt to save current settings after a run.
+
+## See Also
+
+- [config-examples.md](config-examples.md) — common scheduled and ad-hoc scenarios
+- [data-collection.md](data-collection.md) — query targets and output structure
