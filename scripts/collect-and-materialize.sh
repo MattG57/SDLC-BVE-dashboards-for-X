@@ -41,6 +41,7 @@ PROFILE="default"
 SKIP_COLLECTION=false
 SESSION_LOGS_ONLY=false
 USE_STREAMING=true
+DRY_RUN=false
 # Track which flags were explicitly set on the CLI (these always win over profile)
 FLAG_SKIP_COLLECTION=""
 FLAG_STREAMING=""
@@ -52,6 +53,7 @@ while [[ $# -gt 0 ]]; do
     --collect) SKIP_COLLECTION=false; FLAG_SKIP_COLLECTION=true; shift ;;
     --session-logs-only) SESSION_LOGS_ONLY=true; shift ;;
     --no-streaming) USE_STREAMING=false; FLAG_STREAMING=true; shift ;;
+    --dry-run) DRY_RUN=true; shift ;;
     *) echo "Unknown argument: $1"; exit 1 ;;
   esac
 done
@@ -325,6 +327,161 @@ run_session_logs() {
   fi
 }
 
+# ─── Dry Run ───────────────────────────────────────────────────────────────────
+
+dry_run() {
+  echo ""
+  echo "🔍 DRY RUN — showing what would happen without executing"
+  echo ""
+
+  echo "── Resolved Configuration ──"
+  echo "  Profile:            $PROFILE"
+  echo "  ORG:                ${ORG:-<not set>}"
+  echo "  ENTERPRISE:         ${ENTERPRISE:-<not set>}"
+  echo "  DAYS:               ${DAYS:-<not set>}"
+  echo "  MAX_REPOS:          ${MAX_REPOS:-<not set>}"
+  echo "  GH_TOKEN_NAME:      ${GH_TOKEN_NAME:-DASHBOARD_GH_TOKEN}"
+  echo "  STREAM_MODE:        ${STREAM_MODE:-<not set>}"
+  echo "  SKIP_DATA_COLLECTION: ${SKIP_DATA_COLLECTION:-false}"
+  echo "  PIPELINE_STEP:      ${PIPELINE_STEP:-<all>}"
+  echo ""
+
+  echo "── Effective Flags ──"
+  echo "  SKIP_COLLECTION:    $SKIP_COLLECTION"
+  echo "  SESSION_LOGS_ONLY:  $SESSION_LOGS_ONLY"
+  echo "  USE_STREAMING:      $USE_STREAMING"
+  echo ""
+
+  echo "── Step 1: Collection ──"
+  if $SKIP_COLLECTION; then
+    echo "  SKIPPED (--materialize-only or profile)"
+  elif $SESSION_LOGS_ONLY; then
+    echo "  SKIPPED (--session-logs-only)"
+  else
+    for idx in "${!TARGET_NAMES[@]}"; do
+      local name="${TARGET_NAMES[$idx]}"
+      local script="${TARGET_SCRIPTS[$idx]}"
+      local required="${TARGET_REQUIRED[$idx]}"
+      local has_required=false
+      IFS='|' read -ra req_vars <<< "$required"
+      for var in "${req_vars[@]}"; do
+        if [[ -n "${!var:-}" ]]; then has_required=true; break; fi
+      done
+      local status="✔ WOULD RUN"
+      if ! $has_required; then status="⚠ WOULD SKIP (needs: $required)"; fi
+      local script_path="${REPO_ROOT}/${script}"
+      if [[ ! -f "$script_path" ]]; then status="✗ MISSING SCRIPT: $script"; fi
+
+      # Determine API level for copilot-metrics
+      local api_level=""
+      if [[ "$name" == "copilot-metrics" ]] && $has_required; then
+        if [[ -n "${ENTERPRISE:-}" ]]; then
+          api_level="Enterprise API (/enterprises/${ENTERPRISE}/copilot/...)"
+        elif [[ -n "${ORG:-}" ]]; then
+          api_level="Org API (/orgs/${ORG}/copilot/...)"
+        fi
+      elif [[ "$name" == "human-pr-metrics" || "$name" == "coding-agent-pr-metrics" ]] && $has_required; then
+        api_level="Repo API (org: ${ORG:-?})"
+      fi
+
+      echo "  $name"
+      echo "    Script:   $script"
+      echo "    Required: $required"
+      echo "    Status:   $status"
+      if [[ -n "$api_level" ]]; then
+        echo "    API:      $api_level"
+      fi
+    done
+  fi
+  echo ""
+
+  echo "── Step 1b: Session Logs ──"
+  if [[ "${SKIP_SESSION_LOGS:-false}" == "true" ]]; then
+    echo "  SKIPPED (SKIP_SESSION_LOGS=true)"
+  else
+    local agentic_raw
+    agentic_raw=$(ls "$RAW_DIR"/*coding-agent-pr-metrics*.json 2>/dev/null | head -1)
+    if [[ -n "$agentic_raw" && -f "$agentic_raw" ]]; then
+      echo "  ✔ WOULD RUN — input: $(basename "$agentic_raw")"
+    else
+      echo "  ⚠ WOULD SKIP — no agentic data in _data/raw/"
+    fi
+  fi
+  echo ""
+
+  echo "── Existing Raw Files ──"
+  local raw_count=0
+  for f in "$RAW_DIR"/*.json; do
+    [[ ! -f "$f" ]] && continue
+    local fsize
+    fsize=$(wc -c < "$f" | tr -d ' ')
+    echo "  $(basename "$f")  ($fsize bytes)"
+    raw_count=$((raw_count + 1))
+  done
+  if [[ $raw_count -eq 0 ]]; then echo "  (none)"; fi
+  echo ""
+
+  echo "── Step 2: Materialization ──"
+  echo "  Mode: $(if $USE_STREAMING; then echo streaming; else echo standard; fi)"
+  echo "  Raw files available: $raw_count"
+  # Check what the materializer would find
+  local copilot_count pr_count agentic_count
+  copilot_count=$(ls "$RAW_DIR"/*copilot-metrics*.json 2>/dev/null | wc -l | tr -d ' ')
+  pr_count=$(ls "$RAW_DIR"/*pr-metrics*.json 2>/dev/null | wc -l | tr -d ' ')
+  agentic_count=$(ls "$RAW_DIR"/*coding-agent*.json 2>/dev/null | wc -l | tr -d ' ')
+  echo "  Copilot metrics files: $copilot_count"
+  echo "  PR metrics files:      $pr_count"
+  echo "  Agentic metrics files: $agentic_count"
+  echo ""
+  echo "  Artifacts that would be produced:"
+  if [[ $copilot_count -gt 0 ]]; then
+    echo "    ✔ ai-assisted-efficiency-days"
+    if [[ $pr_count -gt 0 ]]; then
+      echo "    ✔ ai-assisted-structural-days (copilot + PR data)"
+    else
+      echo "    ⚠ ai-assisted-structural-days (copilot only, no PR data)"
+    fi
+  else
+    echo "    ✗ ai-assisted-efficiency-days (no copilot data)"
+    echo "    ✗ ai-assisted-structural-days (no copilot data)"
+  fi
+  if [[ $agentic_count -gt 0 ]]; then
+    echo "    ✔ agentic-efficiency-days"
+    echo "    ✔ agentic-pr-sessions"
+  else
+    echo "    ✗ agentic-efficiency-days (no agentic data)"
+    echo "    ✗ agentic-pr-sessions (no agentic data)"
+  fi
+  local can_leverage=true
+  [[ $copilot_count -eq 0 && $agentic_count -eq 0 ]] && can_leverage=false
+  if $can_leverage; then
+    echo "    ✔ leverage-summary"
+  else
+    echo "    ✗ leverage-summary (no source data)"
+  fi
+  echo ""
+
+  echo "── Existing Artifacts ──"
+  local art_count=0
+  for f in "$MATERIALIZED_DIR"/*.json; do
+    [[ ! -f "$f" ]] && continue
+    echo "  $(basename "$f")"
+    art_count=$((art_count + 1))
+  done
+  if [[ $art_count -eq 0 ]]; then echo "  (none)"; fi
+  echo ""
+
+  echo "── Dashboard Impact ──"
+  echo "  V2 AI-Assisted Efficiency:  $(if [[ $copilot_count -gt 0 ]]; then echo '✔ data available'; else echo '✗ no data'; fi)"
+  echo "  V2 AI-Assisted Structural:  $(if [[ $copilot_count -gt 0 ]]; then echo '✔ data available'; else echo '✗ no data'; fi)"
+  echo "  V2 Agentic Efficiency:      $(if [[ $agentic_count -gt 0 ]]; then echo '✔ data available'; else echo '✗ no data'; fi)"
+  echo "  V2 Agentic Element:         $(if [[ $agentic_count -gt 0 ]]; then echo '✔ data available'; else echo '✗ no data'; fi)"
+  echo "  V2 AI-Assisted Element:     $(if [[ $copilot_count -gt 0 ]]; then echo '✔ data available'; else echo '✗ no data'; fi)"
+  echo "  V2 Integrated Leverage:     $(if $can_leverage; then echo '✔ data available'; else echo '✗ no data'; fi)"
+  echo "  Demo — Live Examples:       $(if $can_leverage; then echo '✔ data available'; else echo '✗ no data'; fi)"
+  echo ""
+}
+
 # ─── Main ──────────────────────────────────────────────────────────────────────
 
 main() {
@@ -344,6 +501,8 @@ main() {
   # (CLI flags always take precedence over profile values)
   if ! $SKIP_COLLECTION && ! $SESSION_LOGS_ONLY; then
     load_profile
+  elif $DRY_RUN; then
+    load_profile
   fi
 
   # Apply PIPELINE_STEP from profile/env when CLI flags were not explicit
@@ -352,6 +511,12 @@ main() {
       # "collect" not listed — skip data collection
       SKIP_COLLECTION=true
     fi
+  fi
+
+  # Dry run: show what would happen, then exit
+  if $DRY_RUN; then
+    dry_run
+    exit 0
   fi
 
   if $SKIP_COLLECTION; then

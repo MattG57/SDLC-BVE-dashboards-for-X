@@ -14,6 +14,7 @@ set -euo pipefail
 #   ./run-query.sh --collect                 Force collection even if profile skips it
 #   ./run-query.sh --session-logs-only       Fetch agent session logs only
 #   ./run-query.sh --no-streaming            Use standard (non-streaming) materializer
+#   ./run-query.sh --dry-run                 Show what would happen without executing
 #   ./run-query.sh --help                    Show this help
 #
 # Configuration:
