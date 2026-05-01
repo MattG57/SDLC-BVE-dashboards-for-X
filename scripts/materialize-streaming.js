@@ -400,6 +400,7 @@ async function main() {
     artifactMap['ai-assisted-structural-days'] = fname;
     fileInfo.copilot.forEach(f => edges.push({ from: f.file, to: fname }));
     fileInfo.pr.forEach(f => edges.push({ from: f.file, to: fname }));
+    fileInfo.orgMembers.forEach(f => edges.push({ from: f.file, to: fname }));
   }
 
   // Agentic Efficiency Days
@@ -468,6 +469,7 @@ async function main() {
     ...fileInfo.pr.map(f => f.file),
     ...fileInfo.agentic.map(f => f.file),
     ...fileInfo.sessionLogs.map(f => f.file),
+    ...fileInfo.orgMembers.map(f => f.file),
   ])];
 
   const manifest = {

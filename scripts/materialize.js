@@ -32,6 +32,7 @@ import { materializeLeverageSummary } from '../shared/materializers/leverage-sum
 import { isCopilotMetricsSource } from '../shared/sources/copilot-metrics.js';
 import { isAgenticSource } from '../shared/sources/agentic.js';
 import { isPrReviewData } from '../shared/sources/pr-review.js';
+import { isOrgMembersSource, extractOrgMemberLogins, unionOrgMembers } from '../shared/sources/org-members.js';
 import { getAllDefaults } from '../shared/core/config.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -82,8 +83,8 @@ function findDataFiles() {
 }
 
 function loadAndClassify(files) {
-  const sources = { copilot: [], pr: [], agentic: [], sessionLogs: [] };
-  const fileInfo = { copilot: [], pr: [], agentic: [], sessionLogs: [] };
+  const sources = { copilot: [], pr: [], agentic: [], sessionLogs: [], orgMembers: [] };
+  const fileInfo = { copilot: [], pr: [], agentic: [], sessionLogs: [], orgMembers: [] };
 
   for (const filepath of files) {
     let data;
@@ -112,6 +113,10 @@ function loadAndClassify(files) {
       sources.agentic.push(data);
       fileInfo.agentic.push(info);
       console.log(`  📊 Agentic data: ${basename(filepath)}`);
+    } else if (isOrgMembersSource(data)) {
+      sources.orgMembers.push(data);
+      fileInfo.orgMembers.push(info);
+      console.log(`  📊 Org members: ${basename(filepath)}`);
     }
   }
 
@@ -246,15 +251,24 @@ function main() {
 
   // AI-Assisted Structural Days
   if (mergedCopilot) {
-    const inputFiles = [...fileInfo.copilot, ...fileInfo.pr];
+    // Load org member logins for filtering (if available)
+    let orgMemberLogins = null;
+    if (sources.orgMembers.length > 0) {
+      const memberSets = sources.orgMembers.map(d => extractOrgMemberLogins(d));
+      orgMemberLogins = unionOrgMembers(memberSets);
+      console.log(`  🔑 Org member filter: ${orgMemberLogins.size} unique members from ${sources.orgMembers.length} file(s)`);
+    }
+
+    const inputFiles = [...fileInfo.copilot, ...fileInfo.pr, ...fileInfo.orgMembers];
     const result = materializeAiAssistedStructuralDays(
-      mergedCopilot, mergedPr || null, config, { inputFiles }
+      mergedCopilot, mergedPr || null, config, { inputFiles, orgMemberLogins }
     );
     const fname = writeArtifact('ai-assisted-structural-days', result);
     artifactFiles.push(fname);
     artifactMap['ai-assisted-structural-days'] = fname;
     fileInfo.copilot.forEach(f => edges.push({ from: f.file, to: fname }));
     fileInfo.pr.forEach(f => edges.push({ from: f.file, to: fname }));
+    fileInfo.orgMembers.forEach(f => edges.push({ from: f.file, to: fname }));
   }
 
   // Agentic Efficiency Days
@@ -335,6 +349,7 @@ function main() {
     ...fileInfo.pr.map(f => f.file),
     ...fileInfo.agentic.map(f => f.file),
     ...fileInfo.sessionLogs.map(f => f.file),
+    ...fileInfo.orgMembers.map(f => f.file),
   ])];
 
   // Write pipeline manifest
