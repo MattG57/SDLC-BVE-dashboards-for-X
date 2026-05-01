@@ -7,6 +7,7 @@
  * Pipeline: copilot-metrics → flatten + dedup
  *           human-pr-metrics → flatten + dedup + bot-filter
  *           user-days → buildCopilotUsersByDay
+ *           org-members → filter user-days to org scope (optional)
  *           PRs × copilot-users → classifyAssisted (3-day lookback)
  *           enterprise × PR classification → structural day rows
  */
@@ -21,6 +22,8 @@ import {
   buildCopilotUsersByDay, extractPrArray,
 } from '../sources/pr-review.js';
 
+import { filterUserDaysByOrgMembership } from '../sources/org-members.js';
+
 import { safeDiv, dayOffset } from '../core/math.js';
 
 /**
@@ -29,7 +32,7 @@ import { safeDiv, dayOffset } from '../core/math.js';
  * @param {Object} copilotData - Parsed JSON with enterprise_report and/or user_report
  * @param {Object|Array|null} prData - PR review data (array, { prs }, or { pull_requests: { prs } })
  * @param {Object} config - Must include cfg_total_developers, cfg_pr_assist_lookback_days
- * @param {Object} [options] - { inputFiles: [{ file, hash }] }
+ * @param {Object} [options] - { inputFiles: [{ file, hash }], orgMemberLogins: Set<string>|null }
  * @returns {{ artifact, data, _prRecords, _prPeriod, _periodPrsAssistedPct, _periodLocAssistedPct }}
  */
 export function materializeAiAssistedStructuralDays(copilotData, prData, config, options = {}) {
@@ -47,8 +50,13 @@ export function materializeAiAssistedStructuralDays(copilotData, prData, config,
     : [];
   const userResult = dedupUserDays(rawUserDays);
 
-  // Build copilot-users-by-day map
-  const copilotUsersByDay = buildCopilotUsersByDay(userResult.data);
+  // Filter user-days by org membership (if org member list provided)
+  const orgMemberLogins = options.orgMemberLogins || null;
+  const orgFilterResult = filterUserDaysByOrgMembership(userResult.data, orgMemberLogins);
+  const filteredUserDays = orgFilterResult.data;
+
+  // Build copilot-users-by-day map (from filtered set)
+  const copilotUsersByDay = buildCopilotUsersByDay(filteredUserDays);
 
   // Flatten + dedup + bot-filter PR records
   let prRecords = null;
@@ -67,9 +75,9 @@ export function materializeAiAssistedStructuralDays(copilotData, prData, config,
     ? classifyAssisted(prRecords, copilotUsersByDay, { lookbackDays })
     : { byDay: {}, period: { total_prs: 0, assisted_prs: 0, total_loc: 0, assisted_loc: 0 }, profile: {} };
 
-  // Build user-by-day lookup for adoption calculation
+  // Build user-by-day lookup for adoption calculation (from filtered set)
   const usersByDay = {};
-  for (const u of userResult.data) {
+  for (const u of filteredUserDays) {
     (usersByDay[u.day] = usersByDay[u.day] || []).push(u);
   }
 
@@ -150,9 +158,9 @@ export function materializeAiAssistedStructuralDays(copilotData, prData, config,
       })),
       profile: {
         record_count: data.length,
-        detail_row_count: userResult.data.length,
+        detail_row_count: filteredUserDays.length,
         detail_label: 'user-days',
-        unique_people: userResult.profile.unique_logins || 0,
+        unique_people: new Set(filteredUserDays.map(r => r.user_login)).size,
         people_label: 'users',
         unique_repos: hasPrData ? new Set(prRecords.map(p => p.repository).filter(Boolean)).size : 0,
         pr_record_count: prRecords ? prRecords.length : 0,
@@ -160,6 +168,7 @@ export function materializeAiAssistedStructuralDays(copilotData, prData, config,
         date_range: dateRange,
         enterprise_dedup: entResult.profile,
         user_dedup: userResult.profile,
+        org_member_filter: orgFilterResult.profile,
         pr_processing: prProfile,
         pr_classification: classified.profile,
         has_pr_data: hasPrData,
