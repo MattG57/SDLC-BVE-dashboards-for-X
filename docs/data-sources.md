@@ -273,6 +273,7 @@ All query scripts run each time data is collected:
 | `copilot-user-and-enterprise-metrics.sh` | `copilot-metrics-{timestamp}.json` | `ENTERPRISE` or `ORG` |
 | `human-pr-metrics.sh` | `human-pr-metrics-{timestamp}.json` | `ORG` |
 | `coding-agent-pr-metrics.sh` | `coding-agent-pr-metrics-{timestamp}.json` | `ORG` |
+| `org-members.sh` | `org-members-{timestamp}.json` | `ORG` |
 | `agent-session-logs.sh` | `agent-session-logs-{timestamp}.json` | *(uses agent PR output)* |
 
 **Step 2 — Materialize** (raw → artifacts)
@@ -280,7 +281,7 @@ All query scripts run each time data is collected:
 | Raw Input(s) | Materializer | Artifact | What It Contains |
 |---|---|---|---|
 | `copilot-metrics` | `ai-assisted-efficiency-days` | `ai-assisted-efficiency-days-{ts}.json` | Daily per-user Copilot usage: suggestions, acceptances, chat, lines |
-| `copilot-metrics` + `human-pr-metrics` | `ai-assisted-structural-days` | `ai-assisted-structural-days-{ts}.json` | Adoption, PR merge rates, review patterns, structural metrics |
+| `copilot-metrics` + `human-pr-metrics` + `org-members` (optional) | `ai-assisted-structural-days` | `ai-assisted-structural-days-{ts}.json` | Adoption, PR merge rates, review patterns, structural metrics (filtered to org members when available) |
 | `coding-agent-pr-metrics` | `agentic-efficiency-days` | `agentic-efficiency-days-{ts}.json` | Agent session duration, lines changed, review cycles |
 | `coding-agent-pr-metrics` | `agentic-pr-sessions` | `agentic-pr-sessions-{ts}.json` | Per-session detail: PR state, linked issues, timeline |
 | *all of the above* | `leverage-summary` | `leverage-summary-{ts}.json` | One row per element with leverage, yield, estimates, projections |
@@ -313,7 +314,7 @@ and generates the landing page. GitHub Actions deploys to Pages.
        ▼ raw: copilot-metrics-{ts}.json
        ├──▶ ai-assisted-efficiency-days ──▶ V2 AI-Assisted Efficiency
        ├──▶ ai-assisted-structural-days ──▶ V2 AI-Assisted Structural
-       │       (+ human-pr-metrics)
+       │       (+ human-pr-metrics + org-members filter)
        └──▶ leverage-summary ─────────────▶ V2 Integrated Leverage
                                             Demo Live page
 
@@ -323,6 +324,13 @@ and generates the landing page. GitHub Actions deploys to Pages.
        ▼ raw: human-pr-metrics-{ts}.json
        └──▶ ai-assisted-structural-days ──▶ V2 AI-Assisted Structural
             (combined with copilot-metrics)
+
+  org-members.sh
+  └─ Org API: GET /orgs/{org}/members (paginated)
+       │
+       ▼ raw: org-members-{ts}.json
+       └──▶ ai-assisted-structural-days ──▶ V2 AI-Assisted Structural
+            (filters enterprise user_report to org members only)
 
   coding-agent-pr-metrics.sh
   └─ Repo API: /repos/{owner}/{repo}/pulls, issues, timeline

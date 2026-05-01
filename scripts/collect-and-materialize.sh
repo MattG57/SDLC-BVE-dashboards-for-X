@@ -123,6 +123,12 @@ register_targets() {
   TARGET_SCRIPTS+=("BVE-dashboards-for-agentic-ai-coding/data/queries/coding-agent-pr-metrics.sh")
   TARGET_BASENAMES+=("coding-agent-pr-metrics")
   TARGET_REQUIRED+=("ORG")
+
+  # Target 4: Org members (for filtering enterprise metrics by org membership)
+  TARGET_NAMES+=("org-members")
+  TARGET_SCRIPTS+=("BVE-dashboards-for-ai-assisted-coding/data/queries/org-members.sh")
+  TARGET_BASENAMES+=("org-members")
+  TARGET_REQUIRED+=("ORG")
 }
 
 # ─── Run a single query target ─────────────────────────────────────────────────
@@ -425,19 +431,25 @@ dry_run() {
   echo "  Mode: $(if $USE_STREAMING; then echo streaming; else echo standard; fi)"
   echo "  Raw files available: $raw_count"
   # Check what the materializer would find
-  local copilot_count pr_count agentic_count
+  local copilot_count pr_count agentic_count org_members_count
   copilot_count=$(ls "$RAW_DIR"/*copilot-metrics*.json 2>/dev/null | wc -l | tr -d ' ')
   pr_count=$(ls "$RAW_DIR"/*pr-metrics*.json 2>/dev/null | wc -l | tr -d ' ')
   agentic_count=$(ls "$RAW_DIR"/*coding-agent*.json 2>/dev/null | wc -l | tr -d ' ')
+  org_members_count=$(ls "$RAW_DIR"/*org-members*.json 2>/dev/null | wc -l | tr -d ' ')
   echo "  Copilot metrics files: $copilot_count"
   echo "  PR metrics files:      $pr_count"
   echo "  Agentic metrics files: $agentic_count"
+  echo "  Org members files:     $org_members_count"
   echo ""
   echo "  Artifacts that would be produced:"
   if [[ $copilot_count -gt 0 ]]; then
     echo "    ✔ ai-assisted-efficiency-days"
     if [[ $pr_count -gt 0 ]]; then
-      echo "    ✔ ai-assisted-structural-days (copilot + PR data)"
+      if [[ $org_members_count -gt 0 ]]; then
+        echo "    ✔ ai-assisted-structural-days (copilot + PR data + org-member filter)"
+      else
+        echo "    ✔ ai-assisted-structural-days (copilot + PR data)"
+      fi
     else
       echo "    ⚠ ai-assisted-structural-days (copilot only, no PR data)"
     fi

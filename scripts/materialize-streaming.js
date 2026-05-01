@@ -36,6 +36,7 @@ import { materializeLeverageSummary } from '../shared/materializers/leverage-sum
 import { isCopilotMetricsSource } from '../shared/sources/copilot-metrics.js';
 import { isAgenticSource } from '../shared/sources/agentic.js';
 import { isPrReviewData } from '../shared/sources/pr-review.js';
+import { isOrgMembersSource, extractOrgMemberLogins, unionOrgMembers } from '../shared/sources/org-members.js';
 import { getAllDefaults } from '../shared/core/config.js';
 import { safeDiv } from '../shared/core/math.js';
 
@@ -153,6 +154,7 @@ function classifyFile(filepath) {
   require('fs').closeSync(fd);
   const peek = buf.toString('utf-8');
   if (peek.includes('session_logs') && peek.includes('agent-session-logs')) return 'sessionLogs';
+  if (peek.includes('"org_members"') || (peek.includes('"members"') && peek.includes('"login"') && !peek.includes('enterprise_report'))) return 'orgMembers';
   if (peek.includes('enterprise_report') || peek.includes('user_report')) return 'copilot';
   if (peek.includes('developer_day_summary') || peek.includes('pr_sessions')) return 'agentic';
   if (peek.includes('"prs"') || peek.includes('pull_requests')) return 'pr';
@@ -161,6 +163,7 @@ function classifyFile(filepath) {
   if (isCopilotMetricsSource(data)) return 'copilot';
   if (isAgenticSource(data)) return 'agentic';
   if (isPrReviewData(data)) return 'pr';
+  if (isOrgMembersSource(data)) return 'orgMembers';
   return 'unknown';
 }
 
@@ -253,8 +256,8 @@ async function main() {
   console.log(`  Found ${dataFiles.length} data file(s)\n`);
 
   // Classify files
-  const classified = { copilot: [], pr: [], agentic: [], sessionLogs: [] };
-  const fileInfo = { copilot: [], pr: [], agentic: [], sessionLogs: [] };
+  const classified = { copilot: [], pr: [], agentic: [], sessionLogs: [], orgMembers: [] };
+  const fileInfo = { copilot: [], pr: [], agentic: [], sessionLogs: [], orgMembers: [] };
 
   for (const fp of dataFiles) {
     const type = classifyFile(fp);
@@ -274,6 +277,10 @@ async function main() {
       classified.agentic.push(fp);
       fileInfo.agentic.push(info);
       console.log(`  📊 Agentic data: ${basename(fp)}`);
+    } else if (type === 'orgMembers') {
+      classified.orgMembers.push(fp);
+      fileInfo.orgMembers.push(info);
+      console.log(`  📊 Org members: ${basename(fp)}`);
     } else {
       console.log(`  ⚠ Unknown: ${basename(fp)}`);
     }
@@ -370,15 +377,23 @@ async function main() {
 
   // AI-Assisted Structural Days (needs full copilot data for structural computation)
   if (allEntDays.length > 0) {
+    // Load org member logins for filtering (if available)
+    let orgMemberLogins = null;
+    if (classified.orgMembers.length > 0) {
+      const memberSets = classified.orgMembers.map(fp => extractOrgMemberLogins(loadSmallFile(fp)));
+      orgMemberLogins = unionOrgMembers(memberSets);
+      console.log(`  🔑 Org member filter: ${orgMemberLogins.size} unique members from ${classified.orgMembers.length} file(s)`);
+    }
+
     // Reconstruct minimal copilot data envelope for the structural materializer
     const copilotEnvelope = {
       enterprise_report: { day_totals: allEntDays },
       user_report: allSlimUsers, // slim users suffice for buildCopilotUsersByDay
       metadata: allMetadata[0] || null,
     };
-    const inputFiles = [...fileInfo.copilot, ...fileInfo.pr];
+    const inputFiles = [...fileInfo.copilot, ...fileInfo.pr, ...fileInfo.orgMembers];
     const result = materializeAiAssistedStructuralDays(
-      copilotEnvelope, mergedPr || null, config, { inputFiles }
+      copilotEnvelope, mergedPr || null, config, { inputFiles, orgMemberLogins }
     );
     const fname = writeArtifact('ai-assisted-structural-days', result);
     artifactFiles.push(fname);

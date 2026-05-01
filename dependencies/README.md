@@ -20,6 +20,7 @@ Each query script produces JSON that feeds one or more dashboards. The top-level
 | `copilot-user-and-enterprise-metrics.sh` | AI-Assisted Efficiency | `ai-assisted-efficiency` | `ENTERPRISE` or `ORG` | `DAYS` |
 | `copilot-user-and-enterprise-metrics.sh` | AI-Assisted Structural | `ai-assisted-structural` | `ENTERPRISE` or `ORG` | `DAYS` |
 | `human-pr-metrics.sh` | AI-Assisted Structural | `pr-review-structural` | `ORG` | `REPO`, `DAYS`, `SINCE`, `UNTIL` |
+| `org-members.sh` | AI-Assisted Structural | `org-members` | `ORG` | — |
 | `coding-agent-pr-metrics.sh` | Agentic Efficiency | `agentic-efficiency` | `ORG` | `REPO`, `DAYS`, `MAX_REPOS` |
 
 ### File Locations
@@ -28,6 +29,7 @@ Each query script produces JSON that feeds one or more dashboards. The top-level
 Query scripts:
   BVE-dashboards-for-ai-assisted-coding/data/queries/copilot-user-and-enterprise-metrics.sh
   BVE-dashboards-for-ai-assisted-coding/data/queries/human-pr-metrics.sh
+  BVE-dashboards-for-ai-assisted-coding/data/queries/org-members.sh
   BVE-dashboards-for-agentic-ai-coding/data/queries/coding-agent-pr-metrics.sh
 
 Dashboard HTML (each has a data/ output dir beside it):
