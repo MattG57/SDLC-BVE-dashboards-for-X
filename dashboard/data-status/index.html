@@ -3,41 +3,91 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BVE Data Status</title>
+<title>BVE Pipeline Status</title>
 <link rel="stylesheet" href="https://unpkg.com/@primer/css@21.3.1/dist/primer.css">
 <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <style>
-  body { background: var(--bgColor-default); }
-  .status-page { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
-  .status-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+  body { background: var(--bgColor-default); margin: 0; }
+  .status-page { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
+  .status-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .badge-fresh   { background: #238636; color: #fff; }
+  .badge-current { background: #1f6feb; color: #fff; }
+  .badge-stale   { background: #d29922; color: #000; }
+  .badge-missing { background: #6e7681; color: #fff; }
   .badge-success { background: #238636; color: #fff; }
   .badge-failed  { background: #da3633; color: #fff; }
   .badge-cached  { background: #1f6feb; color: #fff; }
-  .badge-missing { background: #6e7681; color: #fff; }
-  .badge-stale   { background: #d29922; color: #fff; }
-  .ts-muted { font-size: 12px; color: var(--fgColor-muted); }
-  table { width: 100%; border-collapse: collapse; }
-  th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--fgColor-muted); padding: 8px; border-bottom: 1px solid var(--borderColor-default); }
-  td { padding: 8px; border-bottom: 1px solid var(--borderColor-muted); font-size: 14px; }
-  .size-cell { font-family: monospace; font-size: 13px; }
+  .kpi-strip { display: flex; gap: 24px; flex-wrap: wrap; }
+  .kpi-item { text-align: center; }
+  .kpi-item .kpi-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--fgColor-muted); }
+  .kpi-item .kpi-value { font-size: 22px; font-weight: 700; color: var(--fgColor-default); }
+  .art-table { width: 100%; border-collapse: collapse; }
+  .art-table th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--fgColor-muted); padding: 8px 10px; border-bottom: 2px solid var(--borderColor-default); }
+  .art-table td { padding: 10px; border-bottom: 1px solid var(--borderColor-muted); font-size: 13px; vertical-align: top; }
+  .art-table tr:hover td { background: var(--bgColor-muted); }
+  .art-name { font-weight: 600; font-size: 14px; color: var(--fgColor-default); }
+  .art-desc { font-size: 11px; color: var(--fgColor-muted); margin-top: 2px; }
+  .art-api { font-size: 11px; padding: 1px 6px; border-radius: 4px; display: inline-block; }
+  .api-enterprise { background: rgba(188,140,255,0.15); color: #bc8cff; }
+  .api-org { background: rgba(63,185,80,0.15); color: #3fb950; }
+  .api-computed { background: rgba(88,166,255,0.15); color: #58a6ff; }
+  .source-tag { display: inline-block; font-size: 10px; padding: 1px 5px; border-radius: 3px; background: var(--bgColor-muted); color: var(--fgColor-muted); margin: 1px 2px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dash-tag { display: inline-block; font-size: 10px; padding: 1px 5px; border-radius: 3px; background: rgba(210,153,34,0.12); color: #d29922; margin: 1px 2px; }
+  .num-cell { font-family: monospace; font-size: 14px; font-weight: 600; text-align: right; }
+  .compact-row { display: flex; gap: 20px; flex-wrap: wrap; align-items: baseline; }
+  .compact-stat { font-size: 12px; color: var(--fgColor-muted); }
+  .compact-stat strong { color: var(--fgColor-default); }
+  .filter-badge { font-size: 10px; padding: 1px 5px; border-radius: 3px; background: rgba(63,185,80,0.12); color: #3fb950; display: inline-block; margin-top: 3px; }
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect } = React;
+const { useState, useEffect, useMemo } = React;
 
-function formatBytes(bytes) {
-  if (!bytes || bytes === 0) return '—';
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-  return (bytes / 1048576).toFixed(1) + ' MB';
-}
+// ── Artifact registry: static metadata about each artifact type ──
+const ARTIFACT_REGISTRY = {
+  'ai-assisted-efficiency-days': {
+    label: 'AI-Assisted Efficiency',
+    description: 'Daily aggregate Copilot usage: suggestions, acceptances, active users',
+    apiSource: 'Enterprise Copilot Metrics',
+    apiLevel: 'enterprise',
+    dashboards: ['AI Efficiency v2', 'AI Element v2', 'Integrated v2'],
+  },
+  'ai-assisted-structural-days': {
+    label: 'AI-Assisted Structural',
+    description: 'Per-user adoption, PR-assist classification, org member filtering',
+    apiSource: 'Enterprise Copilot Metrics + PR Search',
+    apiLevel: 'enterprise',
+    dashboards: ['AI Structural v2', 'AI Element v2', 'Integrated v2'],
+  },
+  'agentic-efficiency-days': {
+    label: 'Agentic Efficiency',
+    description: 'Daily coding agent activity: PRs created, developers, merge rates',
+    apiSource: 'Coding Agent PR Metrics',
+    apiLevel: 'org',
+    dashboards: ['Agentic Efficiency v2', 'Agentic Element v2', 'Integrated v2'],
+  },
+  'agentic-pr-sessions': {
+    label: 'Agentic PR Sessions',
+    description: 'Individual PR session records with duration, LoC, status',
+    apiSource: 'Coding Agent PR Metrics',
+    apiLevel: 'org',
+    dashboards: ['Agentic Efficiency v2', 'Agentic Element v2', 'Integrated v2'],
+  },
+  'leverage-summary': {
+    label: 'Leverage Summary',
+    description: 'Integrated leverage combining all element data + config',
+    apiSource: 'Derived from artifacts above',
+    apiLevel: 'computed',
+    dashboards: ['Integrated v2', 'Live Demo'],
+  },
+};
 
 function timeAgo(ts) {
-  if (!ts) return '—';
+  if (!ts) return '\u2014';
   const diff = Date.now() - new Date(ts).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'just now';
@@ -48,233 +98,337 @@ function timeAgo(ts) {
   return days + 'd ago';
 }
 
-function StatusBadge({ status }) {
-  const cls = status === 'success' ? 'badge-success'
-    : status === 'failed' ? 'badge-failed'
-    : status === 'cached' ? 'badge-cached'
-    : status === 'stale' ? 'badge-stale'
-    : 'badge-missing';
-  return <span className={`status-badge ${cls}`}>{status}</span>;
+function fmtCompact(v) {
+  if (v == null) return '\u2014';
+  if (Math.abs(v) >= 1e6) return (v / 1e6).toFixed(1) + 'M';
+  if (Math.abs(v) >= 1e3) return (v / 1e3).toFixed(1) + 'k';
+  return String(v);
 }
 
-function QueryRunSection({ queryRun }) {
+function freshness(ts) {
+  if (!ts) return 'missing';
+  const hrs = (Date.now() - new Date(ts).getTime()) / 3600000;
+  if (hrs < 36) return 'fresh';
+  if (hrs < 168) return 'current';
+  return 'stale';
+}
+
+function FreshnessBadge({ ts }) {
+  const status = freshness(ts);
+  const labels = { fresh: 'fresh', current: 'current', stale: 'stale', missing: 'missing' };
+  return <span className={'status-badge badge-' + status}>{labels[status]}</span>;
+}
+
+function ApiLevelBadge({ level }) {
+  const cls = level === 'enterprise' ? 'api-enterprise' : level === 'org' ? 'api-org' : 'api-computed';
+  const labels = { enterprise: 'Enterprise', org: 'Org', computed: 'Computed' };
+  return <span className={'art-api ' + cls}>{labels[level] || level}</span>;
+}
+
+function shortFileName(name) {
+  return name
+    .replace(/^octodemo-/, '')
+    .replace(/-\d{8}T\d{4}Z/, '')
+    .replace(/-\d{4}-\d{2}-\d{2}T\d{4}Z/, '')
+    .replace('.json', '');
+}
+
+// ── Header with pipeline-level KPIs ──
+function PipelineHeader({ manifest, artifactData, collectionRun }) {
+  const matTs = manifest?.materialized_at;
+  const artifactCount = Object.keys(manifest?.artifact_map || {}).length;
+  const rawCount = (manifest?.raw_files || []).length;
+  const edgeCount = (manifest?.edges || []).length;
+
+  // Compute total records and date span
+  let totalRecords = 0;
+  let earliest = null;
+  let latest = null;
+  Object.values(artifactData).forEach(a => {
+    const p = a?.profile || {};
+    if (p.record_count) totalRecords += p.record_count;
+    const dr = p.date_range;
+    if (dr?.first && (!earliest || dr.first < earliest)) earliest = dr.first;
+    if (dr?.last && (!latest || dr.last > latest)) latest = dr.last;
+  });
+  const daySpan = earliest && latest
+    ? Math.round((new Date(latest) - new Date(earliest)) / 86400000) + 1
+    : null;
+
+  return (
+    <div className="Box color-shadow-medium p-4 mb-4">
+      <div className="d-flex flex-items-center flex-justify-between flex-wrap" style={{ gap: '12px' }}>
+        <div>
+          <h1 className="f1 color-fg-default" style={{ margin: 0 }}>Pipeline Status</h1>
+          <p className="f6 color-fg-muted mt-1">
+            Last materialized: <strong className="color-fg-default">{matTs ? new Date(matTs).toLocaleString() : '\u2014'}</strong>
+            {' '}<span>({timeAgo(matTs)})</span>
+            {' '}<FreshnessBadge ts={matTs} />
+            {collectionRun?.profile && <span> {'\u00b7'} profile: <code>{collectionRun.profile}</code></span>}
+          </p>
+        </div>
+        <div className="kpi-strip">
+          <div className="kpi-item"><div className="kpi-label">Artifacts</div><div className="kpi-value">{artifactCount}</div></div>
+          <div className="kpi-item"><div className="kpi-label">Raw Files</div><div className="kpi-value">{rawCount}</div></div>
+          <div className="kpi-item"><div className="kpi-label">Records</div><div className="kpi-value">{fmtCompact(totalRecords)}</div></div>
+          {daySpan && <div className="kpi-item"><div className="kpi-label">Date Span</div><div className="kpi-value">{daySpan}d</div></div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Materialized artifacts table ──
+function ArtifactTable({ manifest, artifactData }) {
+  const artMap = manifest?.artifact_map || {};
+  const edges = manifest?.edges || [];
+
+  const rows = Object.keys(ARTIFACT_REGISTRY).map(baseName => {
+    const reg = ARTIFACT_REGISTRY[baseName];
+    const data = artifactData[baseName] || null;
+    const profile = data?.profile || {};
+    const computedAt = data?.computed_at || null;
+    const dr = profile.date_range || {};
+
+    // Find source raw files via edges
+    const artFileName = artMap[baseName] || '';
+    const sourceFiles = edges
+      .filter(e => {
+        const toBase = e.to.replace(/-\d{4}-\d{2}-\d{2}T\d{4}Z\.json$/, '').replace('.json', '');
+        return toBase === baseName;
+      })
+      .map(e => e.from)
+      .filter(f => !f.startsWith(baseName));
+
+    const daysOfHistory = dr.days_with_data || (dr.first && dr.last
+      ? Math.round((new Date(dr.last) - new Date(dr.first)) / 86400000) + 1
+      : null);
+
+    return {
+      baseName, reg, profile, computedAt, dr, sourceFiles, daysOfHistory,
+      recordCount: profile.record_count || profile.element_count || null,
+      people: profile.unique_people,
+      peopleLabel: profile.people_label,
+      orgFilter: profile.org_member_filter,
+    };
+  });
+
+  return (
+    <div className="Box color-shadow-medium p-4 mb-4">
+      <h3 className="f4 mb-1">{'\ud83d\udce6'} Materialized Artifacts</h3>
+      <p className="f6 color-fg-muted mb-3">Each artifact is a deterministic, cacheable output of the materialization pipeline.</p>
+      <div style={{ overflowX: 'auto' }}>
+        <table className="art-table">
+          <thead>
+            <tr>
+              <th>Artifact</th>
+              <th>Status</th>
+              <th style={{ textAlign: 'right' }}>Records</th>
+              <th style={{ textAlign: 'right' }}>People</th>
+              <th style={{ textAlign: 'right' }}>Days</th>
+              <th>Date Range</th>
+              <th>API Level</th>
+              <th>Source Files</th>
+              <th>Dashboards</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.baseName}>
+                <td>
+                  <div className="art-name">{r.reg.label}</div>
+                  <div className="art-desc">{r.reg.description}</div>
+                  {r.orgFilter && r.orgFilter.removed > 0 && (
+                    <div className="filter-badge">
+                      {'\ud83d\udd11'} org filter: {r.orgFilter.before}{'\u2192'}{r.orgFilter.after} ({r.orgFilter.org_member_count} members)
+                    </div>
+                  )}
+                </td>
+                <td>
+                  <FreshnessBadge ts={r.computedAt} />
+                  <div className="f6 color-fg-muted mt-1">{timeAgo(r.computedAt)}</div>
+                </td>
+                <td className="num-cell">{r.recordCount != null ? fmtCompact(r.recordCount) : '\u2014'}</td>
+                <td className="num-cell">
+                  {r.people != null ? fmtCompact(r.people) : '\u2014'}
+                  {r.peopleLabel && <div className="f6 color-fg-muted" style={{ fontFamily: 'inherit', fontWeight: 400, textAlign: 'right' }}>{r.peopleLabel}</div>}
+                </td>
+                <td className="num-cell">{r.daysOfHistory != null ? r.daysOfHistory : '\u2014'}</td>
+                <td className="f6">
+                  {r.dr.first ? <span>{r.dr.first}<br/>{'\u2192 '}{r.dr.last}</span> : '\u2014'}
+                </td>
+                <td><ApiLevelBadge level={r.reg.apiLevel} /></td>
+                <td>
+                  {r.sourceFiles.length > 0
+                    ? r.sourceFiles.map((f, i) => <span key={i} className="source-tag" title={f}>{shortFileName(f)}</span>)
+                    : <span className="f6 color-fg-muted">{r.reg.apiLevel === 'computed' ? 'artifacts' : 'none'}</span>}
+                </td>
+                <td>
+                  {r.reg.dashboards.map((d, i) => <span key={i} className="dash-tag">{d}</span>)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── Collection run summary (compact) ──
+function CollectionSummary({ queryRun }) {
   if (!queryRun?.run_started) {
     return (
-      <div className="Box color-shadow-medium p-4 mb-4">
-        <h3 className="f4 mb-2">📡 Data Collection</h3>
-        <p className="color-fg-muted f5">No query-status.json found — data collection status unknown.</p>
-        <p className="f6 color-fg-muted mt-2">This usually means the cache was restored from a previous run. Trigger a full run to generate fresh status.</p>
+      <div className="Box color-shadow-medium p-3 mb-4">
+        <h3 className="f5 mb-1">{'\ud83d\udce1'} Last Collection Run</h3>
+        <p className="f6 color-fg-muted">No query-status.json available. Collection status unknown.</p>
       </div>
     );
   }
-
   const targets = queryRun.targets || [];
   const succeeded = targets.filter(t => t.status === 'success' || t.status === 'cached').length;
   const failed = targets.filter(t => t.status === 'failed').length;
-
   return (
-    <div className="Box color-shadow-medium p-4 mb-4">
-      <h3 className="f4 mb-2">📡 Data Collection</h3>
-      <div className="d-flex flex-wrap mb-3" style={{ gap: '24px' }}>
-        <div>
-          <span className="f6 color-fg-muted">Started</span>
-          <div className="f5">{new Date(queryRun.run_started).toLocaleString()} <span className="ts-muted">({timeAgo(queryRun.run_started)})</span></div>
-        </div>
-        {queryRun.run_finished && (
-          <div>
-            <span className="f6 color-fg-muted">Finished</span>
-            <div className="f5">{new Date(queryRun.run_finished).toLocaleString()}</div>
-          </div>
-        )}
-        <div>
-          <span className="f6 color-fg-muted">Profile</span>
-          <div className="f5"><code>{queryRun.profile || 'default'}</code></div>
-        </div>
-        <div>
-          <span className="f6 color-fg-muted">Result</span>
-          <div className="f5">{succeeded} passed, {failed} failed</div>
-        </div>
+    <div className="Box color-shadow-medium p-3 mb-4">
+      <h3 className="f5 mb-2">{'\ud83d\udce1'} Last Collection Run</h3>
+      <div className="compact-row">
+        <span className="compact-stat"><strong>{new Date(queryRun.run_started).toLocaleString()}</strong> ({timeAgo(queryRun.run_started)})</span>
+        {queryRun.profile && <span className="compact-stat">profile: <code>{queryRun.profile}</code></span>}
+        <span className="compact-stat">{succeeded} success{failed > 0 ? ', ' + failed + ' failed' : ''}</span>
       </div>
-
-      <table>
-        <thead>
-          <tr><th>Target</th><th>Status</th><th>Script</th><th>Output File</th><th>Size</th><th>Time</th><th>Error</th></tr>
-        </thead>
-        <tbody>
+      {targets.length > 0 && (
+        <div className="mt-2" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
           {targets.map((t, i) => (
-            <tr key={i}>
-              <td className="text-bold">{t.target}</td>
-              <td><StatusBadge status={t.status} /></td>
-              <td className="color-fg-muted f6">{t.script?.split('/').pop()}</td>
-              <td className="f6"><code>{t.output_file}</code></td>
-              <td className="size-cell">{formatBytes(t.file_size_bytes)}</td>
-              <td className="ts-muted">{timeAgo(t.timestamp)}</td>
-              <td className="color-fg-danger f6">{t.error || '—'}</td>
-            </tr>
+            <span key={i} className={'status-badge badge-' + (t.status === 'success' || t.status === 'cached' ? 'success' : t.status === 'failed' ? 'failed' : 'missing')} title={t.target + ': ' + t.status}>
+              {t.target}
+            </span>
           ))}
-        </tbody>
-      </table>
+        </div>
+      )}
     </div>
   );
 }
 
-function DashboardSection({ dashboards, buildTs }) {
-  return (
-    <div className="Box color-shadow-medium p-4 mb-4">
-      <h3 className="f4 mb-2">📊 Dashboard Data Inventory</h3>
-      <p className="f6 color-fg-muted mb-3">Built at {buildTs ? new Date(buildTs).toLocaleString() : '—'} <span className="ts-muted">({timeAgo(buildTs)})</span></p>
+// ── Raw files inventory ──
+function RawFilesSection({ manifest }) {
+  const rawFiles = manifest?.raw_files || [];
+  if (rawFiles.length === 0) return null;
 
-      <table>
-        <thead>
-          <tr><th>Dashboard</th><th>HTML</th><th>Data Files</th><th>Total Size</th><th>Manifest</th></tr>
-        </thead>
-        <tbody>
-          {dashboards.map((d, i) => {
-            const totalSize = (d.data_files || []).reduce((s, f) => s + (f.size_bytes || 0), 0);
-            const fileCount = (d.data_files || []).length;
-            const hasData = fileCount > 0;
-            return (
-              <tr key={i}>
-                <td>
-                  <a href={'../' + d.slug + '/'} className="color-fg-accent text-bold">{d.slug}</a>
-                </td>
-                <td>{d.has_html ? '✅' : '❌'}</td>
-                <td>
-                  {hasData ? (
-                    <details>
-                      <summary className="f6 cursor-pointer">{fileCount} file{fileCount !== 1 ? 's' : ''}</summary>
-                      <div className="mt-1">
-                        {d.data_files.map((f, j) => {
-                          const m = f.metadata;
-                          return (
-                            <div key={j} className="f6 color-fg-muted mb-2 pl-2" style={{borderLeft: '2px solid var(--borderColor-default)'}}>
-                              <div><code>{f.name}</code> — {formatBytes(f.size_bytes)}</div>
-                              {m && (
-                                <>
-                                  <div className="mt-1">
-                                    <span className="color-fg-default">Collected:</span> {m.collected_at ? new Date(m.collected_at).toLocaleString() : '—'}
-                                    <span className="ml-2 ts-muted">({timeAgo(m.collected_at)})</span>
-                                  </div>
-                                  {m.date_range && (
-                                    <div><span className="color-fg-default">Window:</span> {m.date_range.since || '?'} → {m.date_range.until || m.date_range.days + 'd' || '?'}</div>
-                                  )}
-                                  {m.counts && (
-                                    <div>
-                                      <span className="color-fg-default">Counts:</span>{' '}
-                                      {Object.entries(m.counts).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`).join(' · ')}
-                                    </div>
-                                  )}
-                                  {m.completeness && m.completeness !== 'complete' && (
-                                    <div className="color-fg-attention">⚠ {m.completeness}</div>
-                                  )}
-                                  {m.completeness === 'complete' && (
-                                    <div className="color-fg-success">✓ complete</div>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </details>
-                  ) : <span className="color-fg-muted f6">none</span>}
-                </td>
-                <td className="size-cell">{hasData ? formatBytes(totalSize) : '—'}</td>
-                <td className="ts-muted">{d.manifest_generated ? timeAgo(d.manifest_generated) : '—'}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function ExpectedSection({ expected, queryTargets }) {
-  const targetMap = {};
-  for (const t of (queryTargets || [])) targetMap[t.target] = t;
+  // Group by type based on filename prefix
+  const groups = {};
+  rawFiles.forEach(f => {
+    const short = shortFileName(f);
+    if (!groups[short]) groups[short] = [];
+    groups[short].push(f);
+  });
 
   return (
-    <div className="Box color-shadow-medium p-4 mb-4">
-      <h3 className="f4 mb-2">🎯 Expected vs Actual</h3>
-      <p className="f6 color-fg-muted mb-3">Shows whether each expected data target was collected and is available.</p>
-
-      <table>
-        <thead>
-          <tr><th>Target</th><th>Script</th><th>Output</th><th>Dashboards</th><th>Collection</th></tr>
-        </thead>
-        <tbody>
-          {expected.map((e, i) => {
-            const actual = targetMap[e.target];
-            const status = actual ? actual.status : 'missing';
-            return (
-              <tr key={i}>
-                <td className="text-bold">{e.target}</td>
-                <td className="f6 color-fg-muted">{e.script}</td>
-                <td className="f6"><code>{e.output}</code></td>
-                <td className="f6">{e.dashboards.join(', ')}</td>
-                <td><StatusBadge status={status} /></td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <div className="Box color-shadow-medium p-3 mb-4">
+      <h3 className="f5 mb-2">{'\ud83d\udcc2'} Raw Data Files</h3>
+      <p className="f6 color-fg-muted mb-2">Collected query output files feeding the materialization pipeline.</p>
+      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+        {Object.entries(groups).map(([short, files]) => (
+          <div key={short} style={{ flex: '1 1 200px', minWidth: '200px' }}>
+            <div className="f6 text-bold color-fg-default mb-1">{short}</div>
+            {files.map((f, i) => {
+              const tsMatch = f.match(/(\d{4}-?\d{2}-?\d{2}T\d{4}Z)/);
+              return <div key={i} className="f6 color-fg-muted">{tsMatch ? tsMatch[1] : f}</div>;
+            })}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
 function App() {
-  const [status, setStatus] = useState(null);
+  const [manifest, setManifest] = useState(null);
+  const [artifactData, setArtifactData] = useState({});
+  const [collectionRun, setCollectionRun] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    fetch('./data/data-status.json')
-      .then(r => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then(setStatus)
-      .catch(e => setError(e.message));
+    (async () => {
+      try {
+        // Load pipeline manifest from sibling dataflow dashboard
+        const mRes = await fetch('../dataflow/data/pipeline-manifest.json');
+        if (!mRes.ok) throw new Error('Pipeline manifest not found — run the materializer first.');
+        const m = await mRes.json();
+        setManifest(m);
+
+        // Load each artifact's metadata
+        const meta = {};
+        const artMap = m.artifact_map || {};
+        for (const [baseName, fileName] of Object.entries(artMap)) {
+          try {
+            const subdir = m.materialized_dir || 'materialized';
+            const res = await fetch('../dataflow/data/' + subdir + '/' + fileName);
+            if (res.ok) {
+              const full = await res.json();
+              meta[baseName] = full.artifact || {};
+            }
+          } catch (e) { /* skip */ }
+        }
+        setArtifactData(meta);
+
+        // Load collection run status (optional)
+        try {
+          const qRes = await fetch('../dataflow/data/query-status.json');
+          if (qRes.ok) setCollectionRun(await qRes.json());
+        } catch (e) { /* optional */ }
+
+        // Fallback: try data-status.json for collection info
+        if (!collectionRun) {
+          try {
+            const sRes = await fetch('./data/data-status.json');
+            if (sRes.ok) {
+              const s = await sRes.json();
+              if (s.query_run?.run_started) setCollectionRun(s.query_run);
+            }
+          } catch (e) { /* optional */ }
+        }
+      } catch (e) {
+        setError(e.message);
+      }
+    })();
   }, []);
 
   if (error) {
     return (
       <div className="status-page">
-        <h1 className="f0 color-fg-default mb-2">🔧 Data Status</h1>
+        <h1 className="f1 color-fg-default mb-2">{'\ud83d\udd27'} Pipeline Status</h1>
         <div className="flash flash-error mt-3">
-          <p>Failed to load data-status.json: {error}</p>
-          <p className="f6 mt-1">Run a full deployment to generate status data.</p>
+          <p>{error}</p>
+          <p className="f6 mt-1">Run <code>node scripts/materialize-streaming.js</code> to generate pipeline data.</p>
         </div>
       </div>
     );
   }
 
-  if (!status) {
+  if (!manifest) {
     return (
       <div className="status-page">
-        <h1 className="f0 color-fg-default mb-2">🔧 Data Status</h1>
-        <p className="color-fg-muted">Loading…</p>
+        <h1 className="f1 color-fg-default mb-2">{'\ud83d\udd27'} Pipeline Status</h1>
+        <p className="color-fg-muted">Loading{'\u2026'}</p>
       </div>
     );
   }
 
   return (
     <div className="status-page">
-      <h1 className="f0 color-fg-default mb-1">🔧 Data Status</h1>
-      <p className="f5 color-fg-muted mb-4">Data pipeline transparency for BVE Dashboards</p>
-
-      <QueryRunSection queryRun={status.query_run} />
-      <ExpectedSection expected={status.expected_targets || []} queryTargets={status.query_run?.targets} />
-      <DashboardSection dashboards={status.dashboards || []} buildTs={status.build_timestamp} />
-
-      <div className="mt-4 color-fg-muted f6">
-        <p><a href="../">← Back to dashboards</a></p>
+      <PipelineHeader manifest={manifest} artifactData={artifactData} collectionRun={collectionRun} />
+      <ArtifactTable manifest={manifest} artifactData={artifactData} />
+      <CollectionSummary queryRun={collectionRun} />
+      <RawFilesSection manifest={manifest} />
+      <div className="mt-3 f6 color-fg-muted d-flex" style={{ gap: '16px' }}>
+        <a href="../dataflow/" className="color-fg-accent">{'\ud83d\udd00'} Dataflow {'\u2014'} detailed lineage</a>
+        <a href="../" className="color-fg-accent">{'\u2190'} Back to dashboards</a>
       </div>
     </div>
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
 </script>
 </body>
 </html>
