@@ -190,15 +190,22 @@ function ArtifactTable({ manifest, artifactData }) {
     const computedAt = data?.computed_at || null;
     const dr = profile.date_range || {};
 
-    // Find source raw files via edges
+    // Find source raw files via edges, grouped by type with count
     const artFileName = artMap[baseName] || '';
-    const sourceFiles = edges
+    const rawSourceFiles = edges
       .filter(e => {
         const toBase = e.to.replace(/-\d{4}-\d{2}-\d{2}T\d{4}Z\.json$/, '').replace('.json', '');
         return toBase === baseName;
       })
       .map(e => e.from)
       .filter(f => !f.startsWith(baseName));
+    // Group by short name to avoid repeating the same source type
+    const sourceGroups = {};
+    rawSourceFiles.forEach(f => {
+      const short = shortFileName(f);
+      sourceGroups[short] = (sourceGroups[short] || 0) + 1;
+    });
+    const sourceFiles = Object.entries(sourceGroups);
 
     const daysOfHistory = dr.days_with_data || (dr.first && dr.last
       ? Math.round((new Date(dr.last) - new Date(dr.first)) / 86400000) + 1
@@ -260,7 +267,9 @@ function ArtifactTable({ manifest, artifactData }) {
                 <td><ApiLevelBadge level={r.reg.apiLevel} /></td>
                 <td>
                   {r.sourceFiles.length > 0
-                    ? r.sourceFiles.map((f, i) => <span key={i} className="source-tag" title={f}>{shortFileName(f)}</span>)
+                    ? r.sourceFiles.map(([name, count], i) => (
+                        <span key={i} className="source-tag">{name}{count > 1 ? ' \u00d7' + count : ''}</span>
+                      ))
                     : <span className="f6 color-fg-muted">{r.reg.apiLevel === 'computed' ? 'artifacts' : 'none'}</span>}
                 </td>
                 <td>
@@ -288,11 +297,13 @@ function CollectionSummary({ queryRun }) {
   const targets = queryRun.targets || [];
   const succeeded = targets.filter(t => t.status === 'success' || t.status === 'cached').length;
   const failed = targets.filter(t => t.status === 'failed').length;
+  const startDate = queryRun.run_started ? new Date(queryRun.run_started) : null;
+  const validStart = startDate && !isNaN(startDate.getTime());
   return (
     <div className="Box color-shadow-medium p-3 mb-4">
       <h3 className="f5 mb-2">{'\ud83d\udce1'} Last Collection Run</h3>
       <div className="compact-row">
-        <span className="compact-stat"><strong>{new Date(queryRun.run_started).toLocaleString()}</strong> ({timeAgo(queryRun.run_started)})</span>
+        <span className="compact-stat"><strong>{validStart ? startDate.toLocaleString() : '\u2014'}</strong> ({validStart ? timeAgo(queryRun.run_started) : 'unknown'})</span>
         {queryRun.profile && <span className="compact-stat">profile: <code>{queryRun.profile}</code></span>}
         <span className="compact-stat">{succeeded} success{failed > 0 ? ', ' + failed + ' failed' : ''}</span>
       </div>
