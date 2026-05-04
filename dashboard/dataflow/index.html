@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BVE Dataflow &amp; Coverage</title>
+<title>BVE Pipeline Overview</title>
 <link rel="stylesheet" href="https://unpkg.com/@primer/css@21.3.1/dist/primer.css">
 <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
@@ -11,12 +11,11 @@
 <style>
   body { background: var(--bgColor-default); margin: 0; }
   .dataflow-page { max-width: 1600px; margin: 0 auto; padding: 24px 16px; }
-  .main-layout { display: grid; grid-template-columns: 1fr 420px; gap: 20px; align-items: start; }
-  .main-layout.no-detail { grid-template-columns: 1fr; }
   @media (max-width: 1100px) { .main-layout { grid-template-columns: 1fr; } }
   .flow-column { display: flex; flex-direction: column; gap: 10px; }
   .flow-columns { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; gap: 0; align-items: start; }
-  .flow-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--fgColor-muted); font-weight: 600; margin-bottom: 8px; text-align: center; }
+  .flow-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--fgColor-muted); font-weight: 600; margin-bottom: 4px; text-align: center; }
+  .flow-label-sub { font-size: 10px; color: var(--fgColor-muted); text-align: center; margin-bottom: 8px; font-weight: 400; }
   .flow-box { border: 2px solid var(--borderColor-default); border-radius: 8px; padding: 10px 12px; cursor: pointer; transition: all 0.15s; position: relative; }
   .flow-box:hover { border-color: var(--fgColor-accent); }
   .flow-box.selected { border-color: #58a6ff !important; background: rgba(88,166,255,0.08); box-shadow: 0 0 0 2px rgba(88,166,255,0.3); }
@@ -30,34 +29,73 @@
   .flow-box .count-num { font-weight: 700; font-size: 13px; color: var(--fgColor-default); }
   .flow-box .count-label { font-size: 10px; color: var(--fgColor-muted); }
   .flow-box .box-source { font-size: 9px; color: var(--fgColor-muted); margin-top: 3px; font-style: italic; }
+  .flow-box .box-desc { font-size: 10px; color: var(--fgColor-muted); margin-top: 3px; line-height: 1.3; }
   .flow-box.raw { border-left: 3px solid #3fb950; }
   .flow-box.materialized { border-left: 3px solid #58a6ff; }
   .flow-box.dashboard { border-left: 3px solid #d29922; border-style: dashed; }
-
-  /* Color-coded connector dots for edge tracing */
-  .edge-dots { display: flex; gap: 3px; margin-top: 4px; flex-wrap: wrap; }
-  .edge-dot { width: 8px; height: 8px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); }
+  /* Artifact column emphasis */
+  .flow-column.artifact-col { background: rgba(88,166,255,0.03); border-radius: 8px; padding: 12px; margin: -12px 0; }
+  /* Grouped raw file styling */
+  .group-files { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--borderColor-muted); }
+  .group-file-row { font-size: 10px; color: var(--fgColor-muted); padding: 2px 0; display: flex; justify-content: space-between; }
+  .group-file-row .file-date { font-size: 9px; }
+  .freshness-chip { display: inline-block; font-size: 8px; font-weight: 600; padding: 1px 4px; border-radius: 3px; margin-left: 4px; vertical-align: middle; }
+  .freshness-chip.fresh { background: rgba(63,185,80,0.15); color: #3fb950; }
+  .freshness-chip.stale { background: rgba(210,153,34,0.15); color: #d29922; }
+  .freshness-chip.old { background: rgba(248,81,73,0.15); color: #f85149; }
 
   .arrow-col { display: flex; flex-direction: column; justify-content: center; padding: 28px 2px 0; gap: 20px; min-width: 20px; }
   .arrow-mark { color: var(--borderColor-default); font-size: 10px; text-align: center; }
   .arrow-mark.active { color: #58a6ff; }
   .arrow-mark.dashed { color: #d29922; opacity: 0.4; }
-  .detail-panel { border: 1px solid var(--borderColor-default); border-radius: 8px; padding: 16px; position: sticky; top: 24px; max-height: calc(100vh - 48px); overflow-y: auto; }
-  .detail-panel h3 { margin: 0 0 4px 0; font-size: 15px; }
-  .detail-panel .detail-sub { font-size: 11px; color: var(--fgColor-muted); margin-bottom: 12px; }
-  .detail-section { margin-bottom: 14px; }
-  .detail-section:last-child { margin-bottom: 0; }
-  .detail-section h4 { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--fgColor-muted); margin: 0 0 6px 0; font-weight: 600; border-bottom: 1px solid var(--borderColor-muted); padding-bottom: 4px; }
-  .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-  .detail-grid.wide { grid-template-columns: 1fr; }
-  .detail-stat { background: var(--bgColor-muted); border-radius: 6px; padding: 6px 10px; }
-  .detail-stat .stat-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--fgColor-muted); }
-  .detail-stat .stat-value { font-size: 14px; font-weight: 600; color: var(--fgColor-default); }
-  .detail-stat .stat-sub { font-size: 10px; color: var(--fgColor-muted); }
-  .detail-stat.full { grid-column: 1 / -1; }
-  .consumer-tag { display: inline-block; font-size: 10px; padding: 2px 6px; border-radius: 4px; margin: 2px 2px; }
-  .close-btn { position: absolute; top: 8px; right: 8px; background: none; border: none; color: var(--fgColor-muted); cursor: pointer; font-size: 16px; padding: 4px; border-radius: 4px; }
+
+  /* Modal overlay */
+  .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 100; display: flex; align-items: flex-start; justify-content: center; padding: 48px 24px; overflow-y: auto; backdrop-filter: blur(2px); }
+  .modal-card { background: var(--bgColor-default); border: 1px solid var(--borderColor-default); border-radius: 12px; width: 100%; max-width: 720px; position: relative; box-shadow: 0 16px 48px rgba(0,0,0,0.4); }
+  .modal-header { padding: 20px 24px 16px; border-bottom: 1px solid var(--borderColor-muted); }
+  .modal-header h2 { margin: 0; font-size: 18px; display: flex; align-items: center; gap: 8px; }
+  .modal-header .modal-sub { font-size: 12px; color: var(--fgColor-muted); margin-top: 4px; }
+  .modal-header .modal-type-badge { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
+  .modal-body { padding: 16px 24px 24px; max-height: calc(100vh - 180px); overflow-y: auto; }
+  .close-btn { position: absolute; top: 16px; right: 16px; background: none; border: none; color: var(--fgColor-muted); cursor: pointer; font-size: 20px; padding: 4px 8px; border-radius: 4px; z-index: 1; }
   .close-btn:hover { background: var(--bgColor-muted); color: var(--fgColor-default); }
+
+  /* Metadata sections */
+  .meta-section { margin-bottom: 16px; }
+  .meta-section:last-child { margin-bottom: 0; }
+  .meta-section-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--fgColor-muted); font-weight: 600; margin: 0 0 8px 0; padding-bottom: 4px; border-bottom: 1px solid var(--borderColor-muted); display: flex; align-items: center; gap: 6px; }
+  .meta-section-title .section-icon { font-size: 12px; }
+
+  /* Key-value table */
+  .kv-table { width: 100%; border-collapse: collapse; }
+  .kv-table td { padding: 5px 0; font-size: 13px; vertical-align: top; border-bottom: 1px solid rgba(128,128,128,0.08); }
+  .kv-table tr:last-child td { border-bottom: none; }
+  .kv-table .kv-key { color: var(--fgColor-muted); font-size: 11px; width: 140px; padding-right: 12px; white-space: nowrap; }
+  .kv-table .kv-val { color: var(--fgColor-default); font-weight: 500; }
+  .kv-table .kv-val.num { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, monospace; }
+  .kv-table .kv-val.ok { color: #3fb950; }
+  .kv-table .kv-val.warn { color: #d29922; }
+  .kv-table .kv-val.err { color: #f85149; }
+  .kv-table .kv-val.accent { color: #58a6ff; }
+  .kv-table .kv-note { font-size: 10px; color: var(--fgColor-muted); font-weight: 400; margin-left: 6px; }
+
+  /* Pipeline step (before → after) */
+  .pipeline-step { display: flex; align-items: center; gap: 6px; font-size: 12px; margin-bottom: 6px; padding: 6px 10px; background: var(--bgColor-muted); border-radius: 6px; }
+  .pipeline-step:last-child { margin-bottom: 0; }
+  .pipeline-step .step-label { font-size: 10px; color: var(--fgColor-muted); min-width: 120px; }
+  .pipeline-step .step-before { font-variant-numeric: tabular-nums; font-weight: 500; }
+  .pipeline-step .step-arrow { color: var(--fgColor-muted); font-size: 10px; }
+  .pipeline-step .step-after { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--fgColor-default); }
+  .pipeline-step .step-delta { font-size: 10px; color: var(--fgColor-muted); margin-left: auto; }
+
+  /* Consumer/downstream tags */
+  .consumer-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid rgba(128,128,128,0.06); }
+  .consumer-row:last-child { border-bottom: none; }
+  .consumer-tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 4px; }
+  .consumer-sections { font-size: 10px; color: var(--fgColor-muted); }
+
+  /* Run separator */
+  .run-divider { border: none; border-top: 1px dashed var(--borderColor-muted); margin: 12px 0; }
 </style>
 </head>
 <body>
@@ -77,44 +115,34 @@ function timeAgo(ts) {
 }
 function fmtBytes(bytes) { if (!bytes) return '\u2014'; if (bytes < 1024) return bytes + ' B'; if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'; return (bytes / 1048576).toFixed(1) + ' MB'; }
 function fmtCompact(v) { if (v == null) return '\u2014'; if (Math.abs(v) >= 1e6) return (v / 1e6).toFixed(1) + 'M'; if (Math.abs(v) >= 1e3) return (v / 1e3).toFixed(1) + 'k'; return String(v); }
+function pickCount(p) { return p.record_count != null ? p.record_count : p.element_count; }
 
 const CONSUMERS = {
   'ai-assisted-efficiency-days': [
-    { name: 'AI-Assisted Efficiency', sections: 'Impact \u00b7 Drivers \u00b7 Confidence' },
-    { name: 'AI-Assisted Element', sections: 'Leverage \u00b7 Insights' },
-    { name: 'Integrated', sections: 'AI sub-rectangle' },
-    { name: 'AI Efficiency v2', sections: 'Impact \u00b7 Drivers \u00b7 Confidence', v2: true },
-    { name: 'AI Element v2', sections: 'Leverage \u00b7 Insights', v2: true },
-    { name: 'Integrated v2', sections: 'AI sub-rectangle', v2: true },
+    { name: 'AI Efficiency v2', sections: 'Impact \u00b7 Drivers \u00b7 Confidence' },
+    { name: 'AI Element v2', sections: 'Leverage \u00b7 Insights' },
+    { name: 'Integrated v2', sections: 'AI sub-rectangle' },
   ],
   'ai-assisted-structural-days': [
-    { name: 'AI-Assisted Structural', sections: 'Completeness \u00b7 Consistency \u00b7 Impact' },
-    { name: 'AI-Assisted Element', sections: 'Factor donuts \u00b7 Insights' },
-    { name: 'Integrated', sections: 'AI structural factors' },
-    { name: 'AI Structural v2', sections: 'Overview \u00b7 Trends \u00b7 PR Analysis', v2: true },
-    { name: 'AI Element v2', sections: 'Structural factors \u00b7 Insights', v2: true },
-    { name: 'Integrated v2', sections: 'AI structural factors', v2: true },
+    { name: 'AI Structural v2', sections: 'Overview \u00b7 Trends \u00b7 PR Analysis' },
+    { name: 'AI Element v2', sections: 'Structural factors \u00b7 Insights' },
+    { name: 'Integrated v2', sections: 'AI structural factors' },
   ],
   'agentic-efficiency-days': [
-    { name: 'Agentic Efficiency', sections: 'Impact \u00b7 Drivers \u00b7 Confidence' },
-    { name: 'Agentic Element', sections: 'Factor donuts \u00b7 Insights' },
-    { name: 'Integrated', sections: 'Agentic adoption' },
-    { name: 'Agentic Efficiency v2', sections: 'Impact \u00b7 Drivers \u00b7 Confidence', v2: true },
-    { name: 'Agentic Element v2', sections: 'Leverage \u00b7 Insights', v2: true },
-    { name: 'Integrated v2', sections: 'Agentic adoption', v2: true },
+    { name: 'Agentic Efficiency v2', sections: 'Impact \u00b7 Drivers \u00b7 Confidence' },
+    { name: 'Agentic Element v2', sections: 'Leverage \u00b7 Insights' },
+    { name: 'Integrated v2', sections: 'Agentic adoption' },
   ],
   'agentic-pr-sessions': [
-    { name: 'Agentic Efficiency', sections: 'Confidence (PR detail)' },
-    { name: 'Agentic Element', sections: 'Leverage rectangle \u00b7 Completions' },
-    { name: 'Integrated', sections: 'Agentic dev-hours \u00b7 completions' },
-    { name: 'Agentic Efficiency v2', sections: 'PR sessions', v2: true },
-    { name: 'Agentic Element v2', sections: 'Leverage \u00b7 PR Analysis', v2: true },
-    { name: 'Integrated v2', sections: 'Agentic completions', v2: true },
+    { name: 'Agentic Efficiency v2', sections: 'PR sessions' },
+    { name: 'Agentic Element v2', sections: 'Leverage \u00b7 PR Analysis' },
+    { name: 'Integrated v2', sections: 'Agentic completions' },
   ],
   'leverage-summary': [
-    { name: 'Integrated v2', sections: 'Evidence table \u00b7 Leverage rectangle \u00b7 KPIs', v2: true },
-    { name: 'AI Element v2', sections: 'Leverage facts \u00b7 Estimates', v2: true },
-    { name: 'Agentic Element v2', sections: 'Leverage facts \u00b7 Estimates', v2: true },
+    { name: 'Integrated v2', sections: 'Evidence table \u00b7 Leverage rectangle \u00b7 KPIs' },
+    { name: 'AI Element v2', sections: 'Leverage facts \u00b7 Estimates' },
+    { name: 'Agentic Element v2', sections: 'Leverage facts \u00b7 Estimates' },
+    { name: 'Live Demo', sections: 'Full leverage visualization' },
   ],
 };
 
@@ -127,51 +155,102 @@ Object.keys(CONSUMERS).forEach(function(artName) {
   });
 });
 
-var DASHBOARD_NAMES = ['AI-Assisted Efficiency','AI-Assisted Structural','AI-Assisted Element','Agentic Efficiency','Agentic Element','Integrated','AI Efficiency v2','AI Structural v2','AI Element v2','Agentic Efficiency v2','Agentic Element v2','Integrated v2'];
+var DASHBOARD_NAMES = ['AI Efficiency v2','AI Structural v2','AI Element v2','Agentic Efficiency v2','Agentic Element v2','Integrated v2','Live Demo'];
 
-// Stable colors for edge tracing (assigned to raw files by index)
-var EDGE_COLORS = ['#3fb950', '#58a6ff', '#d29922', '#bc8cff', '#f85149', '#f778ba'];
+var DASHBOARD_DESCRIPTIONS = {
+  'AI Efficiency v2': 'Adoption trends, coding time savings & confidence metrics',
+  'AI Structural v2': 'PR merge rates, developer workflows & code review impact',
+  'AI Element v2': 'AI-assisted leverage factors, estimates & projections',
+  'Agentic Efficiency v2': 'Agent session throughput, duration & success rates',
+  'Agentic Element v2': 'Agentic leverage factors, estimates & projections',
+  'Integrated v2': 'Combined leverage view across all elements with evidence table',
+  'Live Demo': 'Interactive leverage visualization for presentations',
+};
+
+var ARTIFACT_DESCRIPTIONS = {
+  'ai-assisted-efficiency-days': 'Daily adoption & coding time metrics per developer',
+  'ai-assisted-structural-days': 'PR classification, merge rates & code review data',
+  'agentic-efficiency-days': 'Agent session metrics: duration, status, throughput',
+  'agentic-pr-sessions': 'Individual agent PR sessions with outcomes & LoC',
+  'leverage-summary': 'Derived leverage calculations across all elements',
+};
+
+var SOURCE_DESCRIPTIONS = {
+  'copilot-metrics': 'GitHub Copilot usage API — daily active users, suggestions, acceptances',
+  'human-pr-metrics': 'Pull request data — merge rates, review times, author activity',
+  'coding-agent-pr-metrics': 'Coding agent PR sessions — repos, durations, outcomes',
+  'org-members': 'Organization membership — developer roster for filtering',
+};
+
+// Stable colors removed — using selection-based highlighting instead
 
 function shortName(filename) {
   return filename
     .replace(/^octodemo-/, '')
-    .replace(/-\d{8}T\d{4}Z/, '')
+    .replace(/-?\d{4}-?\d{2}-?\d{2}T\d{4}Z/, '')
     .replace('.json', '');
 }
 
-function RawFileBox({ file, selected, onClick, connected, dimmed, edgeColor, downstreamColors }) {
-  const m = file.metadata || {};
-  const d = file.derived || {};
-  const scope = m.scope_name || m.org || '';
-  const dr = m.date_range;
-  const counts = Object.entries(m.counts || {}).slice(0, 3);
+function freshnessChip(collectedAt) {
+  if (!collectedAt) return null;
+  var hrs = (Date.now() - new Date(collectedAt).getTime()) / 3600000;
+  var cls = hrs < 48 ? 'fresh' : hrs < 168 ? 'stale' : 'old';
+  var label = hrs < 48 ? 'fresh' : Math.floor(hrs/24)+'d';
+  return React.createElement('span', {className:'freshness-chip ' + cls}, label);
+}
+
+function fmtDateRange(dr) {
+  if (!dr) return null;
+  var since = (dr.since||'').slice(0,10);
+  var until = (dr.until||'').slice(0,10);
+  if (!since && !until) return null;
+  var parts = [];
+  if (since) parts.push(since);
+  parts.push('\u2192');
+  if (until) parts.push(until);
+  else parts.push('now');
+  if (dr.days) parts.push('(' + dr.days + 'd)');
+  return parts.join(' ');
+}
+
+function RawFileGroup({ group, selected, onClick, connected, dimmed }) {
   var cls = 'flow-box raw';
   if (selected) cls += ' selected';
   else if (connected) cls += ' connected';
   else if (dimmed) cls += ' dimmed';
-  // Build derived entity line
-  var hasDerived = d.unique_people || d.detail_rows || d.prs;
+  var latest = group.files[0];
+  var m = latest.metadata || {};
+  var desc = SOURCE_DESCRIPTIONS[group.type] || '';
+  var dateStr = fmtDateRange(m.date_range);
   return (
-    <div className={cls} onClick={onClick} style={edgeColor ? {borderLeftColor: edgeColor} : {}}>
-      <div className="box-title">{shortName(file.name)}</div>
-      {scope && <div className="box-sub">scope: <strong style={{color:'var(--fgColor-default)'}}>{scope}</strong></div>}
-      {dr && <div className="box-sub">{(dr.since||'?').slice(0,10)} {'\u2192'} {(dr.until||'?').slice(0,10)}{dr.days ? ' ('+dr.days+'d)':''}</div>}
-      {counts.length > 0 && <div className="box-counts">
-        <div className="count-row">{counts.map(function(e, i){ return <React.Fragment key={i}><span className="count-num">{fmtCompact(e[1])}</span><span className="count-label">{e[0].replace(/_/g,' ')}</span></React.Fragment>; })}</div>
-      </div>}
-      {hasDerived && <div className="box-counts" style={{borderTop:'1px solid var(--borderColor-muted)', paddingTop:'3px', marginTop:'3px'}}>
-        <div className="count-row">
-          {d.unique_people > 0 && <><span className="count-num" style={{color:'#3fb950'}}>{fmtCompact(d.unique_people)}</span><span className="count-label">{d.people_label || 'people'}</span></>}
-          {d.unique_pr_authors > 0 && <><span className="count-num" style={{color:'#3fb950'}}>{fmtCompact(d.unique_pr_authors)}</span><span className="count-label">PR authors</span></>}
-          {d.detail_rows > 0 && <><span className="count-num" style={{color:'#58a6ff'}}>{fmtCompact(d.detail_rows)}</span><span className="count-label">{d.detail_label || 'detail rows'}</span></>}
-          {d.prs > 0 && <><span className="count-num" style={{color:'#58a6ff'}}>{fmtCompact(d.prs)}</span><span className="count-label">PRs</span></>}
-          {d.unique_repos > 0 && <><span className="count-num" style={{color:'#d29922'}}>{fmtCompact(d.unique_repos)}</span><span className="count-label">repos</span></>}
+    <div className={cls} onClick={onClick}>
+      <div className="d-flex flex-items-center flex-justify-between">
+        <div className="box-title">{group.type}</div>
+        <div>
+          {freshnessChip(m.collected_at)}
+          <span className="box-badge" style={{background:'rgba(63,185,80,0.15)',color:'#3fb950',marginLeft:'4px'}}>{group.files.length} run{group.files.length>1?'s':''}</span>
         </div>
+      </div>
+      {desc && <div className="box-desc">{desc}</div>}
+      {dateStr && <div className="box-sub">{dateStr}</div>}
+      {m.counts && <div className="box-counts">
+        <div className="count-row">{Object.entries(m.counts).slice(0,3).map(function(e, i){ return <React.Fragment key={i}><span className="count-num">{fmtCompact(e[1])}</span><span className="count-label">{e[0].replace(/_/g,' ')}</span></React.Fragment>; })}</div>
       </div>}
-      {m.collected_at && <div className="box-sub">{timeAgo(m.collected_at)}</div>}
-      {file.downstreamArtifacts && file.downstreamArtifacts.length > 0 && (
+      {group.files.length > 1 && (
+        <div className="group-files">
+          {group.files.map(function(f,i) {
+            var fm = f.metadata || {};
+            var fdr = fmtDateRange(fm.date_range) || (fm.collected_at ? timeAgo(fm.collected_at) : 'no metadata');
+            return <div key={i} className="group-file-row">
+              <span>{fdr}</span>
+              <span className="file-date">{timeAgo(fm.collected_at)}</span>
+            </div>;
+          })}
+        </div>
+      )}
+      {group.downstreamArtifacts.length > 0 && (
         <div className="box-sub" style={{marginTop:'3px'}}>
-          {'\u2192 '}{file.downstreamArtifacts.map(function(a){return a.replace(/-/g,' ')}).join(', ')}
+          {'\u2192 '}{group.downstreamArtifacts.map(function(a){return a.replace(/-/g,' ')}).join(', ')}
         </div>
       )}
     </div>
@@ -184,33 +263,25 @@ function ArtifactBox({ artifact, selected, onClick, connected, dimmed, sourceCol
   if (selected) cls += ' selected';
   else if (connected) cls += ' connected';
   else if (dimmed) cls += ' dimmed';
+  var desc = ARTIFACT_DESCRIPTIONS[(artifact.name||'')] || '';
+  var isDerived = (artifact.name||'') === 'leverage-summary';
   return (
     <div className={cls} onClick={onClick}>
       <div className="box-title">{(artifact.name||'').replace(/-/g, ' ')}</div>
+      {desc && <div className="box-desc">{desc}</div>}
       <div className="box-counts">
         <div className="count-row">
-          <span className="count-num">{fmtCompact(p.record_count)}</span>
-          <span className="count-label">{p.status_breakdown ? 'sessions' : 'day rows'}</span>
-          {p.detail_row_count > 0 && <><span className="count-num" style={{color:'#58a6ff'}}>{fmtCompact(p.detail_row_count)}</span><span className="count-label">{p.detail_label || 'detail rows'}</span></>}
-          {p.pr_record_count > 0 && <><span className="count-num" style={{color:'#58a6ff'}}>{fmtCompact(p.pr_record_count)}</span><span className="count-label">PRs</span></>}
-        </div>
-        <div className="count-row">
+          <span className="count-num">{fmtCompact(pickCount(p))}</span>
+          <span className="count-label">{p.status_breakdown ? 'sessions' : p.element_count != null ? 'elements' : 'day rows'}</span>
           {p.unique_people > 0 && <><span className="count-num" style={{color:'#3fb950'}}>{fmtCompact(p.unique_people)}</span><span className="count-label">{p.people_label || 'people'}</span></>}
-          {p.unique_repos > 0 && <><span className="count-num" style={{color:'#d29922'}}>{fmtCompact(p.unique_repos)}</span><span className="count-label">repos</span></>}
         </div>
       </div>
       {p.date_range && p.date_range.first && <div className="box-sub">{p.date_range.first} {'\u2192'} {p.date_range.last}</div>}
-      {sourceColors && sourceColors.length > 0 && (
-        <div className="edge-dots">
-          {sourceColors.map(function(sc, i) {
-            return <div key={i} className="edge-dot" style={{background: sc.color}} title={shortName(sc.file)} />;
-          })}
-          <span style={{fontSize:'9px', color:'var(--fgColor-muted)', marginLeft:'2px'}}>
-            {'\u2190 '}{sourceColors.map(function(sc){return shortName(sc.file)}).join(', ')}
-          </span>
-        </div>
-      )}
-      <div className="box-badge" style={{background:'#58a6ff',color:'#000'}}>materialized</div>
+      {p.config_used && p.config_used.cfg_total_developers != null && <div className="box-sub" style={{marginTop:'2px'}}>
+        {fmtCompact(p.config_used.cfg_total_developers)} devs {'\u00b7'} ${p.config_used.cfg_labor_cost_per_hour || '?'}/hr {'\u00b7'} {p.config_used.cfg_pct_time_coding != null ? (p.config_used.cfg_pct_time_coding*100)+'%' : '?'} coding
+      </div>}
+      {isDerived && <div className="box-badge" style={{background:'rgba(188,140,255,0.15)',color:'#bc8cff'}}>derived</div>}
+      {!isDerived && <div className="box-badge" style={{background:'#58a6ff',color:'#000'}}>materialized</div>}
     </div>
   );
 }
@@ -220,135 +291,255 @@ function DashboardBox({ name, selected, onClick, connected, dimmed }) {
   if (selected) cls += ' selected';
   else if (connected) cls += ' connected';
   else if (dimmed) cls += ' dimmed';
+  var desc = DASHBOARD_DESCRIPTIONS[name] || '';
+  var artCount = (DASHBOARD_ARTIFACTS[name] || []).length;
   return React.createElement('div', {className: cls, onClick: onClick},
     React.createElement('div', {className:'box-title'}, name),
+    desc ? React.createElement('div', {className:'box-desc'}, desc) : null,
+    React.createElement('div', {className:'box-sub'}, artCount + ' artifact' + (artCount !== 1 ? 's' : '')),
     React.createElement('div', {className:'box-badge', style:{background:'#d29922',color:'#000'}}, 'live calcs')
   );
 }
 
-function StatCard({ label, value, sub, color }) {
-  return React.createElement('div', {className:'detail-stat'},
-    React.createElement('div', {className:'stat-label'}, label),
-    React.createElement('div', {className:'stat-value', style: color ? {color} : {}}, value),
-    sub ? React.createElement('div', {className:'stat-sub'}, sub) : null
+// Key-value row helper — consistent across all detail views
+function KV({ label, value, cls, note }) {
+  if (value == null || value === '' || value === '—') return null;
+  return React.createElement('tr', null,
+    React.createElement('td', {className:'kv-key'}, label),
+    React.createElement('td', {className:'kv-val' + (cls ? ' '+cls : '')}, value, note ? React.createElement('span', {className:'kv-note'}, note) : null)
   );
 }
+function KVTable({ children }) {
+  return React.createElement('table', {className:'kv-table'}, React.createElement('tbody', null, children));
+}
 
-function RawFileDetail({ file, queryRun, onClose }) {
-  const m = file.metadata || {};
-  const target = (queryRun && queryRun.targets || []).find(function(t) { return file.name.indexOf(t.output_file ? t.output_file.replace(/\.json$/,'') : '') >= 0; });
+// Pipeline step: before → after with delta
+function PipelineStep({ label, before, after, detail }) {
+  if (before == null || after == null) return null;
+  var removed = before - after;
   return (
-    <div className="detail-panel" style={{position:'relative'}}>
-      <button className="close-btn" onClick={onClose}>{'\u2715'}</button>
-      <h3 className="color-fg-accent">{'\ud83d\udcc4 ' + file.name.replace(/^octodemo-/,'')}</h3>
-      <div className="detail-sub">{file.name}</div>
-      <div className="detail-section">
-        <h4>Query Parameters</h4>
-        <div className="detail-grid">
-          {m.scope && <StatCard label="Scope" value={m.scope} />}
-          {(m.scope_name||m.org) && <StatCard label={m.scope==='enterprise'?'Enterprise':'Org'} value={m.scope_name||m.org} />}
-          {m.repo && m.repo !== 'null' && <StatCard label="Repo" value={m.repo} />}
-          {m.date_range && m.date_range.days && <StatCard label="DAYS" value={String(m.date_range.days)} />}
-          {m.date_range && m.date_range.since && <StatCard label="Since" value={(m.date_range.since||'').slice(0,10)} />}
-          {m.date_range && m.date_range.until && <StatCard label="Until" value={m.date_range.until.slice(0,10)} />}
-          {queryRun && queryRun.profile && <StatCard label="Profile" value={queryRun.profile} />}
-        </div>
-      </div>
-      <div className="detail-section">
-        <h4>Collection</h4>
-        <div className="detail-grid">
-          {m.collected_at && <StatCard label="Collected" value={new Date(m.collected_at).toLocaleString()} sub={timeAgo(m.collected_at)} />}
-          {m.elapsed_seconds!=null && <StatCard label="Duration" value={m.elapsed_seconds+'s'} />}
-          {m.api_calls!=null && <StatCard label="API Calls" value={String(m.api_calls)} />}
-          {target && target.file_size_bytes && <StatCard label="File Size" value={fmtBytes(target.file_size_bytes)} />}
-          {m.source && <StatCard label="Script" value={m.source} />}
-          {target && target.status && <StatCard label="Status" value={target.status} color={target.status==='success'?'#3fb950':'#f85149'} />}
-        </div>
-      </div>
-      {m.counts && <div className="detail-section">
-        <h4>Raw Record Counts</h4>
-        <div className="detail-grid">
-          {Object.entries(m.counts).map(function(e) { return <StatCard key={e[0]} label={e[0].replace(/_/g,' ')} value={fmtCompact(e[1])} />; })}
-        </div>
-      </div>}
-      {file.derived && (file.derived.unique_people || file.derived.detail_rows || file.derived.prs) && <div className="detail-section">
-        <h4>Entity Counts (from materialization)</h4>
-        <div className="detail-grid">
-          {file.derived.unique_people > 0 && <StatCard label={'Unique '+(file.derived.people_label||'people')} value={fmtCompact(file.derived.unique_people)} color="#3fb950" />}
-          {file.derived.unique_pr_authors > 0 && <StatCard label="Unique PR Authors" value={fmtCompact(file.derived.unique_pr_authors)} color="#3fb950" />}
-          {file.derived.detail_rows > 0 && <StatCard label={file.derived.detail_label||'Detail rows'} value={fmtCompact(file.derived.detail_rows)} color="#58a6ff" />}
-          {file.derived.prs > 0 && <StatCard label="PR Records" value={fmtCompact(file.derived.prs)} color="#58a6ff" />}
-          {file.derived.unique_repos > 0 && <StatCard label="Unique Repos" value={fmtCompact(file.derived.unique_repos)} color="#d29922" />}
-        </div>
-      </div>}
-      {m.completeness && <div className="detail-section">
-        <h4>Completeness</h4>
-        <div className={'flash f6 ' + (m.completeness==='complete'?'flash-success':'flash-warn')}>{m.completeness==='complete'?'\u2705 Complete':'\u26a0\ufe0f '+m.completeness}</div>
-      </div>}
-      {file.downstreamArtifacts && file.downstreamArtifacts.length > 0 && <div className="detail-section">
-        <h4>Feeds Artifacts</h4>
-        <div className="detail-grid wide">
-          {file.downstreamArtifacts.map(function(a) { return <div key={a} className="detail-stat"><div className="stat-value" style={{fontSize:'11px'}}>{'\u2192 '+a.replace(/-/g,' ')}</div></div>; })}
-        </div>
-      </div>}
+    <div className="pipeline-step">
+      <span className="step-label">{label}</span>
+      <span className="step-before">{fmtCompact(before)}</span>
+      <span className="step-arrow">{'\u2192'}</span>
+      <span className="step-after">{fmtCompact(after)}</span>
+      {removed > 0 && <span className="step-delta">{'-'+fmtCompact(removed)}{detail ? ' · '+detail : ''}</span>}
+      {removed === 0 && detail && <span className="step-delta">{detail}</span>}
     </div>
   );
 }
 
-function ArtifactDetail({ artifact, onClose }) {
+// ─── Source detail modal ────────────────────────────────────────
+function SourceModal({ group, queryRun, onClose }) {
+  var desc = SOURCE_DESCRIPTIONS[group.type] || '';
+  return (
+    <div className="modal-overlay" onClick={function(e){if(e.target===e.currentTarget)onClose()}}>
+      <div className="modal-card">
+        <button className="close-btn" onClick={onClose}>{'\u2715'}</button>
+        <div className="modal-header">
+          <h2>
+            <span style={{color:'#3fb950'}}>{'\u25a0'}</span>
+            {group.type}
+            <span className="modal-type-badge" style={{background:'rgba(63,185,80,0.15)',color:'#3fb950'}}>{group.files.length} run{group.files.length>1?'s':''}</span>
+          </h2>
+          {desc && <div className="modal-sub">{desc}</div>}
+        </div>
+        <div className="modal-body">
+          {group.files.map(function(file, fi) {
+            var m = file.metadata || {};
+            var target = (queryRun && queryRun.targets || []).find(function(t) { return file.name.indexOf(t.output_file ? t.output_file.replace(/\.json$/,'') : '') >= 0; });
+            var statusCls = target && target.status === 'success' ? 'ok' : target && target.status === 'partial' ? 'warn' : target && target.status ? 'err' : '';
+            return <div key={fi}>
+              {fi > 0 && <hr className="run-divider" />}
+              <div className="meta-section">
+                <div className="meta-section-title"><span className="section-icon">{'\ud83d\udcc4'}</span> Run {fi+1}: {file.name.replace(/^octodemo-/,'')}</div>
+                <KVTable>
+                  <KV label="Scope" value={m.scope} />
+                  <KV label={m.scope==='enterprise'?'Enterprise':'Organization'} value={m.scope_name||m.org} />
+                  <KV label="Date range" value={fmtDateRange(m.date_range)} />
+                  <KV label="Collected" value={m.collected_at ? new Date(m.collected_at).toLocaleString() : null} note={timeAgo(m.collected_at)} />
+                  <KV label="Duration" value={m.elapsed_seconds!=null ? m.elapsed_seconds+'s' : null} />
+                  <KV label="API calls" value={m.api_calls!=null ? String(m.api_calls) : null} cls="num" />
+                  <KV label="File size" value={target && target.file_size_bytes ? fmtBytes(target.file_size_bytes) : null} />
+                  <KV label="Status" value={target && target.status} cls={statusCls} />
+                  {m.counts && Object.entries(m.counts).map(function(e) { return <KV key={e[0]} label={e[0].replace(/_/g,' ')} value={fmtCompact(e[1])} cls="num" />; })}
+                </KVTable>
+              </div>
+            </div>;
+          })}
+          {group.downstreamArtifacts && group.downstreamArtifacts.length > 0 && <div className="meta-section">
+            <div className="meta-section-title"><span className="section-icon">{'\u2192'}</span> Feeds Artifacts</div>
+            {group.downstreamArtifacts.map(function(a) {
+              return <div key={a} className="consumer-row">
+                <span className="consumer-tag" style={{background:'rgba(88,166,255,0.12)',color:'#58a6ff'}}>{a.replace(/-/g,' ')}</span>
+              </div>;
+            })}
+          </div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Artifact detail modal ──────────────────────────────────────
+function ArtifactModal({ artifact, onClose }) {
   const p = artifact.profile || {};
   const consumers = CONSUMERS[artifact.name] || [];
+  var isDerived = (artifact.name||'') === 'leverage-summary';
   return (
-    <div className="detail-panel" style={{position:'relative'}}>
-      <button className="close-btn" onClick={onClose}>{'\u2715'}</button>
-      <h3 className="color-fg-accent">{'\ud83d\udd37 '+(artifact.name||'').replace(/-/g,' ')}</h3>
-      <div className="detail-sub">Materialized {artifact.computed_at ? new Date(artifact.computed_at).toLocaleString() : '\u2014'} {'\u00b7'} {artifact.compute_ms||0}ms</div>
-      <div className="detail-section"><h4>Records &amp; Coverage</h4><div className="detail-grid">
-        <StatCard label={p.status_breakdown ? 'PR Sessions' : 'Day Rows'} value={fmtCompact(p.record_count)} />
-        {p.detail_row_count != null && p.detail_row_count > 0 && <StatCard label={p.detail_label ? (p.detail_label.charAt(0).toUpperCase()+p.detail_label.slice(1)) : 'Detail Rows'} value={fmtCompact(p.detail_row_count)} />}
-        {p.pr_record_count != null && p.pr_record_count > 0 && <StatCard label="PR Records" value={fmtCompact(p.pr_record_count)} />}
-        {p.unique_people != null && p.unique_people > 0 && <StatCard label={'Unique '+(p.people_label ? p.people_label.charAt(0).toUpperCase()+p.people_label.slice(1) : 'People')} value={String(p.unique_people)} />}
-        {p.unique_repos != null && p.unique_repos > 0 && <StatCard label="Unique Repos" value={String(p.unique_repos)} />}
-        {p.date_range && p.date_range.first && <StatCard label="Date Range" value={p.date_range.first+' \u2192 '+p.date_range.last} sub={p.date_range.days_with_data+' days'} />}
-      </div></div>
-      {(p.enterprise_dedup||p.user_dedup||p.devday_dedup||p.session_dedup||p.aggregation) && <div className="detail-section"><h4>Processing Pipeline</h4><div className="detail-grid">
-        {p.enterprise_dedup && <StatCard label="Enterprise Dedup" value={p.enterprise_dedup.before+'\u2192'+p.enterprise_dedup.after} sub={p.enterprise_dedup.removed+' removed'} />}
-        {p.user_dedup && <StatCard label="User-Day Dedup" value={p.user_dedup.before+'\u2192'+p.user_dedup.after} sub={p.user_dedup.unique_logins+' logins'} />}
-        {p.devday_dedup && <StatCard label="Dev-Day Dedup" value={p.devday_dedup.before+'\u2192'+p.devday_dedup.after} sub={p.devday_dedup.unique_developers+' devs'} />}
-        {p.aggregation && <StatCard label="Aggregation" value={p.aggregation.devday_rows+'\u2192'+p.aggregation.day_rows+' days'} />}
-        {p.session_dedup && <StatCard label="Session Dedup" value={p.session_dedup.before+'\u2192'+p.session_dedup.after} sub={p.session_dedup.removed+' removed'} />}
-      </div></div>}
-      {p.pr_processing && <div className="detail-section"><h4>PR Processing</h4><div className="detail-grid">
-        <StatCard label="Dedup" value={p.pr_processing.before_dedup+'\u2192'+p.pr_processing.after_dedup} />
-        <StatCard label="Bot Filter" value={'-'+p.pr_processing.bots_removed+' bots'} sub={p.pr_processing.after_filter+' remain'} />
-      </div></div>}
-      {p.pr_classification && p.has_pr_data && <div className="detail-section"><h4>PR-Assist Classification</h4><div className="detail-grid">
-        <StatCard label="Lookback" value={p.pr_classification.lookback_days+' days'} />
-        <StatCard label="Assisted Rate" value={p.period_prs_assisted_pct!=null?(p.period_prs_assisted_pct*100).toFixed(1)+'%':'\u2014'} sub={p.pr_classification.assisted_prs+' of '+p.pr_classification.total_merged_prs} />
-        <StatCard label="PR Authors" value={String(p.pr_classification.unique_pr_authors)} />
-        <StatCard label="Copilot Users" value={String(p.pr_classification.unique_copilot_users)} />
-      </div></div>}
-      {p.status_breakdown && <div className="detail-section"><h4>PR Status</h4><div className="detail-grid">
-        <StatCard label="Merged" value={String(p.status_breakdown.merged)} color="#3fb950" />
-        <StatCard label="Open" value={String(p.status_breakdown.open)} color="#58a6ff" />
-        <StatCard label="Closed" value={String(p.status_breakdown.closed_no_merge)} color="#f85149" />
-        {p.with_duration!=null && <StatCard label="With Duration" value={String(p.with_duration)} sub={p.without_duration+' without'} />}
-      </div></div>}
-      {(p.unique_repos!=null||p.loc_summary) && <div className="detail-section"><h4>Entities</h4><div className="detail-grid">
-        {p.loc_summary && <div className="detail-stat full"><div className="stat-label">LoC</div><div className="stat-value">+{fmtCompact(p.loc_summary.total_additions)} / -{fmtCompact(p.loc_summary.total_deletions)}</div></div>}
-      </div></div>}
-      {p.reconciliation_summary && <div className="detail-section"><h4>Reconciliation</h4><div className="detail-grid">
-        {Object.entries(p.reconciliation_summary).filter(function(e){return e[1]>0}).map(function(e){ return <StatCard key={e[0]} label={e[0].replace(/_/g,' ')} value={String(e[1])} color={e[0]==='match'?'#3fb950':e[0]==='material_difference'?'#f85149':'#d29922'} />; })}
-      </div></div>}
-      {artifact.inputs && artifact.inputs.length>0 && <div className="detail-section"><h4>Source Files</h4><div className="detail-grid wide">
-        {artifact.inputs.map(function(inp,i){ return <div key={i} className="detail-stat"><div className="stat-value" style={{fontSize:'11px'}}>{'\ud83d\udcc4 '+inp.file}</div>{inp.hash && <div className="stat-sub">#{inp.hash.slice(0,12)}</div>}</div>; })}
-      </div></div>}
-      {consumers.length>0 && <div className="detail-section"><h4>Consumed By</h4>
-        {consumers.map(function(c,i){ return <div key={i} style={{marginBottom:'4px'}}>
-          <span className="consumer-tag" style={{background:'rgba(210,153,34,0.15)',color:'#d29922',fontWeight:600}}>{c.name}</span>
-          <span style={{fontSize:'10px',color:'var(--fgColor-muted)',marginLeft:'4px'}}>{c.sections}</span>
-        </div>; })}
-      </div>}
+    <div className="modal-overlay" onClick={function(e){if(e.target===e.currentTarget)onClose()}}>
+      <div className="modal-card">
+        <button className="close-btn" onClick={onClose}>{'\u2715'}</button>
+        <div className="modal-header">
+          <h2>
+            <span style={{color:'#58a6ff'}}>{'\u25a0'}</span>
+            {(artifact.name||'').replace(/-/g,' ')}
+            <span className="modal-type-badge" style={{background: isDerived ? 'rgba(188,140,255,0.15)' : 'rgba(88,166,255,0.15)', color: isDerived ? '#bc8cff' : '#58a6ff'}}>{isDerived ? 'derived' : 'materialized'}</span>
+          </h2>
+          <div className="modal-sub">
+            {ARTIFACT_DESCRIPTIONS[artifact.name] || ''}
+            {artifact.computed_at && <span> {'\u00b7'} Computed {new Date(artifact.computed_at).toLocaleString()}</span>}
+            {artifact.compute_ms != null && <span> ({artifact.compute_ms}ms)</span>}
+          </div>
+        </div>
+        <div className="modal-body">
+          <div className="meta-section">
+            <div className="meta-section-title"><span className="section-icon">{'\ud83d\udcca'}</span> Records & Coverage</div>
+            <KVTable>
+              <KV label={p.status_breakdown ? 'PR sessions' : p.element_count != null ? 'Elements' : 'Day rows'} value={fmtCompact(pickCount(p))} cls="num" />
+              {p.detail_row_count > 0 && <KV label={p.detail_label ? (p.detail_label.charAt(0).toUpperCase()+p.detail_label.slice(1)) : 'Detail rows'} value={fmtCompact(p.detail_row_count)} cls="num" />}
+              {p.pr_record_count > 0 && <KV label="PR records" value={fmtCompact(p.pr_record_count)} cls="num" />}
+              {p.unique_people > 0 && <KV label={'Unique '+(p.people_label||'people')} value={String(p.unique_people)} cls="num ok" />}
+              {p.unique_repos > 0 && <KV label="Unique repos" value={String(p.unique_repos)} cls="num" />}
+              {p.date_range && p.date_range.first && <KV label="Date range" value={p.date_range.first+' \u2192 '+p.date_range.last} note={p.date_range.days_with_data+' days with data'} />}
+            </KVTable>
+          </div>
+
+          {(p.enterprise_dedup||p.user_dedup||p.devday_dedup||p.session_dedup||p.aggregation||p.org_member_filter) && <div className="meta-section">
+            <div className="meta-section-title"><span className="section-icon">{'\u2699\ufe0f'}</span> Processing Pipeline</div>
+            {p.enterprise_dedup && <PipelineStep label="Enterprise dedup" before={p.enterprise_dedup.before} after={p.enterprise_dedup.after} detail={p.enterprise_dedup.removed+' removed'} />}
+            {p.user_dedup && <PipelineStep label="User-day dedup" before={p.user_dedup.before} after={p.user_dedup.after} detail={p.user_dedup.unique_logins+' logins'} />}
+            {p.org_member_filter && <PipelineStep label="Org member filter" before={p.org_member_filter.before} after={p.org_member_filter.after} detail={p.org_member_filter.removed+' removed · '+p.org_member_filter.org_member_count+' members'} />}
+            {p.devday_dedup && <PipelineStep label="Dev-day dedup" before={p.devday_dedup.before} after={p.devday_dedup.after} detail={p.devday_dedup.unique_developers+' devs'} />}
+            {p.aggregation && <PipelineStep label="Aggregation" before={p.aggregation.devday_rows} after={p.aggregation.day_rows} detail="day rows" />}
+            {p.session_dedup && <PipelineStep label="Session dedup" before={p.session_dedup.before} after={p.session_dedup.after} detail={p.session_dedup.removed+' removed'} />}
+          </div>}
+
+          {p.pr_processing && <div className="meta-section">
+            <div className="meta-section-title"><span className="section-icon">{'\ud83d\udd00'}</span> PR Processing</div>
+            <PipelineStep label="Dedup" before={p.pr_processing.before_dedup} after={p.pr_processing.after_dedup} />
+            <PipelineStep label="Bot filter" before={p.pr_processing.after_dedup} after={p.pr_processing.after_filter} detail={p.pr_processing.bots_removed+' bots removed'} />
+          </div>}
+
+          {p.pr_classification && p.has_pr_data && <div className="meta-section">
+            <div className="meta-section-title"><span className="section-icon">{'\ud83c\udff7\ufe0f'}</span> PR-Assist Classification</div>
+            <KVTable>
+              <KV label="Lookback" value={p.pr_classification.lookback_days+' days'} />
+              <KV label="Assisted rate" value={p.period_prs_assisted_pct!=null?(p.period_prs_assisted_pct*100).toFixed(1)+'%':null} cls="num accent" note={p.pr_classification.assisted_prs+' of '+p.pr_classification.total_merged_prs+' PRs'} />
+              <KV label="PR authors" value={String(p.pr_classification.unique_pr_authors)} cls="num" />
+              <KV label="Copilot users" value={String(p.pr_classification.unique_copilot_users)} cls="num" />
+            </KVTable>
+          </div>}
+
+          {p.status_breakdown && <div className="meta-section">
+            <div className="meta-section-title"><span className="section-icon">{'\ud83d\udfe2'}</span> PR Status</div>
+            <KVTable>
+              <KV label="Merged" value={String(p.status_breakdown.merged)} cls="num ok" />
+              <KV label="Open" value={String(p.status_breakdown.open)} cls="num accent" />
+              <KV label="Closed (no merge)" value={String(p.status_breakdown.closed_no_merge)} cls="num err" />
+              {p.with_duration!=null && <KV label="With duration" value={String(p.with_duration)} note={p.without_duration+' without'} />}
+            </KVTable>
+          </div>}
+
+          {p.loc_summary && <div className="meta-section">
+            <div className="meta-section-title"><span className="section-icon">{'\ud83d\udcdd'}</span> Lines of Code</div>
+            <KVTable>
+              <KV label="Additions" value={'+'+fmtCompact(p.loc_summary.total_additions)} cls="num ok" />
+              <KV label="Deletions" value={'-'+fmtCompact(p.loc_summary.total_deletions)} cls="num err" />
+            </KVTable>
+          </div>}
+
+          {p.config_used && <div className="meta-section">
+            <div className="meta-section-title"><span className="section-icon">{'\u2699\ufe0f'}</span> Config Snapshot</div>
+            <KVTable>
+              {p.config_used.cfg_total_developers != null && <KV label="Total developers" value={fmtCompact(p.config_used.cfg_total_developers)} cls="num" />}
+              {p.config_used.cfg_labor_cost_per_hour != null && <KV label="Labor cost" value={'$'+p.config_used.cfg_labor_cost_per_hour+'/hr'} cls="num" />}
+              {p.config_used.cfg_pct_time_coding != null && <KV label="% time coding" value={(p.config_used.cfg_pct_time_coding*100)+'%'} cls="num" />}
+            </KVTable>
+          </div>}
+
+          {p.reconciliation_summary && <div className="meta-section">
+            <div className="meta-section-title"><span className="section-icon">{'\u2705'}</span> Reconciliation</div>
+            <KVTable>
+              {Object.entries(p.reconciliation_summary).filter(function(e){return e[1]>0}).map(function(e){
+                var cls = e[0]==='match' ? 'num ok' : e[0]==='material_difference' ? 'num err' : 'num warn';
+                return <KV key={e[0]} label={e[0].replace(/_/g,' ')} value={String(e[1])} cls={cls} />;
+              })}
+            </KVTable>
+          </div>}
+
+          {artifact.inputs && artifact.inputs.length>0 && <div className="meta-section">
+            <div className="meta-section-title"><span className="section-icon">{'\ud83d\udcc4'}</span> Source Files</div>
+            <KVTable>
+              {artifact.inputs.map(function(inp,i){ return <KV key={i} label={shortName(inp.file)} value={inp.file} note={inp.hash ? '#'+inp.hash.slice(0,8) : null} />; })}
+            </KVTable>
+          </div>}
+
+          {consumers.length>0 && <div className="meta-section">
+            <div className="meta-section-title"><span className="section-icon">{'\ud83d\udcbb'}</span> Consumed By Dashboards</div>
+            {consumers.map(function(c,i){ return <div key={i} className="consumer-row">
+              <span className="consumer-tag" style={{background:'rgba(210,153,34,0.15)',color:'#d29922'}}>{c.name}</span>
+              <span className="consumer-sections">{c.sections}</span>
+            </div>; })}
+          </div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Dashboard detail modal ─────────────────────────────────────
+function DashboardModal({ name, artifactMeta, onClose }) {
+  var desc = DASHBOARD_DESCRIPTIONS[name] || '';
+  var artNames = DASHBOARD_ARTIFACTS[name] || [];
+  return (
+    <div className="modal-overlay" onClick={function(e){if(e.target===e.currentTarget)onClose()}}>
+      <div className="modal-card">
+        <button className="close-btn" onClick={onClose}>{'\u2715'}</button>
+        <div className="modal-header">
+          <h2>
+            <span style={{color:'#d29922'}}>{'\u25a1'}</span>
+            {name}
+            <span className="modal-type-badge" style={{background:'rgba(210,153,34,0.15)',color:'#d29922'}}>live calcs</span>
+          </h2>
+          {desc && <div className="modal-sub">{desc}</div>}
+        </div>
+        <div className="modal-body">
+          <div className="meta-section">
+            <div className="meta-section-title"><span className="section-icon">{'\ud83d\udd37'}</span> Artifact Dependencies</div>
+            <KVTable>
+              {artNames.map(function(artName) {
+                var art = artifactMeta[artName];
+                var p = art && art.profile ? art.profile : {};
+                var recordLabel = p.status_breakdown ? 'sessions' : p.element_count ? 'elements' : 'day rows';
+                return <KV key={artName} label={artName.replace(/-/g,' ')} value={fmtCompact(pickCount(p))+' '+recordLabel} note={p.date_range && p.date_range.first ? p.date_range.first+' → '+p.date_range.last : null} />;
+              })}
+            </KVTable>
+          </div>
+
+          <div className="meta-section">
+            <div className="meta-section-title"><span className="section-icon">{'\ud83d\udcc4'}</span> Dashboard Sections</div>
+            {artNames.map(function(artName) {
+              var consumers = CONSUMERS[artName] || [];
+              var match = consumers.find(function(c){return c.name === name});
+              return match ? <div key={artName} className="consumer-row">
+                <span className="consumer-tag" style={{background:'rgba(88,166,255,0.12)',color:'#58a6ff'}}>{artName.replace(/-/g,' ')}</span>
+                <span className="consumer-sections">{match.sections}</span>
+              </div> : null;
+            })}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -359,6 +550,13 @@ function App() {
   const [queryRun, setQueryRun] = useState(null);
   const [selected, setSelected] = useState(null);
   const [error, setError] = useState(null);
+
+  // Escape key closes modal
+  useEffect(function() {
+    function handleKey(e) { if (e.key === 'Escape' && selected) setSelected(null); }
+    document.addEventListener('keydown', handleKey);
+    return function() { document.removeEventListener('keydown', handleKey); };
+  }, [selected]);
 
   useEffect(function() {
     (async function() {
@@ -399,29 +597,31 @@ function App() {
         var inp = (art.inputs||[]).find(function(i){return i.file === name});
         if (inp && inp.metadata) metadata = inp.metadata;
       });
-      var downstreamArtifacts = (manifest.edges||[]).filter(function(e){return e.from===name}).map(function(e){return e.to.replace(/-\d{4}-\d{2}-\d{2}T\d{4}Z\.json$/,'').replace('.json','')});
-      // Derive entity counts from downstream artifact profiles
-      var derived = {};
-      downstreamArtifacts.forEach(function(artName) {
-        var art = artifactMeta[artName];
-        if (!art || !art.profile) return;
-        var p = art.profile;
-        if (p.unique_people && (!derived.unique_people || p.unique_people > derived.unique_people)) {
-          derived.unique_people = p.unique_people;
-          derived.people_label = p.people_label || 'people';
-        }
-        var prAuthors = p.unique_pr_authors || 0;
-        if (prAuthors && (!derived.unique_pr_authors || prAuthors > derived.unique_pr_authors)) derived.unique_pr_authors = prAuthors;
-        if (p.unique_repos && (!derived.unique_repos || p.unique_repos > derived.unique_repos)) derived.unique_repos = p.unique_repos;
-        if (p.detail_row_count && (!derived.detail_rows || p.detail_row_count > derived.detail_rows)) {
-          derived.detail_rows = p.detail_row_count;
-          derived.detail_label = p.detail_label || 'detail rows';
-        }
-        if (p.pr_record_count && (!derived.prs || p.pr_record_count > derived.prs)) derived.prs = p.pr_record_count;
-      });
-      return { name: name, metadata: metadata, downstreamArtifacts: downstreamArtifacts, derived: derived };
+      var downstreamArtifacts = (manifest.edges||[]).filter(function(e){return e.from===name}).map(function(e){return e.to.replace(/-\d{4}-?\d{2}-?\d{2}T\d{4}Z\.json$/,'').replace('.json','')});
+      return { name: name, metadata: metadata, downstreamArtifacts: downstreamArtifacts };
     });
   }, [manifest, artifactMeta]);
+
+  // Group raw files by source type (e.g., copilot-metrics, human-pr-metrics)
+  var rawGroups = useMemo(function() {
+    var groups = {};
+    rawFiles.forEach(function(f) {
+      var type = shortName(f.name);
+      if (!groups[type]) groups[type] = { type: type, files: [], downstreamArtifacts: new Set() };
+      groups[type].files.push(f);
+      f.downstreamArtifacts.forEach(function(a) { groups[type].downstreamArtifacts.add(a); });
+    });
+    // Sort files within each group by collection date (newest first)
+    Object.values(groups).forEach(function(g) {
+      g.files.sort(function(a, b) {
+        var ta = (a.metadata && a.metadata.collected_at) ? new Date(a.metadata.collected_at).getTime() : 0;
+        var tb = (b.metadata && b.metadata.collected_at) ? new Date(b.metadata.collected_at).getTime() : 0;
+        return tb - ta;
+      });
+      g.downstreamArtifacts = Array.from(g.downstreamArtifacts);
+    });
+    return Object.values(groups);
+  }, [rawFiles]);
 
   var artifacts = useMemo(function() {
     if (!manifest) return [];
@@ -442,102 +642,93 @@ function App() {
   if (!manifest) return (<div className="dataflow-page"><h1 className="f1 color-fg-default mb-2">Dataflow &amp; Coverage</h1><div className="Box p-4 text-center color-fg-muted">Loading{'\u2026'}</div></div>);
 
   // Compute connected nodes based on selection
-  var connectedRaw = new Set();
+  var connectedRaw = new Set(); // now tracks group types
   var connectedArt = new Set();
   var connectedDash = new Set();
   var hasSelection = !!selected;
   if (selected && manifest.edges) {
     if (selected.type === 'raw') {
-      manifest.edges.forEach(function(e) {
-        if (e.from === selected.name) {
-          var artBase = e.to.replace(/-\d{4}-\d{2}-\d{2}T\d{4}Z\.json$/, '').replace('.json', '');
-          connectedArt.add(artBase);
-          // Also highlight dashboards that consume this artifact
-          (CONSUMERS[artBase] || []).forEach(function(c) { connectedDash.add(c.name); });
-        }
-      });
+      // selected.name is the group type; find all files in that group
+      var groupFiles = rawGroups.find(function(g){return g.type===selected.name});
+      if (groupFiles) {
+        groupFiles.files.forEach(function(f) {
+          manifest.edges.forEach(function(e) {
+            if (e.from === f.name) {
+              var artBase = e.to.replace(/-\d{4}-?\d{2}-?\d{2}T\d{4}Z\.json$/, '').replace('.json', '');
+              connectedArt.add(artBase);
+              (CONSUMERS[artBase] || []).forEach(function(c) { connectedDash.add(c.name); });
+            }
+          });
+        });
+      }
     } else if (selected.type === 'artifact') {
       manifest.edges.forEach(function(e) {
-        var artBase = e.to.replace(/-\d{4}-\d{2}-\d{2}T\d{4}Z\.json$/, '').replace('.json', '');
-        if (artBase === selected.name) connectedRaw.add(e.from);
+        var artBase = e.to.replace(/-\d{4}-?\d{2}-?\d{2}T\d{4}Z\.json$/, '').replace('.json', '');
+        if (artBase === selected.name) {
+          var rawType = shortName(e.from);
+          connectedRaw.add(rawType);
+        }
       });
-      // Also highlight dashboards that consume this artifact
       (CONSUMERS[selected.name] || []).forEach(function(c) { connectedDash.add(c.name); });
     } else if (selected.type === 'dashboard') {
-      // Highlight upstream artifacts and their raw sources
       (DASHBOARD_ARTIFACTS[selected.name] || []).forEach(function(artName) {
         connectedArt.add(artName);
         manifest.edges.forEach(function(e) {
-          var artBase = e.to.replace(/-\d{4}-\d{2}-\d{2}T\d{4}Z\.json$/, '').replace('.json', '');
-          if (artBase === artName) connectedRaw.add(e.from);
+          var artBase = e.to.replace(/-\d{4}-?\d{2}-?\d{2}T\d{4}Z\.json$/, '').replace('.json', '');
+          if (artBase === artName) {
+            var rawType = shortName(e.from);
+            connectedRaw.add(rawType);
+          }
         });
       });
     }
   }
 
-  // Build edge color map: each raw file gets a stable color
-  var rawColorMap = {};
-  rawFiles.forEach(function(f, i) { rawColorMap[f.name] = EDGE_COLORS[i % EDGE_COLORS.length]; });
-
-  // For each artifact, collect the colors of its source raw files
-  var artifactSourceColors = {};
-  artifacts.forEach(function(a) {
-    var colors = [];
-    (manifest.edges || []).forEach(function(e) {
-      var artBase = e.to.replace(/-\d{4}-\d{2}-\d{2}T\d{4}Z\.json$/, '').replace('.json', '');
-      if (artBase === a.name && rawColorMap[e.from]) {
-        colors.push({ file: e.from, color: rawColorMap[e.from] });
-      }
-    });
-    artifactSourceColors[a.name] = colors;
-  });
-
   return (
     <div className="dataflow-page">
       <div className="d-flex flex-items-center flex-justify-between mb-3">
         <div>
-          <h1 className="f1 color-fg-default" style={{margin:0}}>Dataflow &amp; Coverage</h1>
+          <h1 className="f1 color-fg-default" style={{margin:0}}>Pipeline Overview</h1>
           <p className="f6 color-fg-muted mt-1">
-            <span style={{color:'#3fb950'}}>{'\u25a0'}</span> Query output {'\u2192'}
-            <span style={{color:'#58a6ff'}}> {'\u25a0'}</span> Materialized {'\u2192'}
-            <span style={{color:'#d29922'}}> {'\u25a1'}</span> Live calcs {'\u00b7 '}
-            {timeAgo(manifest.materialized_at)}
+            How raw API data becomes materialized datasets and live dashboards.
+            {' \u00b7 '}Last materialized {timeAgo(manifest.materialized_at)}
             {queryRun && queryRun.profile && <span> {'\u00b7'} profile: <strong>{queryRun.profile}</strong></span>}
           </p>
         </div>
         <div className="d-flex" style={{gap:'16px'}}>
-          <div className="text-center"><div className="f6 color-fg-muted">Files</div><div className="f3 text-bold">{manifest.raw_files.length}</div></div>
+          <div className="text-center"><div className="f6 color-fg-muted">Sources</div><div className="f3 text-bold">{rawGroups.length}</div></div>
           <div className="text-center"><div className="f6 color-fg-muted">Artifacts</div><div className="f3 text-bold">{manifest.artifacts.length}</div></div>
-          <div className="text-center"><div className="f6 color-fg-muted">Flows</div><div className="f3 text-bold">{(manifest.edges||[]).length}</div></div>
-          <div className="text-center"><div className="f6 color-fg-muted">Dashboards</div><div className="f3 text-bold">6</div></div>
+          <div className="text-center"><div className="f6 color-fg-muted">Dashboards</div><div className="f3 text-bold">{DASHBOARD_NAMES.length}</div></div>
         </div>
       </div>
 
-      <div className={'main-layout' + (!selected ? ' no-detail' : '')}>
-        <div className="Box color-shadow-medium p-4">
+      <div className="Box color-shadow-medium p-4">
           <div className="flow-columns">
             <div className="flow-column">
-              <div className="flow-label">Query Output</div>
-              {rawFiles.map(function(f,i) {
-                var isSel = selected && selected.type==='raw' && selected.name===f.name;
-                var isCon = connectedRaw.has(f.name);
+              <div className="flow-label">Data Sources</div>
+              <div className="flow-label-sub">API query output</div>
+              {rawGroups.map(function(g,i) {
+                var isSel = selected && selected.type==='raw' && selected.name===g.type;
+                var isCon = connectedRaw.has(g.type);
                 var isDim = hasSelection && !isSel && !isCon;
-                return <RawFileBox key={i} file={f} selected={isSel} connected={isCon} dimmed={isDim} edgeColor={rawColorMap[f.name]} onClick={function(){handleSelect({type:'raw',name:f.name,data:f})}} />;
+                return <RawFileGroup key={i} group={g} selected={isSel} connected={isCon} dimmed={isDim} onClick={function(){handleSelect({type:'raw',name:g.type,data:g})}} />;
               })}
             </div>
-            <div className="arrow-col">{rawFiles.map(function(_,i){return <div key={i} className="arrow-mark">{'\u25b6'}</div>})}</div>
-            <div className="flow-column">
-              <div className="flow-label">Materialized Artifacts</div>
+            <div className="arrow-col">{rawGroups.map(function(_,i){return <div key={i} className="arrow-mark">{'\u25b6'}</div>})}</div>
+            <div className="flow-column artifact-col">
+              <div className="flow-label" style={{color:'#58a6ff'}}>Materialized Artifacts</div>
+              <div className="flow-label-sub">Deterministic, cacheable datasets</div>
               {artifacts.map(function(a,i) {
                 var isSel = selected && selected.type==='artifact' && selected.name===a.name;
                 var isCon = connectedArt.has(a.name);
                 var isDim = hasSelection && !isSel && !isCon;
-                return <ArtifactBox key={i} artifact={a} selected={isSel} connected={isCon} dimmed={isDim} sourceColors={artifactSourceColors[a.name]} onClick={function(){handleSelect({type:'artifact',name:a.name,data:a})}} />;
+                return <ArtifactBox key={i} artifact={a} selected={isSel} connected={isCon} dimmed={isDim} onClick={function(){handleSelect({type:'artifact',name:a.name,data:a})}} />;
               })}
             </div>
-            <div className="arrow-col">{[0,1,2,3,4,5].map(function(i){return <div key={i} className="arrow-mark dashed">{'\u25b6'}</div>})}</div>
+            <div className="arrow-col">{artifacts.map(function(_,i){return <div key={i} className="arrow-mark dashed">{'\u25b6'}</div>})}</div>
             <div className="flow-column">
-              <div className="flow-label">Dashboards</div>
+              <div className="flow-label" style={{color:'#d29922'}}>Dashboards</div>
+              <div className="flow-label-sub">Config-reactive, per-viewer</div>
               {DASHBOARD_NAMES.map(function(n) {
                 var isSel = selected && selected.type==='dashboard' && selected.name===n;
                 var isCon = connectedDash.has(n);
@@ -548,47 +739,22 @@ function App() {
           </div>
         </div>
 
-        {selected && selected.type === 'raw' && (
-          <RawFileDetail file={selected.data} queryRun={queryRun} onClose={function(){setSelected(null)}} />
-        )}
-        {selected && selected.type === 'artifact' && selected.data && (
-          <ArtifactDetail artifact={selected.data} onClose={function(){setSelected(null)}} />
-        )}
-        {selected && selected.type === 'dashboard' && (
-          <div className="detail-panel" style={{position:'relative'}}>
-            <button className="close-btn" onClick={function(){setSelected(null)}}>{'\u2715'}</button>
-            <h3 className="color-fg-accent">{'\ud83d\udcca '}{selected.name}</h3>
-            <div className="detail-sub">Dashboard with live config-reactive calculations</div>
-            <div className="detail-section">
-              <h4>Consumes Artifacts</h4>
-              <div className="detail-grid wide">
-                {(DASHBOARD_ARTIFACTS[selected.name] || []).map(function(artName) {
-                  var art = artifactMeta[artName];
-                  var p = art && art.profile ? art.profile : {};
-                  return <div key={artName} className="detail-stat">
-                    <div className="stat-label">{artName.replace(/-/g,' ')}</div>
-                    <div className="stat-value">{fmtCompact(p.record_count)} records</div>
-                    {p.date_range && p.date_range.first && <div className="stat-sub">{p.date_range.first} {'\u2192'} {p.date_range.last}</div>}
-                  </div>;
-                })}
-              </div>
-            </div>
-            <div className="detail-section">
-              <h4>Sections</h4>
-              <div className="detail-grid wide">
-                {(DASHBOARD_ARTIFACTS[selected.name] || []).map(function(artName) {
-                  var consumers = CONSUMERS[artName] || [];
-                  var match = consumers.find(function(c){return c.name === selected.name});
-                  return match ? <div key={artName} className="detail-stat"><div className="stat-label">from {artName.replace(/-/g,' ')}</div><div className="stat-value" style={{fontSize:'12px'}}>{match.sections}</div></div> : null;
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      {selected && selected.type === 'raw' && selected.data && (
+        <SourceModal group={selected.data} queryRun={queryRun} onClose={function(){setSelected(null)}} />
+      )}
+      {selected && selected.type === 'artifact' && selected.data && (
+        <ArtifactModal artifact={selected.data} onClose={function(){setSelected(null)}} />
+      )}
+      {selected && selected.type === 'dashboard' && (
+        <DashboardModal name={selected.name} artifactMeta={artifactMeta} onClose={function(){setSelected(null)}} />
+      )}
 
-      <div className="Box p-3 mt-3 f6 color-fg-muted">
-        <strong className="color-fg-default">Materialization boundary:</strong> Solid boxes = <strong>observed data</strong> (deterministic, cacheable). Dashed boxes = <strong>live calculations</strong> (config-reactive, per-viewer).
+      <div className="Box p-3 mt-3 f6 color-fg-muted" style={{borderLeft:'3px solid #58a6ff'}}>
+        <strong className="color-fg-default">How it works:</strong> Raw API data (
+          <span style={{color:'#3fb950'}}>{'\u25a0'}</span> green) is collected via <code>run-query.sh</code>, then
+          <strong> materialized</strong> (<span style={{color:'#58a6ff'}}>{'\u25a0'}</span> blue) into deduplicated, enriched datasets by <code>materialize.js</code>.
+          Dashboards (<span style={{color:'#d29922'}}>{'\u25a1'}</span> amber) perform live calculations on top of these artifacts using viewer-configurable parameters.
+          Click any box to see details.
       </div>
     </div>
   );

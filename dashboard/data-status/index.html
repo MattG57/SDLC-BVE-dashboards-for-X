@@ -52,36 +52,37 @@ const ARTIFACT_REGISTRY = {
   'ai-assisted-efficiency-days': {
     label: 'AI-Assisted Efficiency',
     description: 'Daily aggregate Copilot usage: suggestions, acceptances, active users',
-    apiSource: 'Enterprise Copilot Metrics',
     apiLevel: 'enterprise',
+    recordUnit: 'day rows',
     dashboards: ['AI Efficiency v2', 'AI Element v2', 'Integrated v2'],
   },
   'ai-assisted-structural-days': {
     label: 'AI-Assisted Structural',
     description: 'Per-user adoption, PR-assist classification, org member filtering',
-    apiSource: 'Enterprise Copilot Metrics + PR Search',
     apiLevel: 'enterprise',
+    recordUnit: 'day rows',
+    optionalSource: 'org-members',
     dashboards: ['AI Structural v2', 'AI Element v2', 'Integrated v2'],
   },
   'agentic-efficiency-days': {
     label: 'Agentic Efficiency',
     description: 'Daily coding agent activity: PRs created, developers, merge rates',
-    apiSource: 'Coding Agent PR Metrics',
     apiLevel: 'org',
+    recordUnit: 'day rows',
     dashboards: ['Agentic Efficiency v2', 'Agentic Element v2', 'Integrated v2'],
   },
   'agentic-pr-sessions': {
     label: 'Agentic PR Sessions',
     description: 'Individual PR session records with duration, LoC, status',
-    apiSource: 'Coding Agent PR Metrics',
     apiLevel: 'org',
+    recordUnit: 'sessions',
     dashboards: ['Agentic Efficiency v2', 'Agentic Element v2', 'Integrated v2'],
   },
   'leverage-summary': {
     label: 'Leverage Summary',
     description: 'Integrated leverage combining all element data + config',
-    apiSource: 'Derived from artifacts above',
     apiLevel: 'computed',
+    recordUnit: 'elements',
     dashboards: ['Integrated v2', 'Live Demo'],
   },
 };
@@ -103,6 +104,24 @@ function fmtCompact(v) {
   if (Math.abs(v) >= 1e6) return (v / 1e6).toFixed(1) + 'M';
   if (Math.abs(v) >= 1e3) return (v / 1e3).toFixed(1) + 'k';
   return String(v);
+}
+
+function fmtShortDate(iso) {
+  if (!iso) return '';
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const d = new Date(iso + 'T00:00:00Z');
+  return months[d.getUTCMonth()] + ' ' + d.getUTCDate() + ', ' + d.getUTCFullYear();
+}
+
+function fmtDateRange(dr) {
+  if (!dr?.first) return null;
+  const f = new Date(dr.first + 'T00:00:00Z');
+  const l = new Date(dr.last + 'T00:00:00Z');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const sameYear = f.getUTCFullYear() === l.getUTCFullYear();
+  const from = months[f.getUTCMonth()] + ' ' + f.getUTCDate() + (sameYear ? '' : ', ' + f.getUTCFullYear());
+  const to = months[l.getUTCMonth()] + ' ' + l.getUTCDate() + ', ' + l.getUTCFullYear();
+  return from + ' \u2013 ' + to;
 }
 
 function freshness(ts) {
@@ -146,7 +165,8 @@ function PipelineHeader({ manifest, artifactData, collectionRun }) {
   let latest = null;
   Object.values(artifactData).forEach(a => {
     const p = a?.profile || {};
-    if (p.record_count) totalRecords += p.record_count;
+    if (p.record_count != null) totalRecords += p.record_count;
+    else if (p.element_count != null) totalRecords += p.element_count;
     const dr = p.date_range;
     if (dr?.first && (!earliest || dr.first < earliest)) earliest = dr.first;
     if (dr?.last && (!latest || dr.last > latest)) latest = dr.last;
@@ -213,7 +233,7 @@ function ArtifactTable({ manifest, artifactData }) {
 
     return {
       baseName, reg, profile, computedAt, dr, sourceFiles, daysOfHistory,
-      recordCount: profile.record_count || profile.element_count || null,
+      recordCount: profile.record_count != null ? profile.record_count : profile.element_count,
       people: profile.unique_people,
       peopleLabel: profile.people_label,
       orgFilter: profile.org_member_filter,
@@ -234,49 +254,71 @@ function ArtifactTable({ manifest, artifactData }) {
               <th style={{ textAlign: 'right' }}>People</th>
               <th style={{ textAlign: 'right' }}>Days</th>
               <th>Date Range</th>
-              <th>API Level</th>
-              <th>Source Files</th>
+              <th>Data Source</th>
               <th>Dashboards</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map(r => (
+            {rows.map(r => {
+              const isComputed = r.reg.apiLevel === 'computed';
+              return (
               <tr key={r.baseName}>
                 <td>
                   <div className="art-name">{r.reg.label}</div>
                   <div className="art-desc">{r.reg.description}</div>
-                  {r.orgFilter && r.orgFilter.removed > 0 && (
+                  {r.orgFilter && r.orgFilter.removed > 0 ? (
                     <div className="filter-badge">
                       {'\ud83d\udd11'} org filter: {r.orgFilter.before}{'\u2192'}{r.orgFilter.after} ({r.orgFilter.org_member_count} members)
                     </div>
-                  )}
+                  ) : r.reg.optionalSource === 'org-members' && !r.orgFilter ? (
+                    <div className="filter-badge" style={{ background: 'rgba(139,148,158,0.12)', color: 'var(--fgColor-muted)' }}>
+                      {'\ud83d\udd11'} org filter: not applied
+                    </div>
+                  ) : null}
                 </td>
                 <td>
                   <FreshnessBadge ts={r.computedAt} />
                   <div className="f6 color-fg-muted mt-1">{timeAgo(r.computedAt)}</div>
                 </td>
-                <td className="num-cell">{r.recordCount != null ? fmtCompact(r.recordCount) : '\u2014'}</td>
                 <td className="num-cell">
-                  {r.people != null ? fmtCompact(r.people) : '\u2014'}
-                  {r.peopleLabel && <div className="f6 color-fg-muted" style={{ fontFamily: 'inherit', fontWeight: 400, textAlign: 'right' }}>{r.peopleLabel}</div>}
+                  {r.recordCount != null ? fmtCompact(r.recordCount) : '\u2014'}
+                  <div className="f6 color-fg-muted" style={{ fontFamily: 'inherit', fontWeight: 400 }}>{r.reg.recordUnit}</div>
                 </td>
-                <td className="num-cell">{r.daysOfHistory != null ? r.daysOfHistory : '\u2014'}</td>
+                <td className="num-cell">
+                  {r.people != null
+                    ? <>{fmtCompact(r.people)}<div className="f6 color-fg-muted" style={{ fontFamily: 'inherit', fontWeight: 400 }}>{r.peopleLabel || 'people'}</div></>
+                    : <span className="f6 color-fg-muted" style={{ fontWeight: 400 }}>{isComputed ? 'n/a' : '\u2014'}</span>}
+                </td>
+                <td className="num-cell">
+                  {r.daysOfHistory != null
+                    ? r.daysOfHistory
+                    : <span className="f6 color-fg-muted" style={{ fontWeight: 400 }}>{isComputed ? 'n/a' : '\u2014'}</span>}
+                </td>
                 <td className="f6">
-                  {r.dr.first ? <span>{r.dr.first}<br/>{'\u2192 '}{r.dr.last}</span> : '\u2014'}
+                  {fmtDateRange(r.dr)
+                    ? <span>{fmtDateRange(r.dr)}</span>
+                    : <span className="color-fg-muted">{isComputed ? 'n/a' : '\u2014'}</span>}
                 </td>
-                <td><ApiLevelBadge level={r.reg.apiLevel} /></td>
                 <td>
-                  {r.sourceFiles.length > 0
-                    ? r.sourceFiles.map(([name, count], i) => (
-                        <span key={i} className="source-tag">{name}{count > 1 ? ' \u00d7' + count : ''}</span>
-                      ))
-                    : <span className="f6 color-fg-muted">{r.reg.apiLevel === 'computed' ? 'artifacts' : 'none'}</span>}
+                  <ApiLevelBadge level={r.reg.apiLevel} />
+                  <div style={{ marginTop: '3px' }}>
+                    {r.sourceFiles.length > 0
+                      ? r.sourceFiles.map(([name, count], i) => {
+                          const regEntry = ARTIFACT_REGISTRY[name];
+                          const displayName = regEntry ? regEntry.label : name.replace(/-/g, ' ');
+                          return <span key={i} className="source-tag" title={name}>{displayName}</span>;
+                        })
+                      : isComputed
+                        ? <span className="source-tag">upstream artifacts</span>
+                        : <span className="f6 color-fg-muted">none</span>}
+                  </div>
                 </td>
                 <td>
                   {r.reg.dashboards.map((d, i) => <span key={i} className="dash-tag">{d}</span>)}
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -286,24 +328,18 @@ function ArtifactTable({ manifest, artifactData }) {
 
 // ── Collection run summary (compact) ──
 function CollectionSummary({ queryRun }) {
-  if (!queryRun?.run_started) {
-    return (
-      <div className="Box color-shadow-medium p-3 mb-4">
-        <h3 className="f5 mb-1">{'\ud83d\udce1'} Last Collection Run</h3>
-        <p className="f6 color-fg-muted">No query-status.json available. Collection status unknown.</p>
-      </div>
-    );
-  }
+  if (!queryRun?.run_started) return null;
   const targets = queryRun.targets || [];
   const succeeded = targets.filter(t => t.status === 'success' || t.status === 'cached').length;
   const failed = targets.filter(t => t.status === 'failed').length;
   const startDate = queryRun.run_started ? new Date(queryRun.run_started) : null;
   const validStart = startDate && !isNaN(startDate.getTime());
+  if (!validStart && targets.length === 0) return null;
   return (
     <div className="Box color-shadow-medium p-3 mb-4">
       <h3 className="f5 mb-2">{'\ud83d\udce1'} Last Collection Run</h3>
       <div className="compact-row">
-        <span className="compact-stat"><strong>{validStart ? startDate.toLocaleString() : '\u2014'}</strong> ({validStart ? timeAgo(queryRun.run_started) : 'unknown'})</span>
+        {validStart && <span className="compact-stat"><strong>{startDate.toLocaleString()}</strong> ({timeAgo(queryRun.run_started)})</span>}
         {queryRun.profile && <span className="compact-stat">profile: <code>{queryRun.profile}</code></span>}
         <span className="compact-stat">{succeeded} success{failed > 0 ? ', ' + failed + ' failed' : ''}</span>
       </div>
@@ -320,31 +356,30 @@ function CollectionSummary({ queryRun }) {
   );
 }
 
-// ── Raw files inventory ──
+// ── Raw files inventory (compact) ──
 function RawFilesSection({ manifest }) {
   const rawFiles = manifest?.raw_files || [];
   if (rawFiles.length === 0) return null;
 
-  // Group by type based on filename prefix
+  // Group by type, track count and latest timestamp
   const groups = {};
   rawFiles.forEach(f => {
     const short = shortFileName(f);
-    if (!groups[short]) groups[short] = [];
-    groups[short].push(f);
+    if (!groups[short]) groups[short] = { count: 0, latest: '' };
+    groups[short].count++;
+    const tsMatch = f.match(/(\d{4}-?\d{2}-?\d{2}T\d{4}Z)/);
+    const ts = tsMatch ? tsMatch[1] : '';
+    if (ts > groups[short].latest) groups[short].latest = ts;
   });
 
   return (
     <div className="Box color-shadow-medium p-3 mb-4">
-      <h3 className="f5 mb-2">{'\ud83d\udcc2'} Raw Data Files</h3>
-      <p className="f6 color-fg-muted mb-2">Collected query output files feeding the materialization pipeline.</p>
-      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-        {Object.entries(groups).map(([short, files]) => (
-          <div key={short} style={{ flex: '1 1 200px', minWidth: '200px' }}>
-            <div className="f6 text-bold color-fg-default mb-1">{short}</div>
-            {files.map((f, i) => {
-              const tsMatch = f.match(/(\d{4}-?\d{2}-?\d{2}T\d{4}Z)/);
-              return <div key={i} className="f6 color-fg-muted">{tsMatch ? tsMatch[1] : f}</div>;
-            })}
+      <h3 className="f5 mb-2">{'\ud83d\udcc2'} Raw Data Files <span className="f6 color-fg-muted" style={{ fontWeight: 400 }}>({rawFiles.length} total)</span></h3>
+      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+        {Object.entries(groups).map(([short, info]) => (
+          <div key={short} className="source-tag" style={{ fontSize: '12px', padding: '4px 10px', maxWidth: 'none' }}>
+            <strong className="color-fg-default">{short}</strong>
+            <span className="color-fg-muted"> {'\u00b7'} {info.count} file{info.count > 1 ? 's' : ''} {'\u00b7'} latest {fmtShortDate(info.latest.replace(/T.*/, '').replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'))}</span>
           </div>
         ))}
       </div>
@@ -383,13 +418,14 @@ function App() {
         setArtifactData(meta);
 
         // Load collection run status (optional)
+        let gotQueryRun = false;
         try {
           const qRes = await fetch('../dataflow/data/query-status.json');
-          if (qRes.ok) setCollectionRun(await qRes.json());
+          if (qRes.ok) { setCollectionRun(await qRes.json()); gotQueryRun = true; }
         } catch (e) { /* optional */ }
 
         // Fallback: try data-status.json for collection info
-        if (!collectionRun) {
+        if (!gotQueryRun) {
           try {
             const sRes = await fetch('./data/data-status.json');
             if (sRes.ok) {
