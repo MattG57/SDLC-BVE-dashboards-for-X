@@ -24,6 +24,15 @@ export function flattenDayTotal(dt) {
       d[key] = val;
     }
   }
+  // Extract agent mode interactions from totals_by_feature array
+  if (Array.isArray(dt.totals_by_feature)) {
+    const agentMode = dt.totals_by_feature.find(f => f.feature === 'chat_panel_agent_mode');
+    d.agent_mode_interaction_count = (agentMode && agentMode.user_initiated_interaction_count) || 0;
+  }
+  // Extract CLI prompt count (prefer direct field, fall back to flattened)
+  if (d.cli_prompt_count == null) {
+    d.cli_prompt_count = d.totals_by_cli_prompt_count || 0;
+  }
   return d;
 }
 

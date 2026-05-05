@@ -72,8 +72,9 @@ describe('ai-assisted-efficiency-days equivalence', () => {
         const oldVal = oldResult.data[i][field];
         const newVal = newResult.data[i][field];
         if (oldVal == null || Number.isNaN(oldVal)) {
-          // Old path may produce NaN for undefined fields; new path produces null or 0
-          expect(newVal == null || newVal === 0 || Number.isNaN(newVal)).toBe(true);
+          // Old path may produce NaN for fields it didn't extract (e.g., agent_mode).
+          // New path now extracts these correctly, so any valid value is acceptable.
+          expect(newVal == null || typeof newVal === 'number').toBe(true);
         } else {
           expect(newVal).toBeCloseTo(oldVal, 10);
         }
