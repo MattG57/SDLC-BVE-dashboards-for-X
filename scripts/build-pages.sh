@@ -33,6 +33,7 @@ declare -A DASHBOARDS=(
   ["v2/integrated"]="dashboard/v2/integrated"
   ["v2/simplified-leverage-demo"]="dashboard/v2/simplified-leverage-demo"
   ["v2/leverage-demo-live"]="dashboard/v2/leverage-demo-live"
+  ["v3/ai-assisted-efficiency"]="dashboard/v3/ai-assisted-efficiency"
 )
 
 for slug in "${!DASHBOARDS[@]}"; do
