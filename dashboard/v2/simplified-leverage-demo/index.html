@@ -206,11 +206,11 @@ const DEMO_DATA = {
     projectedSavingsHours: 420,
   },
   areas: [
-    { area: 'AI-Assisted Coding',            hours: 1200, attempts: 670, completions: 480, desc: 'AI-assisted PR merged',                   yield: 0.72, leverage: 0.40, efficiencyGain: 0.28, structuralGain: 0.16, leverageDelta: 0.08 },
+    { area: 'AI-Assisted Coding',            hours: 1200, attempts: 670, completions: 480, desc: 'AI-assisted PR opened',                      yield: 0.72, leverage: 0.40, efficiencyGain: 0.28, structuralGain: 0.16, leverageDelta: 0.08 },
     { area: 'PR Review',                      hours:  900, attempts: 353, completions: 300, desc: 'Review completed',                         yield: 0.85, leverage: 0.33, efficiencyGain: 0.10, structuralGain: 0.18, leverageDelta: 0.04 },
     { area: 'Vulnerability Remediation',      hours:  700, attempts: 233, completions: 140, desc: 'Vulnerability resolved',                   yield: 0.60, leverage: 0.20, efficiencyGain: 0.08, structuralGain: 0.30, leverageDelta: 0.07 },
     { area: 'Test/CI Execution',              hours:  500, attempts: 400, completions: 340, desc: 'Successful test or CI execution',           yield: 0.85, leverage: 0.68, efficiencyGain: 0.12, structuralGain: 0.22, leverageDelta: 0.06 },
-    { area: 'Agentic Coding',                 hours:  300, attempts:  95, completions:  60, desc: 'Copilot-authored PR completed',             yield: 0.63, leverage: 0.20, efficiencyGain: 0.18, structuralGain: 0.22, leverageDelta: 0.05 },
+    { area: 'Agentic Coding',                 hours:  300, attempts:  95, completions:  60, desc: 'Copilot-authored PR merged',                    yield: 0.63, leverage: 0.20, efficiencyGain: 0.18, structuralGain: 0.22, leverageDelta: 0.05 },
     { area: 'Creating CI/CD/etc Automation',  hours:  250, attempts:  80, completions:  50, desc: 'Reusable automation created or improved',   yield: 0.63, leverage: 0.20, efficiencyGain: 0.10, structuralGain: 0.38, leverageDelta: 0.09 },
   ],
   beforeAfter: {
@@ -242,7 +242,7 @@ function NarrativeSection({ number, title, explanation, activeStep, children }) 
 }
 
 function FlowBar({ active }) {
-  const steps = ['Hours', 'Completions', 'Yield', 'Leverage', 'Intent / Justification'];
+  const steps = ['📈 Capacity', '✅ Definition of Done', '🎯 Yield %', '📐 Leverage', '💡 Decisions 🔗 Realization'];
   return React.createElement('div', { className: 'flow-bar' },
     ...steps.flatMap((s, i) => {
       const els = [React.createElement('div', { key: s, className: `flow-step${i === active ? ' active' : ''}` }, s)];
@@ -297,11 +297,11 @@ function Section1() {
     { icon: '📋', text: 'Status reporting' },
   ];
   const leverage = [
-    { icon: '🎯', text: 'Capacity allocation' },
-    { icon: '✅', text: 'Valid completions' },
-    { icon: '📐', text: 'Yield' },
-    { icon: '🔗', text: 'Leverage' },
-    { icon: '💡', text: 'Intent / Justification' },
+    { icon: '📈', text: 'Capacity — where developer hours are allocated' },
+    { icon: '✅', text: 'Definition of Done — what counts as a valid completion' },
+    { icon: '🎯', text: 'Yield % — attempts that become valid completions' },
+    { icon: '📐', text: 'Leverage — completions per developer hour' },
+    { icon: '💡', text: 'Decisions 🔗 Realization — are decisions justified by results?' },
   ];
 
   return React.createElement(NarrativeSection, {
@@ -378,7 +378,7 @@ function Section2() {
 
   return React.createElement(NarrativeSection, {
     number: 2,
-    title: 'Work Is Modeled as Areas That Produce Useful Outcomes',
+    title: '📈 Where Is Developer Capacity Going?',
     explanation: 'Each area of improvement consumes developer hours and is modeled as producing a specific kind of useful outcome — a completion. Before we can understand improvement, we need to understand where developer capacity is going and what it produces.',
     activeStep: 0,
   },
@@ -402,8 +402,8 @@ function Section3() {
 
   return React.createElement(NarrativeSection, {
     number: 3,
-    title: 'Each Area Produces Completions',
-    explanation: 'Different areas produce different kinds of observable completions. The goal is not to make all work identical, but to make different work comparable.',
+    title: '✅ Each Area Has a Definition of Done',
+    explanation: 'Different areas produce different kinds of observable completions. The definition of done makes different work comparable — each area defines what counts as a valid completion.',
     activeStep: 1,
   },
     React.createElement('div', { className: 'table-wrap', style: { marginBottom: 24 } },
@@ -461,7 +461,7 @@ function Section4() {
 
   return React.createElement(NarrativeSection, {
     number: 4,
-    title: 'Yield Separates Activity From Valid Completion',
+    title: '🎯 Yield Separates Activity From Valid Completion',
     explanation: 'Yield measures the quality of the numerator in leverage — how many attempts become valid completions. Improving yield increases leverage by producing more useful output from the same activity, without requiring any change to hours spent.',
     activeStep: 2,
   },
@@ -565,7 +565,7 @@ function Section5() {
 
   return React.createElement(NarrativeSection, {
     number: 5,
-    title: 'Leverage, Improvement Patterns, and Room to Grow',
+    title: '📐 Leverage, Improvement Patterns, and Room to Grow',
     explanation: 'Leverage connects valid completions to developer hours. It improves through task-level efficiency and four structural patterns that change how far efficiency carries.',
     activeStep: 3,
   },
@@ -672,8 +672,8 @@ function Section6() {
 
   return React.createElement(NarrativeSection, {
     number: 6,
-    title: 'Intent and Justification',
-    explanation: 'We do not need to observe every developer\'s intent directly. If hours move, yield changes, completions improve, waste shrinks, or leverage rises, we can see whether decisions are justified by the results they produce.',
+    title: '💡 Decisions 🔗 Realization & Justification',
+    explanation: 'We do not need to observe every developer\'s intent directly. If hours move, yield changes, completions improve, waste shrinks, or leverage rises, we can see whether decisions are justified by the results they produce — linking decisions to their realization.',
     activeStep: 4,
   },
     React.createElement('div', { className: 'metric-cards cols-4', style: { marginBottom: 24 } },
@@ -749,7 +749,7 @@ function App() {
       React.createElement('div', { className: 'demo-badge' }, '✦ Illustrative Demo Data'),
       React.createElement('h1', { className: 'page-title' }, 'From Activity Metrics to Leverage Signals'),
       React.createElement('p', { className: 'page-subtitle' },
-        'A practical way to infer decision quality from observable changes in capacity, completions, yield, and structure.'
+        'A practical way to infer decision quality from observable changes in capacity, completions, yield, and leverage — linking decisions to their realization.'
       ),
     ),
     React.createElement(Section1, null),
