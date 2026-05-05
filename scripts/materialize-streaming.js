@@ -112,6 +112,16 @@ async function streamCopilotUsers(filepath) {
       }
       slim.day = day;
       slim.user_login = login;
+      // Extract agent mode from totals_by_feature array
+      if (Array.isArray(value.totals_by_feature)) {
+        const agentMode = value.totals_by_feature.find(f => f.feature === 'chat_panel_agent_mode');
+        slim.agent_mode_interaction_count = (agentMode && agentMode.user_initiated_interaction_count) || 0;
+      } else {
+        slim.agent_mode_interaction_count = 0;
+      }
+      // Extract CLI prompt count from totals_by_cli object
+      slim.cli_prompt_count = (value.totals_by_cli && typeof value.totals_by_cli === 'object')
+        ? (value.totals_by_cli.prompt_count || 0) : 0;
       users.push(slim);
     });
     pipeline.on('end', () => resolve(users));

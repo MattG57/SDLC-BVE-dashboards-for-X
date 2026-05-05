@@ -53,7 +53,7 @@ export function flattenUserReport(userReport) {
     } else if (user.day || user.date) {
       const login = user.user_login || user.login || user.github_login;
       if (login) {
-        records.push({ ...user, day: user.day || user.date, user_login: login });
+        records.push({ ...flattenDayTotal(user), user_login: login });
       }
     }
   }
