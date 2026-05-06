@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark" data-dark-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How deeply is Copilot embedded? (v3)</title>
+<link rel="stylesheet" href="https://unpkg.com/@primer/css@21.3.1/dist/primer.css">
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/highcharts.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/modules/accessibility.js"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  body { background: var(--bgColor-default); margin: 0; }
+  .v3-page { max-width: 1600px; margin: 0 auto; padding: 24px 16px; }
+  .v3-layout { display: grid; grid-template-columns: 1fr 300px; gap: 24px; align-items: start; }
+  @media (max-width: 1100px) { .v3-layout { grid-template-columns: 1fr; } }
+  .main-col { min-width: 0; }
+  .side-panel { position: sticky; top: 24px; max-height: calc(100vh - 48px); overflow-y: auto; }
+
+  /* Side panel */
+  .sp-section { margin-bottom: 16px; }
+  .sp-section:last-child { margin-bottom: 0; }
+  .sp-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--fgColor-muted); font-weight: 600; margin: 0 0 8px; }
+  .sp-input label { font-size: 11px; color: var(--fgColor-muted); display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .sp-input input { width: 80px; text-align: right; background: var(--bgColor-muted); border: 1px solid var(--borderColor-default); border-radius: 4px; color: var(--fgColor-default); padding: 2px 6px; font-size: 12px; }
+  .sp-divider { border: none; border-top: 1px solid var(--borderColor-muted); margin: 12px 0; }
+  .sp-kv { display: flex; justify-content: space-between; font-size: 11px; padding: 3px 0; }
+  .sp-kv .kv-label { color: var(--fgColor-muted); }
+  .sp-kv .kv-val { color: var(--fgColor-default); font-weight: 600; }
+  .dev-search { position: relative; }
+  .dev-search input { width: 100%; }
+  .dev-dropdown { position: absolute; top: 100%; left: 0; right: 0; z-index: 100; max-height: 200px; overflow: auto; }
+
+  /* Hero */
+  .hero-strip { display: flex; gap: 16px; align-items: stretch; flex-wrap: wrap; margin-bottom: 20px; }
+  .hero-card { text-align: center; padding: 16px 20px; border-radius: 8px; border: 1px solid var(--borderColor-default); }
+  .hero-card.primary { border-top: 3px solid #58a6ff; flex: 0 0 200px; }
+  .hero-card .hero-value { font-size: 2.5rem; font-weight: 700; line-height: 1.1; }
+  .hero-card .hero-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--fgColor-muted); margin-bottom: 4px; }
+  .hero-card .hero-sub { font-size: 11px; color: var(--fgColor-muted); margin-top: 4px; }
+  .supporting-kpis { flex: 1 1 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+  .sup-card { text-align: center; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--borderColor-default); }
+  .sup-card .sup-value { font-size: 1.4rem; font-weight: 600; }
+  .sup-card .sup-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--fgColor-muted); }
+  .sup-card .sup-sub { font-size: 10px; color: var(--fgColor-muted); }
+
+  /* Sections */
+  .section { margin-bottom: 28px; }
+  .section-head { font-size: 14px; font-weight: 600; color: var(--fgColor-default); margin: 0 0 4px; }
+  .section-desc { font-size: 12px; color: var(--fgColor-muted); margin: 0 0 12px; }
+  .chart-box { min-height: 280px; }
+  .chart-sm { min-height: 220px; }
+  .highcharts-background { fill: transparent !important; }
+
+  /* Trend direction */
+  .trend-dir { font-size: 12px; font-weight: 600; }
+  .trend-dir.up { color: #3fb950; }
+  .trend-dir.down { color: #f85149; }
+  .trend-dir.flat { color: var(--fgColor-muted); }
+
+  /* PR summary */
+  .pr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .pr-stat { text-align: center; padding: 8px; border-radius: 6px; border: 1px solid var(--borderColor-default); }
+  .pr-stat .pr-val { font-size: 1.3rem; font-weight: 700; }
+  .pr-stat .pr-lbl { font-size: 9px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--fgColor-muted); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useMemo } = React;
+
+Highcharts.setOptions({
+  chart: { backgroundColor: 'transparent', style: { fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif' } },
+  colors: ['#58a6ff','#3fb950','#d29922','#f85149','#bc8cff','#f778ba','#79c0ff','#56d364'],
+  title: { style: { color: '#e6edf3', fontSize: '13px', fontWeight: '600' } },
+  subtitle: { style: { color: '#8b949e', fontSize: '11px' } },
+  xAxis: { labels: { style: { color: '#8b949e' } }, gridLineColor: '#30363d', lineColor: '#30363d', tickColor: '#30363d' },
+  yAxis: { labels: { style: { color: '#8b949e' } }, gridLineColor: '#30363d', title: { style: { color: '#8b949e' } } },
+  legend: { itemStyle: { color: '#e6edf3', fontSize: '11px' }, itemHoverStyle: { color: '#58a6ff' } },
+  tooltip: { backgroundColor: '#161b22', borderColor: '#30363d', style: { color: '#e6edf3' } },
+  plotOptions: { series: { animation: { duration: 300 } } },
+  credits: { enabled: false },
+});
+
+/* ── Data loading ── */
+async function loadData() {
+  var bases = ['../../dataflow/data/', '../dataflow/data/'];
+  for (var base of bases) {
+    try {
+      var r = await fetch(base + 'pipeline-manifest.json');
+      if (!r.ok) continue;
+      var manifest = await r.json();
+      var artFile = (manifest.artifacts||[]).find(f => f.startsWith('ai-assisted-structural-days'));
+      if (!artFile) continue;
+      var art = await fetch(base + 'materialized/' + artFile).then(r => r.ok ? r.json() : null);
+      if (art) return art;
+    } catch(e) {}
+  }
+  return null;
+}
+
+async function loadConfig() {
+  for (var p of ['./data/config.json','../data/config.json','../../data/config.json']) {
+    try { var r = await fetch(p); if (r.ok) return r.json(); } catch(e) {}
+  }
+  return null;
+}
+
+function safeDiv(a, b) { return b > 0 ? a / b : null; }
+function mean(arr) { var v = arr.filter(x => x != null); return v.length ? v.reduce((a,b) => a+b,0)/v.length : null; }
+function median(arr) { var s = arr.filter(x => x != null).sort((a,b) => a-b); if (!s.length) return null; var m = Math.floor(s.length/2); return s.length%2 ? s[m] : (s[m-1]+s[m])/2; }
+
+var fmt = n => n == null ? '—' : Number(n).toLocaleString(undefined, {maximumFractionDigits:0});
+var fmtDec = (n,d) => n == null ? '—' : Number(n).toLocaleString(undefined, {minimumFractionDigits:d||1, maximumFractionDigits:d||1});
+var fmtPct = n => n == null ? '—' : (n*100).toFixed(1)+'%';
+var fmtCompact = n => { if (n==null) return '—'; if (Math.abs(n)>=1e6) return (n/1e6).toFixed(1)+'M'; if (Math.abs(n)>=1e3) return (n/1e3).toFixed(0)+'K'; return fmt(n); };
+
+function Chart({ options, className }) {
+  var ref = useRef(null), chartRef = useRef(null);
+  useEffect(() => {
+    if (!ref.current) return;
+    if (chartRef.current) chartRef.current.update(options, true, true);
+    else chartRef.current = Highcharts.chart(ref.current, options);
+  }, [JSON.stringify(options)]);
+  useEffect(() => () => { if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; } }, []);
+  return <div ref={ref} className={className || 'chart-box'} />;
+}
+
+function trendDirection(arr) {
+  // Linear regression: slope per day, displayed as pp/week
+  var points = arr.map((v, i) => v != null ? [i, v] : null).filter(Boolean);
+  if (points.length < 5) return { cls: 'flat', label: '→', text: 'insufficient data' };
+  var n = points.length;
+  var sumX = points.reduce((s,p) => s+p[0], 0);
+  var sumY = points.reduce((s,p) => s+p[1], 0);
+  var sumXY = points.reduce((s,p) => s+p[0]*p[1], 0);
+  var sumX2 = points.reduce((s,p) => s+p[0]*p[0], 0);
+  var denom = n * sumX2 - sumX * sumX;
+  if (Math.abs(denom) < 1e-10) return { cls: 'flat', label: '→', text: 'no change' };
+  var slopePerDay = (n * sumXY - sumX * sumY) / denom;
+  var ppPerWeek = slopePerDay * 7 * 100; // convert to percentage points per week
+  if (Math.abs(ppPerWeek) < 0.5) return { cls: 'flat', label: '→', text: '<0.5 pp/wk' };
+  var sign = ppPerWeek > 0 ? '+' : '';
+  return ppPerWeek > 0
+    ? { cls: 'up', label: '↑', text: sign + ppPerWeek.toFixed(1) + ' pp/wk' }
+    : { cls: 'down', label: '↓', text: sign + ppPerWeek.toFixed(1) + ' pp/wk' };
+}
+
+/* ── Side Panel ── */
+function SidePanel({ config, setConfig, days, artifact, selectedUser, setSelectedUser }) {
+  var profile = artifact?.artifact?.profile || {};
+  var prPeriod = artifact?._prPeriod || {};
+
+  function updateCfg(key, val) { setConfig(prev => ({...prev, [key]: val})); }
+
+  // Dev search
+  var logins = useMemo(() => {
+    var all = new Set();
+    if (artifact?._copilotUsersByDay) Object.values(artifact._copilotUsersByDay).forEach(u => { if (Array.isArray(u)) u.forEach(x => all.add(x)); });
+    return [...all].sort();
+  }, [artifact]);
+  var [devQuery, setDevQuery] = useState('');
+  var [devOpen, setDevOpen] = useState(false);
+  var filtered = devQuery ? logins.filter(l => l.toLowerCase().includes(devQuery.toLowerCase())).slice(0,8) : logins.slice(0,8);
+
+  // Adoption trend direction
+  var adoptionTrend = trendDirection(days.map(d => d.adopted_individuals_pct));
+  var prAssistTrend = trendDirection(days.map(d => d.prs_assisted_pct));
+
+  return (
+    <div className="side-panel">
+      <div className="Box p-3">
+        {/* Config */}
+        <div className="sp-section">
+          <div className="sp-title">Configuration</div>
+          <div className="sp-input">
+            <label>Total developers <input type="number" value={config.cfg_total_developers||100} min="1" onChange={e => updateCfg('cfg_total_developers', parseInt(e.target.value)||100)} /></label>
+            <label>PR lookback days <input type="number" value={config.cfg_pr_assist_lookback_days||3} min="1" max="14" onChange={e => updateCfg('cfg_pr_assist_lookback_days', parseInt(e.target.value)||3)} /></label>
+          </div>
+        </div>
+
+        <hr className="sp-divider" />
+
+        {/* Quick stats */}
+        <div className="sp-section">
+          <div className="sp-title">Period Summary</div>
+          <div className="sp-kv"><span className="kv-label">Enterprise days</span><span className="kv-val">{days.length}</span></div>
+          <div className="sp-kv"><span className="kv-label">PR records</span><span className="kv-val">{fmt((artifact?._prRecords||[]).length)}</span></div>
+          <div className="sp-kv"><span className="kv-label">Unique devs</span><span className="kv-val">{fmt(profile.unique_people)}</span></div>
+          <div className="sp-kv"><span className="kv-label">Unique repos</span><span className="kv-val">{fmt(profile.unique_repos)}</span></div>
+          <div className="sp-kv"><span className="kv-label">PR authors</span><span className="kv-val">{fmt(profile.unique_pr_authors)}</span></div>
+        </div>
+
+        <hr className="sp-divider" />
+
+        {/* Trend indicators */}
+        <div className="sp-section">
+          <div className="sp-title">Trend Direction</div>
+          <div className="sp-kv"><span className="kv-label">Adoption</span><span className={'trend-dir '+adoptionTrend.cls}>{adoptionTrend.label} {adoptionTrend.text}</span></div>
+          <div className="sp-kv"><span className="kv-label">PR Assist</span><span className={'trend-dir '+prAssistTrend.cls}>{prAssistTrend.label} {prAssistTrend.text}</span></div>
+        </div>
+
+        <hr className="sp-divider" />
+
+        {/* Dev search */}
+        <div className="sp-section">
+          <div className="sp-title">Developer Overlay</div>
+          {selectedUser ? (
+            <div className="d-flex flex-items-center" style={{gap:'6px'}}>
+              <span style={{fontSize:'12px',color:'#58a6ff',fontWeight:600}}>{selectedUser}</span>
+              <button style={{background:'none',border:'none',color:'var(--fgColor-muted)',cursor:'pointer',fontSize:'12px'}} onClick={() => setSelectedUser(null)}>✕</button>
+            </div>
+          ) : (
+            <div className="dev-search">
+              <input type="text" className="form-control input-sm" placeholder="Search login…" value={devQuery}
+                onChange={e => { setDevQuery(e.target.value); setDevOpen(true); }}
+                onFocus={() => setDevOpen(true)} onBlur={() => setTimeout(() => setDevOpen(false), 150)} />
+              {devOpen && filtered.length > 0 && (
+                <div className="Box dev-dropdown color-shadow-large">
+                  {filtered.map(l => <div key={l} className="Box-row px-3 py-1 f6" style={{cursor:'pointer'}} onMouseDown={() => { setSelectedUser(l); setDevQuery(''); setDevOpen(false); }}>{l}</div>)}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <hr className="sp-divider" />
+
+        {/* Definitions */}
+        <div className="sp-section">
+          <div className="sp-title">Definitions</div>
+          <div style={{fontSize:'10px',color:'var(--fgColor-muted)',lineHeight:1.5}}>
+            <p style={{margin:'0 0 6px'}}><strong>Adoption %:</strong> Devs active in Copilot within a lookback window ÷ total devs</p>
+            <p style={{margin:'0 0 6px'}}><strong>PR Assist %:</strong> PRs whose author used Copilot near creation date ÷ total PRs</p>
+            <p style={{margin:'0'}}><strong>LoC Assist %:</strong> Lines of code from assisted PRs ÷ total LoC</p>
+          </div>
+        </div>
+
+        <hr className="sp-divider" />
+        <div className="sp-section">
+          <button style={{fontSize:'10px',color:'var(--fgColor-muted)',background:'none',border:'none',cursor:'pointer',textDecoration:'underline'}}
+            onClick={() => { var b = new Blob([JSON.stringify(config,null,2)],{type:'application/json'}); var a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'dashboard-config.json'; a.click(); }}>💾 Export config</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Main App ── */
+function App() {
+  var [days, setDays] = useState(null);
+  var [artifact, setArtifact] = useState(null);
+  var [config, setConfig] = useState({ cfg_total_developers: 100, cfg_pr_assist_lookback_days: 3 });
+  var [selectedUser, setSelectedUser] = useState(null);
+  var [showPrTable, setShowPrTable] = useState(false);
+  var [loading, setLoading] = useState(true);
+  var [error, setError] = useState(null);
+
+  useEffect(() => {
+    Promise.all([loadData(), loadConfig()]).then(([art, cfg]) => {
+      if (!art || !art.data || !art.data.length) { setError('Artifact not found. Run: ./scripts/collect-and-materialize.sh'); setLoading(false); return; }
+      var merged = { cfg_total_developers: 100, cfg_pr_assist_lookback_days: 3, ...(cfg||{}) };
+      if (!cfg?.cfg_total_developers) {
+        var maxMau = Math.max(...art.data.map(d => d.monthly_active_users||0));
+        merged.cfg_total_developers = maxMau > 0 ? Math.round(maxMau * 1.25) : 100;
+      }
+      setConfig(merged);
+      setArtifact(art);
+      setDays(art.data.sort((a,b) => a.day.localeCompare(b.day)));
+      setLoading(false);
+    }).catch(e => { setError('Load failed: '+e.message); setLoading(false); });
+  }, []);
+
+  if (loading) return <div className="v3-page"><h1 className="f1">How deeply is Copilot embedded?</h1><div className="Box p-4 text-center color-fg-muted">Loading…</div></div>;
+  if (error) return <div className="v3-page"><h1 className="f1">How deeply is Copilot embedded?</h1><div className="flash flash-warn">{error}</div></div>;
+  if (!days) return null;
+
+  var n = days.length;
+  var avgAdoption = mean(days.map(d => d.adopted_individuals_pct));
+  var prAssistPct = artifact._periodPrsAssistedPct;
+  var locAssistPct = artifact._periodLocAssistedPct;
+  var avgDau = Math.round(mean(days.map(d => d.daily_active_users||0)) || 0);
+  var totalPrs = (artifact._prRecords||[]).length;
+  var mergedPrs = (artifact._prRecords||[]).filter(p => p.merged || p.state === 'merged').length;
+  var dateRange = n > 0 ? days[0].day + ' → ' + days[n-1].day : '';
+  var profile = artifact?.artifact?.profile || {};
+  var matTs = artifact?.artifact?.computed_at;
+  var matAgo = matTs ? (() => { var h = (Date.now()-new Date(matTs).getTime())/3600000; return h < 24 ? Math.floor(h)+'h ago' : Math.floor(h/24)+'d ago'; })() : '—';
+
+  // Trend charts
+  var xLabels = days.map(d => d.day);
+  var tickInt = Math.max(1, Math.floor(n/12));
+
+  var adoptionOpts = {
+    chart: { type: 'areaspline', height: 240 },
+    title: { text: 'Adoption — % of developers using Copilot' },
+    xAxis: { categories: xLabels, labels: { rotation: -45, style: { fontSize: '9px' } }, tickInterval: tickInt },
+    yAxis: { title: { text: null }, min: 0, max: 100, labels: { format: '{value}%' } },
+    tooltip: { shared: true, valueSuffix: '%', valueDecimals: 1 },
+    legend: { enabled: false },
+    series: [
+      { name: 'Adoption %', data: days.map(d => d.adopted_individuals_pct != null ? Math.round(d.adopted_individuals_pct*1000)/10 : null), color: '#58a6ff', fillOpacity: 0.06, marker: { radius: 2 } },
+    ],
+  };
+
+  var prLocOpts = {
+    chart: { type: 'spline', height: 240 },
+    title: { text: 'PR-Assist % and LoC-Assist % — how much output touches Copilot' },
+    xAxis: { categories: xLabels, labels: { rotation: -45, style: { fontSize: '9px' } }, tickInterval: tickInt },
+    yAxis: { title: { text: null }, min: 0, max: 100, labels: { format: '{value}%' } },
+    tooltip: { shared: true, valueSuffix: '%', valueDecimals: 1 },
+    series: [
+      { name: 'PRs Assisted %', data: days.map(d => d.prs_assisted_pct != null ? Math.round(d.prs_assisted_pct*1000)/10 : null), color: '#3fb950', marker: { radius: 2 } },
+      { name: 'LoC Assisted %', data: days.map(d => d.ai_assisted_loc_pct != null ? Math.round(d.ai_assisted_loc_pct*1000)/10 : null), color: '#bc8cff', marker: { radius: 2 } },
+    ],
+  };
+
+  var dauOpts = {
+    chart: { type: 'column', height: 180 },
+    title: { text: 'Daily Active Users' },
+    xAxis: { categories: xLabels, labels: { rotation: -45, style: { fontSize: '9px' } }, tickInterval: tickInt },
+    yAxis: { title: { text: null }, min: 0 },
+    tooltip: { valueDecimals: 0 },
+    legend: { enabled: false },
+    plotOptions: { column: { borderRadius: 2, color: '#484f58', opacity: 0.6 } },
+    series: [{ name: 'Active Users', data: days.map(d => d.daily_active_users||0) }],
+  };
+
+  // PR summary
+  var prRecords = artifact._prRecords || [];
+  var filteredPrs = selectedUser ? prRecords.filter(p => (p.author||p.user) === selectedUser) : prRecords;
+  var assistedPrs = filteredPrs.filter(p => p.assisted).length;
+  var medAdditions = median(filteredPrs.map(p => p.additions||0));
+  var medDeletions = median(filteredPrs.map(p => p.deletions||0));
+
+  // Data quality
+  var entDedup = profile.enterprise_dedup;
+  var userDedup = profile.user_dedup;
+  var hasPrData = days.some(d => d.has_pr_data);
+  var daysWithPr = days.filter(d => d.has_pr_data).length;
+
+  return (
+    <div className="v3-page">
+      <div className="d-flex flex-items-center flex-justify-between mb-3 flex-wrap" style={{gap:'8px'}}>
+        <div>
+          <h1 className="f1 color-fg-default" style={{margin:0}}>
+            How deeply is Copilot embedded?
+            <span style={{fontSize:'12px',marginLeft:'8px',padding:'2px 8px',borderRadius:'10px',background:'rgba(88,166,255,0.15)',color:'#58a6ff',verticalAlign:'middle'}}>v3</span>
+          </h1>
+          <p className="f6 color-fg-muted mt-1">{dateRange} · {n} days · {fmt(avgDau)} avg daily active devs · materialized {matAgo}</p>
+        </div>
+      </div>
+
+      <div className="v3-layout">
+        <div className="main-col">
+
+          {/* Hero strip */}
+          <div className="hero-strip">
+            <div className="hero-card primary">
+              <div className="hero-label">Adoption</div>
+              <div className="hero-value" style={{color:'#58a6ff'}}>{fmtPct(avgAdoption)}</div>
+              <div className="hero-sub">of {fmt(config.cfg_total_developers)} developers</div>
+            </div>
+            <div className="supporting-kpis">
+              <div className="sup-card">
+                <div className="sup-label">PRs Assisted</div>
+                <div className="sup-value" style={{color:'#3fb950'}}>{fmtPct(prAssistPct)}</div>
+                <div className="sup-sub">{fmt(totalPrs)} total PRs</div>
+              </div>
+              <div className="sup-card">
+                <div className="sup-label">LoC Assisted</div>
+                <div className="sup-value" style={{color:'#bc8cff'}}>{fmtPct(locAssistPct)}</div>
+                <div className="sup-sub">of all LoC in period</div>
+              </div>
+              <div className="sup-card">
+                <div className="sup-label">PRs Merged</div>
+                <div className="sup-value">{fmt(mergedPrs)}</div>
+                <div className="sup-sub">of {fmt(totalPrs)} · {fmtPct(safeDiv(mergedPrs, totalPrs))} rate</div>
+              </div>
+              <div className="sup-card">
+                <div className="sup-label">Active Devs</div>
+                <div className="sup-value">{fmt(avgDau)}</div>
+                <div className="sup-sub">daily avg</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Adoption trend */}
+          <div className="section">
+            <div className="Box p-3 mb-3"><Chart options={adoptionOpts} /></div>
+            <div className="Box p-3 mb-3"><Chart options={prLocOpts} /></div>
+            <div className="Box p-3"><Chart options={dauOpts} className="chart-sm" /></div>
+          </div>
+
+          {/* PR Summary */}
+          <div className="section">
+            <div className="d-flex flex-items-center flex-justify-between mb-2">
+              <div>
+                <div className="section-head">Pull Requests{selectedUser ? ` — ${selectedUser}` : ''}</div>
+                <div className="section-desc">PR composition and AI-assistance classification</div>
+              </div>
+              {prRecords.length > 0 && <button className="btn btn-sm btn-outline" onClick={() => setShowPrTable(!showPrTable)}>
+                {showPrTable ? 'Hide' : 'Show'} {filteredPrs.length} PRs
+              </button>}
+            </div>
+            <div className="pr-grid">
+              <div className="pr-stat"><div className="pr-val">{fmt(filteredPrs.length)}</div><div className="pr-lbl">Total PRs</div></div>
+              <div className="pr-stat"><div className="pr-val" style={{color:'#a371f7'}}>{fmt(filteredPrs.filter(p => p.merged||p.state==='merged').length)}</div><div className="pr-lbl">Merged</div></div>
+              <div className="pr-stat"><div className="pr-val" style={{color:'#3fb950'}}>{fmt(assistedPrs)}</div><div className="pr-lbl">AI-Assisted</div></div>
+              <div className="pr-stat"><div className="pr-val">+{fmt(medAdditions||0)}</div><div className="pr-lbl">Median Additions</div></div>
+              <div className="pr-stat"><div className="pr-val" style={{color:'#f85149'}}>−{fmt(medDeletions||0)}</div><div className="pr-lbl">Median Deletions</div></div>
+            </div>
+
+            {showPrTable && filteredPrs.length > 0 && (
+              <div className="Box p-3" style={{maxHeight:'350px',overflow:'auto'}}>
+                <table className="f6" style={{borderCollapse:'collapse',width:'100%'}}>
+                  <thead>
+                    <tr style={{borderBottom:'1px solid var(--borderColor-default)',position:'sticky',top:0,background:'var(--bgColor-default)'}}>
+                      <th className="text-left py-1 px-2">Repo</th>
+                      <th className="text-right py-1 px-2">#</th>
+                      <th className="text-left py-1 px-2">Author</th>
+                      <th className="text-left py-1 px-2">State</th>
+                      <th className="text-right py-1 px-2">+Lines</th>
+                      <th className="text-right py-1 px-2">−Lines</th>
+                      <th className="text-center py-1 px-2">Assisted</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredPrs.slice(0,100).map((pr,i) => {
+                      var merged = pr.merged || pr.state === 'merged';
+                      return <tr key={i}>
+                        <td className="py-1 px-2 color-fg-muted" style={{maxWidth:'160px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{pr.repo||pr.repository}</td>
+                        <td className="text-right py-1 px-2">{pr.number}</td>
+                        <td className="py-1 px-2"><code>{pr.author||pr.user}</code></td>
+                        <td className="py-1 px-2" style={{color: merged ? '#a371f7' : pr.state==='open' ? '#3fb950' : '#f85149'}}>{merged ? 'merged' : pr.state||'—'}</td>
+                        <td className="text-right py-1 px-2" style={{color:'#3fb950'}}>+{fmt(pr.additions||0)}</td>
+                        <td className="text-right py-1 px-2" style={{color:'#f85149'}}>−{fmt(pr.deletions||0)}</td>
+                        <td className="text-center py-1 px-2">{pr.assisted ? <span style={{color:'#3fb950'}}>✓</span> : '—'}</td>
+                      </tr>;
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Data Quality */}
+          <div className="Box p-4">
+            <h3 className="f4 mb-3">Data Quality</h3>
+
+            <h4 className="f6 color-fg-accent mb-2">Coverage</h4>
+            <table style={{width:'100%',borderCollapse:'collapse',marginBottom:'16px'}}>
+              <tbody>
+                <tr><td className="f5 color-fg-muted py-1">Enterprise days</td><td className="f5 py-1" style={{textAlign:'right',fontWeight:600}}>{n}{entDedup ? <span className="f6 color-fg-muted"> (deduped from {entDedup.before})</span> : ''}</td></tr>
+                <tr><td className="f5 color-fg-muted py-1">User-day records</td><td className="f5 py-1" style={{textAlign:'right',fontWeight:600}}>{fmt(profile.detail_row_count)}{userDedup ? <span className="f6 color-fg-muted"> ({fmt(profile.unique_people)} devs)</span> : ''}</td></tr>
+                <tr><td className="f5 color-fg-muted py-1">PR records</td><td className="f5 py-1" style={{textAlign:'right',fontWeight:600}}>{fmt(profile.pr_record_count)}<span className="f6 color-fg-muted"> ({fmt(profile.unique_pr_authors)} authors, {fmt(profile.unique_repos)} repos)</span></td></tr>
+                <tr><td className="f5 color-fg-muted py-1">Days with PR data</td><td className="f5 py-1" style={{textAlign:'right',fontWeight:600}}>{daysWithPr} of {n}{!hasPrData && <span className="f6" style={{color:'#d29922'}}> ⚠️ no PR data</span>}</td></tr>
+              </tbody>
+            </table>
+
+            <h4 className="f6 color-fg-accent mb-2">Classification</h4>
+            <table style={{width:'100%',borderCollapse:'collapse',marginBottom:'16px'}}>
+              <tbody>
+                <tr><td className="f5 color-fg-muted py-1">PR-assist lookback</td><td className="f5 py-1" style={{textAlign:'right',fontWeight:600}}>{config.cfg_pr_assist_lookback_days} days</td></tr>
+                <tr><td className="f5 color-fg-muted py-1">Period PR assist rate</td><td className="f5 py-1" style={{textAlign:'right',fontWeight:600}}>{fmtPct(prAssistPct)}</td></tr>
+                <tr><td className="f5 color-fg-muted py-1">Period LoC assist rate</td><td className="f5 py-1" style={{textAlign:'right',fontWeight:600}}>{fmtPct(locAssistPct)}</td></tr>
+                <tr><td className="f5 color-fg-muted py-1">Method</td><td className="f5 py-1" style={{textAlign:'right',fontWeight:600}}>Pre-computed by materializer</td></tr>
+              </tbody>
+            </table>
+
+            <div className="d-flex flex-items-center flex-justify-between pt-2" style={{borderTop:'1px solid var(--borderColor-muted)'}}>
+              <span className="f6 color-fg-muted">Source: <strong>ai-assisted-structural-days</strong> artifact</span>
+              <a href="../data-status/" className="f6 color-fg-muted" style={{textDecoration:'underline'}}>Pipeline Status →</a>
+            </div>
+          </div>
+        </div>
+
+        <SidePanel config={config} setConfig={setConfig} days={days} artifact={artifact} selectedUser={selectedUser} setSelectedUser={setSelectedUser} />
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

@@ -421,8 +421,25 @@ function App() {
   // ── Impact charts (separate per-dev and enterprise) ──
   var xLabels = days.map(d => d.day);
   var tickInt = Math.max(1, Math.floor(n/12));
+  var perDevVal = ((config.cfg_time_saved_pct_day||0) * (config.cfg_pct_time_coding||0.5) * ((config.cfg_baseline_hours_per_dev_per_week||40) / (config.cfg_workdays_per_week||5))).toFixed(1);
 
-  var perDevOpts = {
+  var isManual = method === 'manual';
+  var perDevOpts = isManual ? {
+    chart: { type: 'areaspline', height: 240 },
+    title: { text: 'Hours Saved — Scales with Daily Active Users' },
+    subtitle: { text: perDevVal + ' hrs/dev (fixed) × daily active users' },
+    xAxis: { categories: xLabels, labels: { rotation: -45, style: { fontSize: '9px' } }, tickInterval: tickInt },
+    yAxis: [
+      { title: { text: 'Hours Saved' }, min: 0, labels: { format: '{value} hrs' } },
+      { title: { text: 'Active Devs' }, opposite: true, min: 0 },
+    ],
+    tooltip: { shared: true, valueDecimals: 0 },
+    legend: { enabled: true },
+    series: [
+      { name: 'Hours saved', data: days.map(d => Math.round(d['est_'+method+'_hrs']||0)), color: '#58a6ff', fillOpacity: 0.06, yAxis: 0 },
+      { name: 'Active devs', data: days.map(d => d.daily_active_users||0), type: 'spline', color: '#d29922', yAxis: 1, dashStyle: 'ShortDot', marker: { radius: 2 }, lineWidth: 1.5 },
+    ],
+  } : {
     chart: { type: 'areaspline', height: 240 },
     title: { text: 'Hours Saved per Developer per Day' },
     subtitle: { text: methodDef.desc(config) },
@@ -436,7 +453,8 @@ function App() {
     ],
   };
 
-  var enterpriseOpts = {
+  // For Manual %, skip the separate enterprise chart (already shown above with DAU)
+  var enterpriseOpts = isManual ? null : {
     chart: { type: 'column', height: 200 },
     title: { text: 'Enterprise-Wide Hours Saved per Day' },
     xAxis: { categories: xLabels, labels: { rotation: -45, style: { fontSize: '9px' } }, tickInterval: tickInt },
@@ -561,10 +579,10 @@ function App() {
             </div>
           )}
 
-          {/* ── Trend charts (stacked: per-dev then enterprise) ── */}
+          {/* ── Trend charts ── */}
           {!needsCfg && <div className="section">
             <div className="Box p-3 mb-3"><Chart options={perDevOpts} /></div>
-            <div className="Box p-3"><Chart options={enterpriseOpts} /></div>
+            {enterpriseOpts && <div className="Box p-3"><Chart options={enterpriseOpts} /></div>}
           </div>}
 
           {/* ── Drivers ── */}
