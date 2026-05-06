@@ -98,6 +98,38 @@ This collects data, materializes artifacts, and writes everything to
 `dashboard/dataflow/data/`. Open any dashboard `index.html` in your
 browser to see results.
 
+### Step 6b. Local development server
+
+For iterating on dashboards without deploying:
+
+```bash
+npm run serve          # starts http://127.0.0.1:8080
+npm run serve -- 3000  # custom port
+```
+
+This serves the `dashboard/` directory. All dashboards load data from
+the same materialized artifacts via relative paths. Changes to HTML
+files are visible immediately on refresh.
+
+To re-materialize after code changes without re-collecting data:
+
+```bash
+node scripts/materialize-streaming.js
+```
+
+### Step 6c. Screenshots (for Copilot CLI or review)
+
+Take headless Chrome screenshots of any dashboard:
+
+```bash
+npm run screenshot -- http://127.0.0.1:8080/v3/ai-assisted-efficiency/
+npm run screenshot -- http://127.0.0.1:8080/dataflow/ dataflow.png 1400x1000
+```
+
+Requires Google Chrome installed. Uses `--virtual-time-budget=5000` to
+let React render before capture. Useful for CI, documentation, or
+when working with Copilot CLI to review dashboard changes.
+
 ### Step 7. Deploy to GitHub Pages
 
 Push your configured repo and set up the nightly pipeline:
