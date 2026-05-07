@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark" data-dark-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Assisted Coding — Efficiency (v4)</title>
+<link rel="stylesheet" href="https://unpkg.com/@primer/css@21.3.1/dist/primer.css">
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/highcharts.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/modules/accessibility.js"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  body { background: var(--bgColor-default); margin: 0; }
+
+  /* ── Layout: main + side panel ── */
+  .v3-page { max-width: 1600px; margin: 0 auto; padding: 24px 16px; }
+  .v3-layout { display: grid; grid-template-columns: 1fr 300px; gap: 24px; align-items: start; }
+  @media (max-width: 1100px) { .v3-layout { grid-template-columns: 1fr; } }
+  .main-col { min-width: 0; }
+  .side-panel { position: sticky; top: 24px; max-height: calc(100vh - 48px); overflow-y: auto; }
+
+  /* ── Side panel sections ── */
+  .sp-section { margin-bottom: 16px; }
+  .sp-section:last-child { margin-bottom: 0; }
+  .sp-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--fgColor-muted); font-weight: 600; margin: 0 0 8px; }
+  .sp-radio { display: flex; flex-direction: column; gap: 4px; }
+  .sp-radio label { font-size: 12px; display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 4px 8px; border-radius: 6px; transition: background 0.1s; }
+  .sp-radio label:hover { background: var(--bgColor-muted); }
+  .sp-radio label.active { background: rgba(88,166,255,0.08); color: #58a6ff; font-weight: 600; }
+  .sp-input { display: flex; flex-direction: column; gap: 6px; }
+  .sp-input label { font-size: 11px; color: var(--fgColor-muted); display: flex; justify-content: space-between; align-items: center; }
+  .sp-input input { width: 80px; text-align: right; background: var(--bgColor-muted); border: 1px solid var(--borderColor-default); border-radius: 4px; color: var(--fgColor-default); padding: 2px 6px; font-size: 12px; }
+  .sp-formula { font-size: 10px; font-family: monospace; color: var(--fgColor-muted); background: var(--bgColor-muted); padding: 6px 8px; border-radius: 4px; margin-top: 6px; }
+  .sp-compare { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .sp-compare th { text-align: right; color: var(--fgColor-muted); font-weight: 500; padding: 3px 0; }
+  .sp-compare th:first-child { text-align: left; }
+  .sp-compare td { padding: 3px 0; text-align: right; }
+  .sp-compare td:first-child { text-align: left; }
+  .sp-compare tr.active { color: #58a6ff; font-weight: 600; }
+  .sp-divider { border: none; border-top: 1px solid var(--borderColor-muted); margin: 12px 0; }
+
+  /* ── Hero metric ── */
+  .hero-strip { display: flex; gap: 16px; align-items: stretch; flex-wrap: wrap; margin-bottom: 20px; }
+  .hero-card { text-align: center; padding: 16px 20px; border-radius: 8px; border: 1px solid var(--borderColor-default); }
+  .hero-card.primary { border-top: 3px solid #58a6ff; flex: 0 0 220px; }
+  .hero-card .hero-value { font-size: 2.5rem; font-weight: 700; line-height: 1.1; }
+  .hero-card .hero-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--fgColor-muted); margin-bottom: 4px; }
+  .hero-card .hero-sub { font-size: 11px; color: var(--fgColor-muted); margin-top: 4px; }
+  .hero-card .hero-method { font-size: 9px; color: var(--fgColor-muted); font-style: italic; margin-top: 2px; }
+  .supporting-kpis { flex: 1 1 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+  .sup-card { text-align: center; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--borderColor-default); }
+  .sup-card .sup-value { font-size: 1.4rem; font-weight: 600; }
+  .sup-card .sup-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--fgColor-muted); }
+  .sup-card .sup-sub { font-size: 10px; color: var(--fgColor-muted); }
+  .user-inline { margin-top: 4px; padding-top: 4px; border-top: 1px solid rgba(247,129,102,0.3); }
+  .user-inline .ui-val { font-size: 1rem; font-weight: 600; color: #f78166; }
+  .user-inline .ui-label { font-size: 9px; color: #f78166; opacity: 0.8; }
+  .user-inline .ui-delta { font-size: 9px; }
+  .hero-card .user-inline { margin-top: 6px; padding-top: 6px; }
+  .hero-card .user-inline .ui-val { font-size: 1.3rem; }
+
+  /* ── Sections ── */
+  .section { margin-bottom: 44px; }
+  .section-head { font-size: 22px; font-weight: 600; color: #58a6ff; margin: 0 0 6px; }
+  .section-desc { font-size: 14px; color: var(--fgColor-muted); margin: 0 0 16px; }
+
+  /* ── Charts ── */
+  .chart-box { min-height: 300px; }
+  .chart-sm { min-height: 220px; }
+  .highcharts-background { fill: transparent !important; }
+
+  /* ── Drivers ── */
+  .drivers-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 900px) { .drivers-grid { grid-template-columns: 1fr; } }
+  .driver-toggles { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .driver-toggles label { font-size: 11px; display: inline-flex; align-items: center; gap: 3px; cursor: pointer; }
+  .view-toggle { display: inline-flex; border: 1px solid var(--borderColor-default); border-radius: 6px; overflow: hidden; }
+  .view-toggle button { padding: 2px 10px; font-size: 11px; border: none; cursor: pointer; background: var(--bgColor-muted); color: var(--fgColor-muted); }
+  .view-toggle button + button { border-left: 1px solid var(--borderColor-default); }
+  .view-toggle button.active { background: var(--bgColor-accent-muted); color: var(--fgColor-accent); font-weight: 600; }
+
+  /* ── Data quality footer ── */
+  .dq-footer { border: 1px solid var(--borderColor-default); border-radius: 8px; padding: 12px 16px; }
+  .dq-indicator { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; }
+  .dq-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dq-dot.ok { background: #3fb950; }
+  .dq-dot.warn { background: #d29922; }
+  .dq-dot.err { background: #f85149; }
+  .dq-stats { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 8px; }
+  .dq-stat { font-size: 11px; color: var(--fgColor-muted); }
+  .dq-stat strong { color: var(--fgColor-default); }
+
+  /* ── Dev search ── */
+  .dev-search { position: relative; }
+  .dev-search input { width: 100%; }
+  .dev-dropdown { position: absolute; top: 100%; left: 0; right: 0; z-index: 100; max-height: 200px; overflow: auto; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useMemo, useCallback } = React;
+
+/* ── Highcharts dark theme ── */
+Highcharts.setOptions({
+  chart: { backgroundColor: 'transparent', style: { fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif' } },
+  colors: ['#58a6ff', '#3fb950', '#d29922', '#f85149', '#bc8cff', '#f778ba', '#79c0ff', '#56d364'],
+  title: { style: { color: '#e6edf3', fontSize: '13px', fontWeight: '600' } },
+  subtitle: { style: { color: '#8b949e', fontSize: '11px' } },
+  xAxis: { labels: { style: { color: '#8b949e' } }, gridLineColor: '#30363d', lineColor: '#30363d', tickColor: '#30363d' },
+  yAxis: { labels: { style: { color: '#8b949e' } }, gridLineColor: '#30363d', title: { style: { color: '#8b949e' } } },
+  legend: { itemStyle: { color: '#e6edf3', fontSize: '11px' }, itemHoverStyle: { color: '#58a6ff' } },
+  tooltip: { backgroundColor: '#161b22', borderColor: '#30363d', style: { color: '#e6edf3' } },
+  plotOptions: { series: { animation: { duration: 300 } } },
+  credits: { enabled: false },
+});
+
+/* ═══════════════════════════════════════════════════════
+   DATA LOADING & PROCESSING
+   ═══════════════════════════════════════════════════════ */
+
+async function loadData() {
+  const bases = ['../../dataflow/data/', '../dataflow/data/'];
+  let manifest = null, art = null, structArt = null, cfg = null;
+  for (const base of bases) {
+    try {
+      const r = await fetch(base + 'pipeline-manifest.json');
+      if (!r.ok) continue;
+      manifest = await r.json();
+      const artFile = (manifest.artifacts || []).find(f => f.startsWith('ai-assisted-efficiency-days'));
+      if (!artFile) continue;
+      art = await fetch(base + 'materialized/' + artFile).then(r => r.ok ? r.json() : null);
+      // Also load structural artifact for PR data
+      const structFile = (manifest.artifacts || []).find(f => f.startsWith('ai-assisted-structural-days'));
+      if (structFile) {
+        structArt = await fetch(base + 'materialized/' + structFile).then(r => r.ok ? r.json() : null);
+      }
+      if (art) break;
+    } catch(e) {}
+  }
+  for (const p of ['./data/config.json', '../data/config.json', '../../data/config.json']) {
+    try { const r = await fetch(p); if (r.ok) { cfg = await r.json(); break; } } catch(e) {}
+  }
+  return { artifact: art, structural: structArt, config: cfg, manifest };
+}
+
+function safeDiv(a, b) { return b > 0 ? a / b : null; }
+
+const DEFAULT_CONFIG = {
+  cfg_total_developers: 100,
+  cfg_pct_time_coding: 0.5,
+  cfg_time_saved_pct_day: 0.38,
+  cfg_baseline_hours_per_dev_per_week: 40,
+  cfg_workdays_per_week: 5,
+  cfg_labor_cost_per_hour: 100,
+  est_interactions_per_hour: 30,
+  est_hrs_per_kloc: 1.5,
+};
+
+const ESTIMATION_METHODS = [
+  { key: 'interactions', label: 'Interactions',
+    desc: (c) => `1 hr saved per ${c.est_interactions_per_hour||30} interactions`,
+    formula: (c) => `hrs = interactions ÷ ${c.est_interactions_per_hour||30}`,
+    calc: (d, c) => (d.user_initiated_interaction_count||0) / (c.est_interactions_per_hour||30),
+  },
+  { key: 'loc', label: 'Lines of Code',
+    desc: (c) => `${c.est_hrs_per_kloc||2} hrs saved per 1K LoC added`,
+    formula: (c) => `hrs = (LoC ÷ 1000) × ${c.est_hrs_per_kloc||2}`,
+    calc: (d, c) => ((d.loc_added_sum||0) / 1000) * (c.est_hrs_per_kloc||2),
+  },
+  { key: 'manual', label: 'Manual %',
+    desc: (c) => (((c.cfg_time_saved_pct_day||0)*100).toFixed(0))+'% of coding time saved per active dev',
+    formula: (c) => `hrs = pct_saved × pct_coding × (baseline_hrs ÷ workdays) × active_devs`,
+    calc: (d, c) => {
+      var p = c.cfg_time_saved_pct_day, coding = c.cfg_pct_time_coding, b = c.cfg_baseline_hours_per_dev_per_week, w = c.cfg_workdays_per_week||5;
+      return (p != null && coding != null && b != null) ? (p * coding * b / w) * (d.daily_active_users||0) : null;
+    },
+    needsConfig: (c) => c.cfg_time_saved_pct_day == null || c.cfg_pct_time_coding == null || c.cfg_baseline_hours_per_dev_per_week == null,
+  },
+];
+
+function computeAll(days, config) {
+  return days.map(d => {
+    var dau = d.daily_active_users || 0;
+    var est = {};
+    ESTIMATION_METHODS.forEach(m => {
+      var hrs = m.calc(d, config);
+      est['est_' + m.key + '_hrs'] = hrs;
+      est['est_' + m.key + '_per_dev'] = safeDiv(hrs, dau);
+    });
+    return { ...d, ...est };
+  });
+}
+
+/* ── Formatting ── */
+var fmt = n => n == null ? '—' : Number(n).toLocaleString(undefined, {maximumFractionDigits:0});
+var fmtDec = (n,d) => n == null ? '—' : Number(n).toLocaleString(undefined, {minimumFractionDigits:d||1, maximumFractionDigits:d||1});
+var fmtPct = n => n == null ? '—' : (n*100).toFixed(1)+'%';
+var fmtCurrency = n => n == null ? '—' : '$'+Number(n).toLocaleString(undefined, {maximumFractionDigits:0});
+var fmtCompact = n => { if (n==null) return '—'; if (Math.abs(n)>=1e6) return (n/1e6).toFixed(1)+'M'; if (Math.abs(n)>=1e3) return (n/1e3).toFixed(0)+'K'; return fmt(n); };
+
+/* ── Chart wrapper with update support ── */
+function Chart({ options, className }) {
+  var ref = useRef(null);
+  var chartRef = useRef(null);
+  useEffect(() => {
+    if (!ref.current) return;
+    if (chartRef.current) {
+      chartRef.current.update(options, true, true);
+    } else {
+      chartRef.current = Highcharts.chart(ref.current, options);
+    }
+    return () => {};
+  }, [JSON.stringify(options)]);
+  useEffect(() => { return () => { if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; } }; }, []);
+  return <div ref={ref} className={className || 'chart-box'} />;
+}
+
+/* ═══════════════════════════════════════════════════════
+   SIDE PANEL
+   ═══════════════════════════════════════════════════════ */
+function SidePanel({ config, setConfig, method, setMethod, days, users, selectedUser, setSelectedUser, configSource }) {
+  var methodDef = ESTIMATION_METHODS.find(m => m.key === method) || ESTIMATION_METHODS[0];
+
+  // Method comparison
+  var comparison = ESTIMATION_METHODS.map(m => {
+    var field = 'est_' + m.key + '_per_dev';
+    var vals = days.map(d => d[field]).filter(v => v != null);
+    var avg = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : null;
+    var totalField = 'est_' + m.key + '_hrs';
+    var total = days.reduce((s,d) => s + (d[totalField]||0), 0);
+    var needsCfg = m.needsConfig && m.needsConfig(config);
+    return { key: m.key, label: m.label, avg, total, needsCfg };
+  });
+
+  function updateCfg(key, val) {
+    setConfig(prev => ({ ...prev, [key]: val }));
+  }
+
+  // Dev search
+  var logins = useMemo(() => [...new Set((users||[]).map(u=>u.user_login))].sort(), [users]);
+  var [devQuery, setDevQuery] = useState('');
+  var [devOpen, setDevOpen] = useState(false);
+  var filtered = devQuery ? logins.filter(l => l.toLowerCase().includes(devQuery.toLowerCase())).slice(0,8) : logins.slice(0,8);
+
+  return (
+    <div className="side-panel">
+      <div className="Box p-3">
+        {/* Method selector */}
+        <div className="sp-section">
+          <div className="sp-title">Estimation Method</div>
+          <div className="sp-radio">
+            {ESTIMATION_METHODS.map(m => {
+              var active = m.key === method;
+              var needsCfg = m.needsConfig && m.needsConfig(config);
+              return <label key={m.key} className={active ? 'active' : ''} onClick={() => !needsCfg && setMethod(m.key)}>
+                <input type="radio" name="method" checked={active} onChange={() => setMethod(m.key)} style={{accentColor:'#58a6ff'}} />
+                {m.label}
+                {needsCfg && <span style={{fontSize:'9px',color:'#d29922',marginLeft:'auto'}}>needs config</span>}
+              </label>;
+            })}
+          </div>
+          <div className="sp-formula">{methodDef.formula(config)}</div>
+        </div>
+
+        <hr className="sp-divider" />
+
+        {/* Assumptions */}
+        <div className="sp-section">
+          <div className="sp-title">Assumptions</div>
+          <div className="sp-input">
+            <label>Interactions / hr saved <input type="number" value={config.est_interactions_per_hour||20} min="1" step="1" onChange={e => updateCfg('est_interactions_per_hour', parseFloat(e.target.value)||20)} /></label>
+            <label>Hrs / 1K LoC <input type="number" value={config.est_hrs_per_kloc||2} min="0" step="0.5" onChange={e => updateCfg('est_hrs_per_kloc', parseFloat(e.target.value)||2)} /></label>
+          </div>
+        </div>
+
+        <hr className="sp-divider" />
+
+        {/* Organization config */}
+        <div className="sp-section">
+          <div className="sp-title">Organization</div>
+          <div className="sp-input">
+            <label>Labor cost $/hr <input type="number" value={config.cfg_labor_cost_per_hour||''} min="0" step="1" placeholder="—" onChange={e => updateCfg('cfg_labor_cost_per_hour', parseFloat(e.target.value)||null)} /></label>
+            <label>Workdays / week <input type="number" value={config.cfg_workdays_per_week||5} min="1" max="7" step="1" onChange={e => updateCfg('cfg_workdays_per_week', parseFloat(e.target.value)||5)} /></label>
+            <label>% time coding <input type="number" value={config.cfg_pct_time_coding!=null?config.cfg_pct_time_coding:''} min="0" max="1" step="0.05" placeholder="0.25" onChange={e => updateCfg('cfg_pct_time_coding', e.target.value ? parseFloat(e.target.value) : null)} /></label>
+            <label>Baseline hrs / week <input type="number" value={config.cfg_baseline_hours_per_dev_per_week!=null?config.cfg_baseline_hours_per_dev_per_week:''} min="0" step="1" placeholder="40" onChange={e => updateCfg('cfg_baseline_hours_per_dev_per_week', e.target.value ? parseFloat(e.target.value) : null)} /></label>
+            <label>% coding time saved <input type="number" value={config.cfg_time_saved_pct_day!=null?config.cfg_time_saved_pct_day:''} min="0" max="1" step="0.05" placeholder="0.30" onChange={e => updateCfg('cfg_time_saved_pct_day', e.target.value ? parseFloat(e.target.value) : null)} /></label>
+          </div>
+        </div>
+
+        <hr className="sp-divider" />
+
+        {/* Method comparison */}
+        <div className="sp-section">
+          <div className="sp-title">Method Comparison</div>
+          <table className="sp-compare">
+            <thead><tr><th>Method</th><th>Hrs/Dev/Day</th><th>Total</th></tr></thead>
+            <tbody>
+              {comparison.map(m => <tr key={m.key} className={m.key===method?'active':''}>
+                <td>{m.label}</td>
+                <td>{m.needsCfg ? '—' : fmtDec(m.avg, 2)}</td>
+                <td>{m.needsCfg ? '—' : fmtCompact(m.total)}</td>
+              </tr>)}
+            </tbody>
+          </table>
+        </div>
+
+        <hr className="sp-divider" />
+
+        {/* Developer search */}
+        <div className="sp-section">
+          <div className="sp-title">Developer Overlay</div>
+          {selectedUser ? (
+            <div className="d-flex flex-items-center" style={{gap:'6px'}}>
+              <span style={{fontSize:'12px',color:'#58a6ff',fontWeight:600}}>{selectedUser}</span>
+              <button style={{background:'none',border:'none',color:'var(--fgColor-muted)',cursor:'pointer',fontSize:'12px'}} onClick={() => setSelectedUser(null)}>✕</button>
+              <span style={{fontSize:'10px',color:'var(--fgColor-muted)',marginLeft:'auto'}}>dashed on charts</span>
+            </div>
+          ) : (
+            <div className="dev-search">
+              <input type="text" className="form-control input-sm" placeholder="Search login…" value={devQuery}
+                onChange={e => { setDevQuery(e.target.value); setDevOpen(true); }}
+                onFocus={() => setDevOpen(true)} onBlur={() => setTimeout(() => setDevOpen(false), 150)} />
+              {devOpen && filtered.length > 0 && (
+                <div className="Box dev-dropdown color-shadow-large">
+                  {filtered.map(l => <div key={l} className="Box-row px-3 py-1 f6" style={{cursor:'pointer'}} onMouseDown={() => { setSelectedUser(l); setDevQuery(''); setDevOpen(false); }}>{l}</div>)}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <hr className="sp-divider" />
+
+        {/* Config source */}
+        <div className="sp-section">
+          <div className="d-flex flex-items-center flex-justify-between">
+            <div className="sp-title" style={{margin:0}}>Config</div>
+            {configSource && <span style={{fontSize:'9px',padding:'1px 5px',borderRadius:'3px',background:'rgba(63,185,80,0.15)',color:'#3fb950'}}>from repo</span>}
+          </div>
+          <button style={{fontSize:'10px',color:'var(--fgColor-muted)',background:'none',border:'none',cursor:'pointer',marginTop:'4px',textDecoration:'underline'}}
+            onClick={() => {
+              var blob = new Blob([JSON.stringify(config, null, 2)], {type:'application/json'});
+              var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'dashboard-config.json'; a.click();
+            }}>💾 Export config</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   MAIN COLUMN COMPONENTS
+   ═══════════════════════════════════════════════════════ */
+
+const DRIVER_SERIES = [
+  { key: 'user_initiated_interaction_count', perDev: 'interactions_per_active_dev', label: 'Interactions', color: '#58a6ff', scale: 1 },
+  { key: 'code_generation_activity_count', perDev: 'generations_per_active_dev', label: 'Suggestions', color: '#3fb950', scale: 1 },
+  { key: 'code_acceptance_activity_count', perDev: 'acceptances_per_active_dev', label: 'Accepts', color: '#d29922', scale: 1 },
+  { key: 'loc_added_sum', perDev: 'loc10_added_per_active_dev', label: 'LoC/10 Added', color: '#bc8cff', scale: 10 },
+  { key: 'agent_mode_interaction_count', perDev: 'agent_mode_per_active_dev', label: 'Agent Mode', color: '#f778ba', scale: 1 },
+  { key: 'cli_prompt_count', perDev: 'cli_prompts_per_active_dev', label: 'CLI Prompts', color: '#79c0ff', scale: 1 },
+];
+
+function App() {
+  var [days, setDays] = useState(null);
+  var [baseDays, setBaseDays] = useState(null);
+  var [users, setUsers] = useState([]);
+  var [artifact, setArtifact] = useState(null);
+  var [prData, setPrData] = useState(null);
+  var [config, setConfig] = useState({...DEFAULT_CONFIG});
+  var [configSource, setConfigSource] = useState(null);
+  var [method, setMethod] = useState('interactions');
+  var [selectedUser, setSelectedUser] = useState(null);
+  var [loading, setLoading] = useState(true);
+  var [error, setError] = useState(null);
+  var [viewMode, setViewMode] = useState('combined');
+  var [toggles, setToggles] = useState(() => { var t = {}; DRIVER_SERIES.forEach(s => t[s.key] = true); return t; });
+
+  // Load data
+  useEffect(() => {
+    loadData().then(({ artifact: art, structural, config: cfg }) => {
+      if (!art || !art.data || !art.data.length) {
+        setError('Materialized artifact not found or empty. Run: ./scripts/collect-and-materialize.sh');
+        setLoading(false);
+        return;
+      }
+      var merged = { ...DEFAULT_CONFIG, ...(cfg||{}) };
+      setConfig(merged);
+      if (cfg) setConfigSource(cfg);
+      setArtifact(art);
+      if (structural && structural._prPeriod) setPrData(structural._prPeriod);
+      var sorted = art.data.sort((a,b) => a.day.localeCompare(b.day));
+      setBaseDays(sorted);
+      setUsers(art._users || []);
+      setDays(computeAll(sorted, merged));
+      setLoading(false);
+    }).catch(e => { setError('Load failed: ' + e.message); setLoading(false); });
+  }, []);
+
+  // Reactive recompute when config or method changes
+  useEffect(() => {
+    if (baseDays) setDays(computeAll(baseDays, config));
+  }, [config, baseDays]);
+
+  if (loading) return <div className="v3-page"><h1 className="f1 color-fg-default">AI Assisted Coding — Efficiency</h1><div className="Box p-4 text-center color-fg-muted">Loading…</div></div>;
+  if (error) return <div className="v3-page"><h1 className="f1 color-fg-default">AI Assisted Coding — Efficiency</h1><div className="flash flash-warn">{error}</div></div>;
+  if (!days) return null;
+
+  var n = days.length;
+  var methodDef = ESTIMATION_METHODS.find(m => m.key === method) || ESTIMATION_METHODS[0];
+  var needsCfg = methodDef.needsConfig && methodDef.needsConfig(config);
+
+  // ── KPIs ──
+  var totalHrs = needsCfg ? null : days.reduce((s,d) => s + (d['est_'+method+'_hrs']||0), 0);
+  var perDevVals = days.map(d => d['est_'+method+'_per_dev']).filter(v => v != null);
+  var avgPerDev = perDevVals.length ? perDevVals.reduce((a,b)=>a+b,0)/perDevVals.length : null;
+  var avgDau = Math.round(days.reduce((s,d) => s + (d.daily_active_users||0), 0) / n);
+  var laborCost = config.cfg_labor_cost_per_hour != null && totalHrs != null ? totalHrs * config.cfg_labor_cost_per_hour : null;
+  var orgHrsPerDay = totalHrs != null ? totalHrs / n : null;
+  var baseHrsPerDay = (config.cfg_baseline_hours_per_dev_per_week || 40) / (config.cfg_workdays_per_week || 5);
+  var pctSaved = avgPerDev != null ? avgPerDev / baseHrsPerDay : null;
+  var fteEquiv = totalHrs != null ? totalHrs / (8 * n) : null;
+  var dateRange = n > 0 ? days[0].day + ' → ' + days[n-1].day : '';
+
+  // ── User overlay ──
+  var userDayMap = {};
+  if (selectedUser) {
+    users.filter(u => u.user_login === selectedUser).forEach(u => { userDayMap[u.day] = u; });
+  }
+  var hasUser = Object.keys(userDayMap).length > 0;
+
+  // ── User KPIs (precomputed for inline overlay) ──
+  var userKPIs = hasUser ? (() => {
+    var uDays = Object.values(userDayMap);
+    var activeDays = uDays.length;
+    var total = uDays.reduce((s,u) => s + (methodDef.calc({...u, daily_active_users:1}, config)||0), 0);
+    var avg = activeDays > 0 ? total / activeDays : null;
+    var vsOrg = avgPerDev != null && avg != null ? avg - avgPerDev : null;
+    var econValue = config.cfg_labor_cost_per_hour != null ? total * config.cfg_labor_cost_per_hour : null;
+    return { activeDays, total, avg, vsOrg, econValue };
+  })() : null;
+
+  // ── Impact charts (separate per-dev and enterprise) ──
+  var xLabels = days.map(d => d.day);
+  var tickInt = Math.max(1, Math.floor(n/12));
+  var perDevVal = ((config.cfg_time_saved_pct_day||0) * (config.cfg_pct_time_coding||0.5) * ((config.cfg_baseline_hours_per_dev_per_week||40) / (config.cfg_workdays_per_week||5))).toFixed(1);
+
+  var isManual = method === 'manual';
+  var perDevOpts = isManual ? {
+    chart: { type: 'areaspline', height: 240 },
+    title: { text: 'Hours Saved — Scales with Daily Active Users' },
+    subtitle: { text: perDevVal + ' hrs/dev (fixed) × daily active users' },
+    xAxis: { categories: xLabels, labels: { rotation: -45, style: { fontSize: '9px' } }, tickInterval: tickInt },
+    yAxis: [
+      { title: { text: 'Hours Saved' }, min: 0, labels: { format: '{value} hrs' } },
+      { title: { text: 'Active Devs' }, opposite: true, min: 0 },
+    ],
+    tooltip: { shared: true, valueDecimals: 0 },
+    legend: { enabled: true },
+    series: [
+      { name: 'Hours saved', data: days.map(d => Math.round(d['est_'+method+'_hrs']||0)), color: '#58a6ff', fillOpacity: 0.06, yAxis: 0 },
+      { name: 'Active devs', data: days.map(d => d.daily_active_users||0), type: 'spline', color: '#d29922', yAxis: 1, dashStyle: 'ShortDot', marker: { radius: 2 }, lineWidth: 1.5 },
+    ],
+  } : {
+    chart: { type: 'areaspline', height: 240 },
+    title: { text: 'Hours Saved per Developer per Day' },
+    subtitle: { text: methodDef.desc(config) },
+    xAxis: { categories: xLabels, labels: { rotation: -45, style: { fontSize: '9px' } }, tickInterval: tickInt },
+    yAxis: { title: { text: null }, min: 0, labels: { format: '{value} hrs' } },
+    tooltip: { shared: true, valueDecimals: 2, valueSuffix: ' hrs' },
+    legend: { enabled: hasUser },
+    series: [
+      { name: 'Per developer', data: days.map(d => d['est_'+method+'_per_dev']), color: '#58a6ff', fillOpacity: 0.06, marker: { radius: 2 } },
+      ...(hasUser ? [{ name: selectedUser, data: days.map(d => { var u = userDayMap[d.day]; return u ? methodDef.calc({...u, daily_active_users:1}, config) : null; }), color: '#f78166', dashStyle: 'ShortDash', marker: { radius: 3, symbol: 'diamond' }, lineWidth: 2, fillOpacity: 0 }] : []),
+    ],
+  };
+
+  // For Manual %, skip the separate enterprise chart (already shown above with DAU)
+  var enterpriseOpts = isManual ? null : {
+    chart: { type: 'column', height: 200 },
+    title: { text: 'Enterprise-Wide Hours Saved per Day' },
+    xAxis: { categories: xLabels, labels: { rotation: -45, style: { fontSize: '9px' } }, tickInterval: tickInt },
+    yAxis: { title: { text: null }, min: 0, labels: { format: '{value} hrs' } },
+    tooltip: { valueDecimals: 0, valueSuffix: ' hrs' },
+    plotOptions: { column: { borderRadius: 2, color: '#3fb950', opacity: 0.8 } },
+    legend: { enabled: false },
+    series: [
+      { name: 'Enterprise total', data: days.map(d => Math.round(d['est_'+method+'_hrs']||0)) },
+    ],
+  };
+
+  // ── Capacity baseline (total org, not just Copilot users) ──
+  var totalDevs = config.cfg_total_developers || 100;
+  var codingPct = config.cfg_pct_time_coding || 0.5;
+  var codingHrsPerDev = baseHrsPerDay * codingPct;
+  var totalCodingCapacity = totalDevs * codingHrsPerDev * n;
+  var avgCodingCapacityPerDay = totalDevs * codingHrsPerDev;
+  var totalDevDays = days.reduce((s,d) => s + (d.daily_active_users||0), 0);
+  var copilotCodingHrs = totalDevDays * codingHrsPerDev;
+  var pctOfCapacityCovered = copilotCodingHrs / totalCodingCapacity;
+  var pctOfCodingSaved = totalHrs != null && copilotCodingHrs > 0 ? totalHrs / copilotCodingHrs : null;
+
+  // ── Capacity chart — total org capacity vs Copilot-assisted subset ──
+  var totalDevHrs = totalDevs * baseHrsPerDay * n;
+  var nonCodingHrs = totalDevHrs - totalCodingCapacity;
+  var nonCopilotCodingHrs = totalCodingCapacity - copilotCodingHrs;
+  var hrsSavedForPie = totalHrs || 0;
+  var pctSavedOfTotal = totalDevHrs > 0 ? hrsSavedForPie / totalDevHrs : 0;
+
+  var capacityPieOpts = {
+    chart: { type: 'pie', height: 280 },
+    title: { text: 'Developer Hours in Period' },
+    subtitle: { text: fmtCompact(totalDevHrs) + ' total hrs · ' + fmt(totalDevs) + ' devs × ' + n + ' days' },
+    tooltip: { pointFormat: '<b>{point.y:,.0f} hrs</b> ({point.percentage:.1f}%)' },
+    plotOptions: { pie: { borderWidth: 0, dataLabels: { enabled: true, format: '<b>{point.name}</b>: {point.percentage:.1f}%', style: { color: '#e6edf3', fontSize: '11px', textOutline: 'none' } } } },
+    series: [{
+      name: 'Hours',
+      data: [
+        { name: 'Est. hours saved', y: Math.round(hrsSavedForPie), color: '#3fb950' },
+        { name: 'Coding', y: Math.round(totalCodingCapacity - hrsSavedForPie), color: '#58a6ff' },
+        { name: 'Non-coding', y: Math.round(nonCodingHrs), color: '#30363d' },
+      ],
+    }],
+  };
+
+  // Trend: % of total capacity saved per day
+  var pctOfTotalOpts = {
+    chart: { type: 'areaspline', height: 240 },
+    title: { text: 'Hours Saved as % of Total Coding Capacity' },
+    subtitle: { text: methodDef.desc(config) },
+    xAxis: { categories: xLabels, labels: { rotation: -45, style: { fontSize: '9px' } }, tickInterval: tickInt },
+    yAxis: { title: { text: null }, min: 0, labels: { format: '{value}%' } },
+    tooltip: { shared: true, valueSuffix: '%', valueDecimals: 2 },
+    legend: { enabled: false },
+    series: [{
+      name: '% of total capacity',
+      data: days.map(d => {
+        var dailyCapacity = totalDevs * codingHrsPerDev;
+        var saved = d['est_'+method+'_hrs'] || 0;
+        return dailyCapacity > 0 ? Math.round((saved / dailyCapacity) * 10000) / 100 : 0;
+      }),
+      color: '#3fb950', fillOpacity: 0.08, marker: { radius: 2 },
+    }],
+  };
+
+  // ── Drivers ──
+  var sum = (k) => days.reduce((s,d) => s + (d[k]||0), 0);
+  var activeDrivers = DRIVER_SERIES.filter(s => s.perDev && toggles[s.key]);
+
+  function driverChartOpts(s) {
+    var series = [{ name: s.label + ' / Dev', data: days.map(d => d[s.perDev] != null ? Math.round(d[s.perDev]*100)/100 : null), color: s.color }];
+    if (hasUser) series.push({ name: selectedUser, data: days.map(d => { var u = userDayMap[d.day]; return u ? Math.round((u[s.key]/(s.scale||1))*100)/100 : null; }), color: s.color, dashStyle: 'Dash', marker: { radius: 2, symbol: 'diamond' }, lineWidth: 2 });
+    return { chart: { type: 'spline', height: 200 }, title: { text: s.label }, xAxis: { categories: days.map(d=>d.day), labels: { rotation: -45, style: { fontSize: '8px' } }, tickInterval: Math.max(1, Math.floor(n/8)) }, yAxis: { title: { text: null }, min: 0 }, tooltip: { shared: true, valueDecimals: 2 }, legend: { enabled: hasUser }, series };
+  }
+
+  function combinedTrendOpts() {
+    var series = activeDrivers.map(s => ({ name: s.label + ' / Dev', data: days.map(d => d[s.perDev] != null ? Math.round(d[s.perDev]*100)/100 : null), color: s.color }));
+    if (hasUser) activeDrivers.forEach(s => series.push({ name: selectedUser + ' ' + s.label, data: days.map(d => { var u = userDayMap[d.day]; return u ? Math.round((u[s.key]/(s.scale||1))*100)/100 : null; }), color: s.color, dashStyle: 'Dash', marker: { radius: 2, symbol: 'diamond' }, lineWidth: 2 }));
+    return { chart: { type: 'spline', height: 300 }, title: { text: 'Daily Trend — Per Active Developer' }, xAxis: { categories: days.map(d=>d.day), labels: { rotation: -45, style: { fontSize: '9px' } }, tickInterval: Math.max(1, Math.floor(n/12)) }, yAxis: { title: { text: 'Per Active Dev' }, min: 0 }, tooltip: { shared: true, valueDecimals: 2 }, series };
+  }
+
+  function driverBarOpts() {
+    var avgPerDev = activeDrivers.map(s => {
+      var vals = days.map(d => d[s.perDev]).filter(v => v != null);
+      return vals.length ? Math.round((vals.reduce((a,b)=>a+b,0)/vals.length)*10)/10 : 0;
+    });
+    var barSeries = [{ name: 'Avg / Dev / Day', data: avgPerDev.map((y,i) => ({ y, color: activeDrivers[i].color })) }];
+    if (hasUser) {
+      var userAvg = activeDrivers.map(s => {
+        var uDays = days.map(d => userDayMap[d.day]).filter(Boolean);
+        if (!uDays.length) return 0;
+        var vals = uDays.map(u => (u[s.key]||0) / (s.scale||1));
+        return Math.round((vals.reduce((a,b)=>a+b,0)/vals.length)*10)/10;
+      });
+      barSeries.push({ name: selectedUser + ' Avg', data: userAvg.map((y,i) => ({ y, color: 'transparent', borderColor: activeDrivers[i].color, borderWidth: 2 })) });
+    }
+    var barH = Math.max(200, activeDrivers.length * (hasUser ? 55 : 40) + 80);
+    return { chart: { type: 'bar', height: barH }, title: { text: 'Daily Avg / Dev' + (hasUser ? ' vs ' + selectedUser : '') }, xAxis: { categories: activeDrivers.map(s => s.label), labels: { style: { fontSize: '12px' } } }, yAxis: { title: { text: 'Daily Avg' } }, tooltip: { shared: true, valueSuffix: ' / day', valueDecimals: 1 }, plotOptions: { bar: { borderRadius: 3, groupPadding: 0.15, dataLabels: { enabled: true, format: '{y:,.1f}', style: { color: '#e6edf3', textOutline: 'none', fontSize: '11px' } } } }, legend: { enabled: hasUser }, series: barSeries };
+  }
+
+  // ── Data quality ──
+  var profile = artifact?.artifact?.profile || {};
+  var uniqueUsers = profile.unique_people || new Set(users.map(u=>u.user_login)).size;
+  var userDayCount = profile.detail_row_count || users.length;
+  var reconSummary = profile.reconciliation_summary || null;
+  var reconMatch = reconSummary ? (reconSummary.match||0) : 0;
+  var reconMinor = reconSummary ? (reconSummary.minor_difference||0) : 0;
+  var reconMaterial = reconSummary ? (reconSummary.material_difference||0) : 0;
+  var reconMissing = reconSummary ? (reconSummary.missing_data||0) : 0;
+  var reconTotal = reconSummary ? Object.values(reconSummary).reduce((a,b)=>a+b,0) : 0;
+  var entDays = profile.record_count || n;
+  var entDedup = profile.enterprise_dedup;
+  var userDedup = profile.user_dedup;
+  var profileDateRange = profile.date_range || {};
+  var requestedDays = profileDateRange.days_with_data || n;
+
+  // Method comparison for DQ panel
+  var dqComparison = ESTIMATION_METHODS.map(m => {
+    var field = 'est_' + m.key + '_per_dev';
+    var vals = days.map(d => d[field]).filter(v => v != null);
+    var avg = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : null;
+    var totalField = 'est_' + m.key + '_hrs';
+    var total = days.reduce((s,d) => s + (d[totalField]||0), 0);
+    var needsCfg2 = m.needsConfig && m.needsConfig(config);
+    return { key: m.key, label: m.label, avg, total, needsCfg: needsCfg2, active: m.key === method };
+  });
+
+  return (
+    <div className="v3-page">
+      {/* ── Header ── */}
+      <div className="d-flex flex-items-center flex-justify-between mb-3 flex-wrap" style={{gap:'8px'}}>
+        <div>
+          <h1 className="f1 color-fg-default" style={{margin:0}}>
+            AI-Assisted Coding — Efficiency
+            <span style={{fontSize:'12px',marginLeft:'8px',padding:'2px 8px',borderRadius:'10px',background:'rgba(88,166,255,0.15)',color:'#58a6ff',verticalAlign:'middle'}}>v4</span>
+          </h1>
+          <p className="f6 color-fg-muted mt-1">{dateRange} · {n} days · {fmt(avgDau)} avg active devs{artifact?.artifact?.computed_at ? ' · materialized ' + (() => { var h = (Date.now()-new Date(artifact.artifact.computed_at).getTime())/3600000; return h < 24 ? Math.floor(h)+'h ago' : Math.floor(h/24)+'d ago'; })() : ''}</p>
+        </div>
+      </div>
+
+      <div className="v3-layout">
+        {/* ══════════ MAIN COLUMN ══════════ */}
+        <div className="main-col">
+
+          {/* ═══ SECTION 1: CAPACITY BASELINE ═══ */}
+          <div className="section">
+            <div className="section-head">How much human time is spent coding?</div>
+            <div className="section-desc">Total enterprise coding capacity: {fmt(totalDevs)} developers × {fmtPct(codingPct)} coding time × {baseHrsPerDay.toFixed(0)}h workday</div>
+            <div className="hero-strip">
+              <div className="hero-card primary">
+                <div className="hero-label">Total Coding Capacity</div>
+                <div className="hero-value" style={{color:'var(--fgColor-default)'}}>{fmtCompact(totalCodingCapacity)}<span style={{fontSize:'0.5em',opacity:0.6}}> hrs</span></div>
+                <div className="hero-sub">{fmt(totalDevs)} devs × {n} days</div>
+              </div>
+              <div className="supporting-kpis">
+                <div className="sup-card">
+                  <div className="sup-label">Est. Hours Saved</div>
+                  <div className="sup-value" style={{color:'#3fb950'}}>{totalHrs != null ? fmtCompact(totalHrs) : '—'}</div>
+                  <div className="sup-sub">{methodDef.label} method</div>
+                </div>
+                <div className="sup-card">
+                  <div className="sup-label">% of Total</div>
+                  <div className="sup-value" style={{color:'#3fb950'}}>{totalHrs != null ? fmtPct(pctSavedOfTotal) : '—'}</div>
+                  <div className="sup-sub">est. time saved ÷ total capacity</div>
+                </div>
+                <div className="sup-card">
+                  <div className="sup-label">Copilot Assisted %</div>
+                  <div className="sup-value" style={{color:'#58a6ff'}}>{fmtPct(pctOfCapacityCovered)}</div>
+                  <div className="sup-sub">{fmt(avgDau)} of {fmt(totalDevs)} devs · daily avg</div>
+                </div>
+              </div>
+            </div>
+            <div className="d-flex flex-wrap" style={{gap:'16px'}}>
+              <div className="Box p-3" style={{flex:'1 1 300px'}}><Chart options={capacityPieOpts} /></div>
+              <div className="Box p-3" style={{flex:'2 1 480px'}}><Chart options={pctOfTotalOpts} /></div>
+            </div>
+          </div>
+
+          {/* ═══ SECTION 2: ATTEMPTS & COMPLETIONS ═══ */}
+          <div className="section">
+            <div className="section-head">Attempts and completions</div>
+            <div className="section-desc">Copilot-assisted PRs opened in the period — a PR is "assisted" if its author used Copilot within 3 days before opening it.</div>
+            {prData ? (() => {
+              var totalPrs = prData.total_prs || 0;
+              var assistedPrs = prData.assisted_prs || 0;
+              return (
+                <div className="d-flex flex-wrap" style={{gap:'12px'}}>
+                  <div className="sup-card" style={{flex:'1 1 140px'}}>
+                    <div className="sup-label">Attempts</div>
+                    <div className="sup-value">{fmt(assistedPrs)}</div>
+                    <div className="sup-sub">Copilot-assisted PRs</div>
+                  </div>
+                  <div className="sup-card" style={{flex:'1 1 140px'}}>
+                    <div className="sup-label">Completions</div>
+                    <div className="sup-value">{fmt(assistedPrs)}</div>
+                    <div className="sup-sub">Copilot-assisted PRs</div>
+                  </div>
+                  <div className="sup-card" style={{flex:'1 1 140px'}}>
+                    <div className="sup-label">Yield</div>
+                    <div className="sup-value" style={{color:'#3fb950'}}>100%</div>
+                  </div>
+                </div>
+              );
+            })() : (
+              <div className="d-flex flex-wrap" style={{gap:'12px'}}>
+                <div className="sup-card" style={{flex:'1 1 140px'}}>
+                  <div className="sup-label">Total PRs Merged</div>
+                  <div className="sup-value color-fg-muted">—</div>
+                  <div className="sup-sub">structural artifact not loaded</div>
+                </div>
+                <div className="sup-card" style={{flex:'1 1 140px'}}>
+                  <div className="sup-label">Copilot-Assisted PRs</div>
+                  <div className="sup-value color-fg-muted">—</div>
+                  <div className="sup-sub">—</div>
+                </div>
+                <div className="sup-card" style={{flex:'1 1 140px'}}>
+                  <div className="sup-label">Assisted %</div>
+                  <div className="sup-value color-fg-muted">—</div>
+                  <div className="sup-sub">—</div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ═══ SECTION 3: HOW MUCH TIME IS COPILOT SAVING? ═══ */}
+          {needsCfg ? (
+            <div className="Box p-4 text-center mb-4">
+              <p className="f5 color-fg-muted">Manual % method needs configuration. Set daily % and baseline hours in the side panel, or switch methods.</p>
+            </div>
+          ) : (
+            <div className="section">
+              <div className="section-head">How much time is Copilot saving?</div>
+              <div className="section-desc">Estimated time savings from widening Copilot adoption across the developer population</div>
+              <div className="hero-strip">
+                <div className="hero-card primary">
+                  <div className="hero-label">Hours Saved / Dev / Day</div>
+                  <div className="hero-value" style={{color:'#58a6ff'}}>{fmtDec(avgPerDev, 2)}</div>
+                  <div className="hero-sub">{pctOfCodingSaved != null ? fmtPct(pctOfCodingSaved) + ' of Copilot-assisted coding time' : ''}</div>
+                  <div className="hero-method">{methodDef.label} method</div>
+                  {userKPIs && (
+                    <div className="user-inline">
+                      <div className="ui-val">{fmtDec(userKPIs.avg, 2)}</div>
+                      <div className="ui-label">{selectedUser}</div>
+                      <div className="ui-delta" style={{color: userKPIs.vsOrg != null && userKPIs.vsOrg >= 0 ? '#3fb950' : '#f85149'}}>
+                        {userKPIs.vsOrg != null ? (userKPIs.vsOrg >= 0 ? '+' : '') + fmtDec(userKPIs.vsOrg, 2) + ' vs org avg' : ''}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="supporting-kpis">
+                  <div className="sup-card">
+                    <div className="sup-label">Total Hours Saved</div>
+                    <div className="sup-value">{fmtCompact(totalHrs)}</div>
+                    <div className="sup-sub">across {n} days</div>
+                    {userKPIs && (
+                      <div className="user-inline">
+                        <div className="ui-val">{fmtDec(userKPIs.total, 1)}<span style={{fontSize:'0.7em',opacity:0.6}}> hrs</span></div>
+                        <div className="ui-label">{userKPIs.activeDays} active days</div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="sup-card">
+                    <div className="sup-label">All Devs Combined / Day</div>
+                    <div className="sup-value">{fmtDec(orgHrsPerDay, 0)}<span style={{fontSize:'0.7em',opacity:0.6}}> hrs</span></div>
+                    <div className="sup-sub">sum across {fmt(avgDau)} active devs</div>
+                  </div>
+                  <div className="sup-card">
+                    <div className="sup-label">Economic Value ({n} days)</div>
+                    <div className="sup-value" style={{color:'#3fb950'}}>{fmtCurrency(laborCost)}</div>
+                    <div className="sup-sub">{config.cfg_labor_cost_per_hour != null ? '$'+config.cfg_labor_cost_per_hour+'/hr' : 'set in config'}</div>
+                    {userKPIs && userKPIs.econValue != null && (
+                      <div className="user-inline">
+                        <div className="ui-val">{fmtCurrency(userKPIs.econValue)}</div>
+                        <div className="ui-label">{selectedUser}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Trend charts */}
+              <div className="Box p-3 mb-3"><Chart options={perDevOpts} /></div>
+              {enterpriseOpts && <div className="Box p-3"><Chart options={enterpriseOpts} /></div>}
+            </div>
+          )}
+
+          {/* ═══ DRIVERS ═══ */}
+          <div className="section">
+            <div className="d-flex flex-items-center flex-justify-between mb-1">
+              <div>
+                <div className="section-head">Trend of Copilot usage over the period ({n} days)</div>
+                <div className="section-desc">Daily activity metrics of the average Copilot user that make efficiency gains possible</div>
+              </div>
+              <div className="view-toggle">
+                <button className={viewMode==='combined'?'active':''} onClick={() => setViewMode('combined')}>Combined</button>
+                <button className={viewMode==='grid'?'active':''} onClick={() => setViewMode('grid')}>Grid</button>
+              </div>
+            </div>
+            <div className="driver-toggles">
+              {DRIVER_SERIES.map(s => (
+                <label key={s.key}><input type="checkbox" checked={toggles[s.key]} onChange={() => setToggles(prev=>({...prev,[s.key]:!prev[s.key]}))} />
+                  <span style={{color:s.color}}>●</span> <span style={{fontSize:'11px'}}>{s.label}</span>
+                </label>
+              ))}
+            </div>
+            {viewMode === 'combined' ? (
+              <div className="d-flex flex-wrap" style={{gap:'16px'}}>
+                <div className="Box p-3" style={{flex:'2 1 480px'}}><Chart options={combinedTrendOpts()} /></div>
+                <div className="Box p-3" style={{flex:'1 1 280px'}}><Chart options={driverBarOpts()} /></div>
+              </div>
+            ) : (
+              <div className="drivers-grid">
+                {activeDrivers.map(s => <div key={s.key} className="Box p-2"><Chart options={driverChartOpts(s)} className="chart-sm" /></div>)}
+              </div>
+            )}
+          </div>
+
+          {/* ── Data Quality panel (always visible) ── */}
+          <div className="Box p-4 mt-2">
+            <h3 className="f4 mb-3">Data Quality</h3>
+
+            {/* Method Comparison */}
+            <h4 className="f6 color-fg-accent mb-2">Method Comparison</h4>
+            <table style={{width:'100%',borderCollapse:'collapse',marginBottom:'20px'}}>
+              <thead>
+                <tr>
+                  <th className="f6 color-fg-muted py-1" style={{textAlign:'left',fontWeight:500}}>Method</th>
+                  <th className="f6 color-fg-muted py-1" style={{textAlign:'right',fontWeight:500}}>Avg Hrs/Dev/Day</th>
+                  <th className="f6 color-fg-muted py-1" style={{textAlign:'right',fontWeight:500}}>Total Hrs ({n}d)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dqComparison.map(m => (
+                  <tr key={m.key} style={m.active ? {borderLeft:'3px solid #58a6ff',background:'rgba(88,166,255,0.06)'} : {}}>
+                    <td className="py-2" style={{paddingLeft:m.active?'9px':'12px',fontSize:'14px'}}>
+                      {m.active && <span style={{color:'#58a6ff',marginRight:'6px'}}>●</span>}
+                      <strong>{m.label}</strong>
+                      {m.needsCfg && <span className="Label Label--secondary ml-2" style={{fontSize:'10px'}}>needs config</span>}
+                    </td>
+                    <td className="py-2" style={{textAlign:'right',fontSize:'14px',fontWeight:600}}>{m.needsCfg ? '—' : fmtDec(m.avg, 2)}</td>
+                    <td className="py-2" style={{textAlign:'right',fontSize:'14px'}}>{m.needsCfg ? '—' : fmt(Math.round(m.total))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* Coverage */}
+            <h4 className="f6 color-fg-accent mb-2">Coverage</h4>
+            <table style={{width:'100%',borderCollapse:'collapse',marginBottom:'20px'}}>
+              <tbody>
+                <tr><td className="f5 color-fg-muted py-1">Days Loaded</td><td className="f5 py-1" style={{textAlign:'right',fontWeight:600}}>{entDays}{requestedDays !== entDays ? ' / '+requestedDays : ''}</td></tr>
+                <tr><td className="f5 color-fg-muted py-1">Enterprise Days</td><td className="f5 py-1" style={{textAlign:'right',fontWeight:600}}>{entDays}{entDedup ? <span className="f6 color-fg-muted"> (deduped from {entDedup.before})</span> : ''}</td></tr>
+                <tr><td className="f5 color-fg-muted py-1">User Days (reconciliation)</td><td className="f5 py-1" style={{textAlign:'right',fontWeight:600}}>{fmt(userDayCount)}{userDedup ? <span className="f6 color-fg-muted"> ({fmt(uniqueUsers)} users)</span> : ''}</td></tr>
+              </tbody>
+            </table>
+
+            {/* Reconciliation */}
+            <h4 className="f6 color-fg-accent mb-2">Reconciliation</h4>
+            {reconSummary ? (
+              <>
+                <div className="d-flex flex-wrap mb-2" style={{gap:'12px'}}>
+                  <div className="Box p-3 text-center" style={{flex:'1 1 80px'}}>
+                    <div style={{fontSize:'28px',fontWeight:700,color:'#3fb950'}}>{reconMatch}</div>
+                    <div className="f6 color-fg-muted">Match</div>
+                  </div>
+                  <div className="Box p-3 text-center" style={{flex:'1 1 80px'}}>
+                    <div style={{fontSize:'28px',fontWeight:700,color:'#d29922'}}>{reconMinor}</div>
+                    <div className="f6 color-fg-muted">Minor</div>
+                  </div>
+                  <div className="Box p-3 text-center" style={{flex:'1 1 80px'}}>
+                    <div style={{fontSize:'28px',fontWeight:700,color:'#f85149'}}>{reconMaterial}</div>
+                    <div className="f6 color-fg-muted">Material</div>
+                  </div>
+                  <div className="Box p-3 text-center" style={{flex:'1 1 80px'}}>
+                    <div style={{fontSize:'28px',fontWeight:700,color:'var(--fgColor-muted)'}}>{reconMissing}</div>
+                    <div className="f6 color-fg-muted">Missing</div>
+                  </div>
+                </div>
+                <p className="f6 color-fg-muted">{reconTotal} checks across {entDays} days × 6 metrics</p>
+              </>
+            ) : (
+              <p className="f6 color-fg-muted">Reconciliation not yet wired into the materialization pipeline. Enterprise↔user cross-checks will appear here once enabled.</p>
+            )}
+
+            <div className="d-flex flex-items-center flex-justify-between mt-3 pt-2" style={{borderTop:'1px solid var(--borderColor-muted)'}}>
+              <span className="f6 color-fg-muted">Source: <strong>ai-assisted-efficiency-days</strong> artifact</span>
+              <a href="../data-status/" className="f6 color-fg-muted" style={{textDecoration:'underline'}}>Pipeline Status →</a>
+            </div>
+          </div>
+        </div>
+
+        {/* ══════════ SIDE PANEL ══════════ */}
+        <SidePanel config={config} setConfig={setConfig} method={method} setMethod={setMethod}
+          days={days} users={users} selectedUser={selectedUser} setSelectedUser={setSelectedUser}
+          configSource={configSource} />
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

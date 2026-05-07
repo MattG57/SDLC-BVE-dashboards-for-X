@@ -16,29 +16,38 @@ mkdir -p "$SITE_DIR"
 
 # ─── Dashboard registry: site-slug → repo-relative source path ────────────────
 
-declare -A DASHBOARDS=(
-  ["ai-assisted-coding/element"]="BVE-dashboards-for-ai-assisted-coding/dashboard/element"
-  ["ai-assisted-coding/efficiency"]="BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency"
-  ["ai-assisted-coding/structural"]="BVE-dashboards-for-ai-assisted-coding/dashboard/structural"
-  ["agentic-ai-coding/element"]="BVE-dashboards-for-agentic-ai-coding/dashboard/element"
-  ["agentic-ai-coding/efficiency"]="BVE-dashboards-for-agentic-ai-coding/dashboard/efficiency"
-  ["integrated"]="dashboard/integrated"
-  ["data-status"]="dashboard/data-status"
-  ["dataflow"]="dashboard/dataflow"
-  ["v2/ai-assisted-efficiency"]="dashboard/v2/ai-assisted-efficiency"
-  ["v2/ai-assisted-structural"]="dashboard/v2/ai-assisted-structural"
-  ["v2/ai-assisted-element"]="dashboard/v2/ai-assisted-element"
-  ["v2/agentic-efficiency"]="dashboard/v2/agentic-efficiency"
-  ["v2/agentic-element"]="dashboard/v2/agentic-element"
-  ["v2/integrated"]="dashboard/v2/integrated"
-  ["v2/simplified-leverage-demo"]="dashboard/v2/simplified-leverage-demo"
-  ["v2/leverage-demo-live"]="dashboard/v2/leverage-demo-live"
-  ["v3/ai-assisted-efficiency"]="dashboard/v3/ai-assisted-efficiency"
-  ["v3/ai-assisted-structural"]="dashboard/v3/ai-assisted-structural"
+DASHBOARDS=(
+  "ai-assisted-coding/element|BVE-dashboards-for-ai-assisted-coding/dashboard/element"
+  "ai-assisted-coding/efficiency|BVE-dashboards-for-ai-assisted-coding/dashboard/efficiency"
+  "ai-assisted-coding/structural|BVE-dashboards-for-ai-assisted-coding/dashboard/structural"
+  "agentic-ai-coding/element|BVE-dashboards-for-agentic-ai-coding/dashboard/element"
+  "agentic-ai-coding/efficiency|BVE-dashboards-for-agentic-ai-coding/dashboard/efficiency"
+  "integrated|dashboard/integrated"
+  "data-status|dashboard/data-status"
+  "dataflow|dashboard/dataflow"
+  "v2/ai-assisted-efficiency|dashboard/v2/ai-assisted-efficiency"
+  "v2/ai-assisted-structural|dashboard/v2/ai-assisted-structural"
+  "v2/ai-assisted-element|dashboard/v2/ai-assisted-element"
+  "v2/agentic-efficiency|dashboard/v2/agentic-efficiency"
+  "v2/agentic-element|dashboard/v2/agentic-element"
+  "v2/integrated|dashboard/v2/integrated"
+  "v2/simplified-leverage-demo|dashboard/v2/simplified-leverage-demo"
+  "v2/leverage-demo-live|dashboard/v2/leverage-demo-live"
+  "v3/ai-assisted-efficiency|dashboard/v3/ai-assisted-efficiency"
+  "v3/ai-assisted-structural|dashboard/v3/ai-assisted-structural"
+  "v4/ai-assisted-efficiency|dashboard/v4/ai-assisted-efficiency"
 )
 
-for slug in "${!DASHBOARDS[@]}"; do
-  src="${REPO_ROOT}/${DASHBOARDS[$slug]}"
+dashboard_slugs() {
+  local entry
+  for entry in "${DASHBOARDS[@]}"; do
+    printf '%s\n' "${entry%%|*}"
+  done
+}
+
+for entry in "${DASHBOARDS[@]}"; do
+  slug="${entry%%|*}"
+  src="${REPO_ROOT}/${entry#*|}"
   dest="${SITE_DIR}/${slug}"
 
   mkdir -p "$dest"
@@ -77,7 +86,8 @@ done
 # ─── Copy shared dashboard config into every dashboard's data/ ─────────────────
 CONFIG_SRC="${REPO_ROOT}/dashboard-config.json"
 if [[ -f "$CONFIG_SRC" ]]; then
-  for slug in "${!DASHBOARDS[@]}"; do
+  for entry in "${DASHBOARDS[@]}"; do
+    slug="${entry%%|*}"
     dest="${SITE_DIR}/${slug}/data"
     mkdir -p "$dest"
     cp "$CONFIG_SRC" "$dest/config.json"
@@ -167,7 +177,7 @@ fi
 # Build per-dashboard inventory from manifests
 DASHBOARD_INVENTORY="["
 d_first=true
-for slug in $(echo "${!DASHBOARDS[@]}" | tr ' ' '\n' | sort); do
+while IFS= read -r slug; do
   dest="${SITE_DIR}/${slug}"
   manifest_file="$dest/data/manifest.json"
   files_json="[]"
@@ -198,7 +208,7 @@ for slug in $(echo "${!DASHBOARDS[@]}" | tr ' ' '\n' | sort); do
 
   if $d_first; then d_first=false; else DASHBOARD_INVENTORY="$DASHBOARD_INVENTORY,"; fi
   DASHBOARD_INVENTORY="$DASHBOARD_INVENTORY{\"slug\":\"$slug\",\"has_html\":$([ -f "$dest/index.html" ] && echo true || echo false),\"manifest_generated\":$manifest_ts,\"data_files\":$file_details}"
-done
+done < <(dashboard_slugs | sort)
 DASHBOARD_INVENTORY="$DASHBOARD_INVENTORY]"
 
 # Expected targets for reference
@@ -328,7 +338,7 @@ cat > "$SITE_DIR/index.html" << 'LANDING_EOF'
         <div class="icon-tile tile-leverage">⚡</div>
         <span class="icon-label">Element</span>
       </a>
-      <a class="app-icon" href="v2/ai-assisted-efficiency/">
+      <a class="app-icon" href="v4/ai-assisted-efficiency/">
         <div class="icon-tile tile-efficiency">📈</div>
         <span class="icon-label">Efficiency</span>
       </a>
