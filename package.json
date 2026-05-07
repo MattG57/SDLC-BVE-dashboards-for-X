@@ -24,7 +24,8 @@
     "validate": "node scripts/validate-structure.js",
     "verify:all": "node scripts/verify-all-calculations.js",
     "serve": "bash scripts/serve-local.sh",
-    "screenshot": "bash scripts/screenshot.sh"
+    "screenshot": "bash scripts/screenshot.sh",
+    "browse": "node scripts/browse.js"
   },
   "devDependencies": {
     "@rollup/plugin-node-resolve": "^15.2.3",
@@ -35,6 +36,7 @@
     "eslint": "^8.56.0",
     "eslint-plugin-react": "^7.33.2",
     "happy-dom": "^12.10.3",
+    "playwright": "^1.59.1",
     "prettier": "^3.1.1",
     "rollup": "^4.9.4",
     "vitest": "^1.6.1"
