@@ -11,7 +11,23 @@
 <style>
   body { background: var(--bgColor-default); margin: 0; }
   .dataflow-page { max-width: 1600px; margin: 0 auto; padding: 24px 16px; }
-  @media (max-width: 1100px) { .main-layout { grid-template-columns: 1fr; } }
+  .main-layout { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: start; }
+  @media (max-width: 1100px) {
+    .main-layout { grid-template-columns: 1fr; }
+    .detail-panel-shell,
+    .detail-panel-shell.open,
+    .detail-panel-shell.collapsed { width: 100%; }
+    .detail-flap {
+      writing-mode: horizontal-tb;
+      transform: none;
+      position: static;
+      width: auto;
+      min-height: 32px;
+      border-radius: 999px;
+      margin: 0 0 8px auto;
+      padding: 0 12px;
+    }
+  }
   .flow-column { display: flex; flex-direction: column; gap: 10px; }
   .flow-columns { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; gap: 0; align-items: start; }
   .flow-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--fgColor-muted); font-weight: 600; margin-bottom: 4px; text-align: center; }
@@ -49,16 +65,42 @@
   .arrow-mark.active { color: #58a6ff; }
   .arrow-mark.dashed { color: #d29922; opacity: 0.4; }
 
-  /* Modal overlay */
-  .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 100; display: flex; align-items: flex-start; justify-content: center; padding: 48px 24px; overflow-y: auto; backdrop-filter: blur(2px); }
-  .modal-card { background: var(--bgColor-default); border: 1px solid var(--borderColor-default); border-radius: 12px; width: 100%; max-width: 720px; position: relative; box-shadow: 0 16px 48px rgba(0,0,0,0.4); }
+  /* Detail side panel */
+  .detail-panel-shell { position: sticky; top: 24px; align-self: start; }
+  .detail-panel-shell.open { width: 420px; }
+  .detail-panel-shell.collapsed { width: 28px; }
+  .detail-panel-card { background: var(--bgColor-default); border: 1px solid var(--borderColor-default); border-radius: 12px; width: 100%; position: relative; box-shadow: 0 16px 48px rgba(0,0,0,0.25); overflow: hidden; }
+  .detail-flap {
+    position: absolute;
+    top: 20px;
+    left: -28px;
+    width: 28px;
+    min-height: 132px;
+    border: 1px solid var(--borderColor-default);
+    border-right: none;
+    border-radius: 10px 0 0 10px;
+    background: var(--bgColor-muted);
+    color: var(--fgColor-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 0;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+  .detail-flap:hover { background: var(--bgColor-emphasis); color: var(--fgColor-default); }
+  .detail-flap.open { background: rgba(88,166,255,0.08); color: #58a6ff; }
   .modal-header { padding: 20px 24px 16px; border-bottom: 1px solid var(--borderColor-muted); }
   .modal-header h2 { margin: 0; font-size: 18px; display: flex; align-items: center; gap: 8px; }
   .modal-header .modal-sub { font-size: 12px; color: var(--fgColor-muted); margin-top: 4px; }
   .modal-header .modal-type-badge { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
   .modal-body { padding: 16px 24px 24px; max-height: calc(100vh - 180px); overflow-y: auto; }
-  .close-btn { position: absolute; top: 16px; right: 16px; background: none; border: none; color: var(--fgColor-muted); cursor: pointer; font-size: 20px; padding: 4px 8px; border-radius: 4px; z-index: 1; }
-  .close-btn:hover { background: var(--bgColor-muted); color: var(--fgColor-default); }
+  .detail-clear-btn { position: absolute; top: 16px; right: 16px; background: none; border: none; color: var(--fgColor-muted); cursor: pointer; font-size: 20px; padding: 4px 8px; border-radius: 4px; z-index: 1; }
+  .detail-clear-btn:hover { background: var(--bgColor-muted); color: var(--fgColor-default); }
 
   /* Metadata sections */
   .meta-section { margin-bottom: 16px; }
@@ -329,93 +371,88 @@ function PipelineStep({ label, before, after, detail }) {
   );
 }
 
-// ─── Source detail modal ────────────────────────────────────────
-function SourceModal({ group, queryRun, onClose }) {
+// ─── Source detail panel content ────────────────────────────────
+function SourceDetail({ group, queryRun }) {
   var desc = SOURCE_DESCRIPTIONS[group.type] || '';
   return (
-    <div className="modal-overlay" onClick={function(e){if(e.target===e.currentTarget)onClose()}}>
-      <div className="modal-card">
-        <button className="close-btn" onClick={onClose}>{'\u2715'}</button>
-        <div className="modal-header">
-          <h2>
-            <span style={{color:'#3fb950'}}>{'\u25a0'}</span>
-            {group.type}
-            <span className="modal-type-badge" style={{background:'rgba(63,185,80,0.15)',color:'#3fb950'}}>{group.files.length} run{group.files.length>1?'s':''}</span>
-          </h2>
-          {desc && <div className="modal-sub">{desc}</div>}
-        </div>
-        <div className="modal-body">
-          {group.files.map(function(file, fi) {
-            var m = file.metadata || {};
-            var target = (queryRun && queryRun.targets || []).find(function(t) { return file.name.indexOf(t.output_file ? t.output_file.replace(/\.json$/,'') : '') >= 0; });
-            var statusCls = target && target.status === 'success' ? 'ok' : target && target.status === 'partial' ? 'warn' : target && target.status ? 'err' : '';
-            return <div key={fi}>
-              {fi > 0 && <hr className="run-divider" />}
-              <div className="meta-section">
-                <div className="meta-section-title"><span className="section-icon">{'\ud83d\udcc4'}</span> Run {fi+1}: {file.name.replace(/^octodemo-/,'')}</div>
-                <KVTable>
-                  <KV label="Scope" value={m.scope} />
-                  <KV label={m.scope==='enterprise'?'Enterprise':'Organization'} value={m.scope_name||m.org} />
-                  <KV label="Date range" value={fmtDateRange(m.date_range)} />
-                  <KV label="Collected" value={m.collected_at ? new Date(m.collected_at).toLocaleString() : null} note={timeAgo(m.collected_at)} />
-                  <KV label="Duration" value={m.elapsed_seconds!=null ? m.elapsed_seconds+'s' : null} />
-                  <KV label="API calls" value={m.api_calls!=null ? String(m.api_calls) : null} cls="num" />
-                  <KV label="File size" value={target && target.file_size_bytes ? fmtBytes(target.file_size_bytes) : null} />
-                  <KV label="Status" value={target && target.status} cls={statusCls} />
-                  {m.counts && Object.entries(m.counts).map(function(e) { return <KV key={e[0]} label={e[0].replace(/_/g,' ')} value={fmtCompact(e[1])} cls="num" />; })}
-                </KVTable>
-              </div>
+    <React.Fragment>
+      <div className="modal-header">
+        <h2>
+          <span style={{color:'#3fb950'}}>{'\u25a0'}</span>
+          {group.type}
+          <span className="modal-type-badge" style={{background:'rgba(63,185,80,0.15)',color:'#3fb950'}}>{group.files.length} run{group.files.length>1?'s':''}</span>
+        </h2>
+        {desc && <div className="modal-sub">{desc}</div>}
+      </div>
+      <div className="modal-body">
+        {group.files.map(function(file, fi) {
+          var m = file.metadata || {};
+          var target = (queryRun && queryRun.targets || []).find(function(t) { return file.name.indexOf(t.output_file ? t.output_file.replace(/\.json$/,'') : '') >= 0; });
+          var statusCls = target && target.status === 'success' ? 'ok' : target && target.status === 'partial' ? 'warn' : target && target.status ? 'err' : '';
+          return <div key={fi}>
+            {fi > 0 && <hr className="run-divider" />}
+            <div className="meta-section">
+              <div className="meta-section-title"><span className="section-icon">{'\ud83d\udcc4'}</span> Run {fi+1}: {file.name.replace(/^octodemo-/,'')}</div>
+              <KVTable>
+                <KV label="Scope" value={m.scope} />
+                <KV label={m.scope==='enterprise'?'Enterprise':'Organization'} value={m.scope_name||m.org} />
+                <KV label="Date range" value={fmtDateRange(m.date_range)} />
+                <KV label="Collected" value={m.collected_at ? new Date(m.collected_at).toLocaleString() : null} note={timeAgo(m.collected_at)} />
+                <KV label="Duration" value={m.elapsed_seconds!=null ? m.elapsed_seconds+'s' : null} />
+                <KV label="API calls" value={m.api_calls!=null ? String(m.api_calls) : null} cls="num" />
+                <KV label="File size" value={target && target.file_size_bytes ? fmtBytes(target.file_size_bytes) : null} />
+                <KV label="Status" value={target && target.status} cls={statusCls} />
+                {m.counts && Object.entries(m.counts).map(function(e) { return <KV key={e[0]} label={e[0].replace(/_/g,' ')} value={fmtCompact(e[1])} cls="num" />; })}
+              </KVTable>
+            </div>
+          </div>;
+        })}
+        {group.downstreamArtifacts && group.downstreamArtifacts.length > 0 && <div className="meta-section">
+          <div className="meta-section-title"><span className="section-icon">{'\u2192'}</span> Feeds Artifacts</div>
+          {group.downstreamArtifacts.map(function(a) {
+            return <div key={a} className="consumer-row">
+              <span className="consumer-tag" style={{background:'rgba(88,166,255,0.12)',color:'#58a6ff'}}>{a.replace(/-/g,' ')}</span>
             </div>;
           })}
-          {group.downstreamArtifacts && group.downstreamArtifacts.length > 0 && <div className="meta-section">
-            <div className="meta-section-title"><span className="section-icon">{'\u2192'}</span> Feeds Artifacts</div>
-            {group.downstreamArtifacts.map(function(a) {
-              return <div key={a} className="consumer-row">
-                <span className="consumer-tag" style={{background:'rgba(88,166,255,0.12)',color:'#58a6ff'}}>{a.replace(/-/g,' ')}</span>
-              </div>;
-            })}
-          </div>}
-        </div>
+        </div>}
       </div>
-    </div>
+    </React.Fragment>
   );
 }
 
-// ─── Artifact detail modal ──────────────────────────────────────
-function ArtifactModal({ artifact, onClose }) {
+// ─── Artifact detail panel content ──────────────────────────────
+function ArtifactDetail({ artifact }) {
   const p = artifact.profile || {};
   const consumers = CONSUMERS[artifact.name] || [];
   var isDerived = (artifact.name||'') === 'leverage-summary';
   return (
-    <div className="modal-overlay" onClick={function(e){if(e.target===e.currentTarget)onClose()}}>
-      <div className="modal-card">
-        <button className="close-btn" onClick={onClose}>{'\u2715'}</button>
-        <div className="modal-header">
-          <h2>
-            <span style={{color:'#58a6ff'}}>{'\u25a0'}</span>
-            {(artifact.name||'').replace(/-/g,' ')}
-            <span className="modal-type-badge" style={{background: isDerived ? 'rgba(188,140,255,0.15)' : 'rgba(88,166,255,0.15)', color: isDerived ? '#bc8cff' : '#58a6ff'}}>{isDerived ? 'derived' : 'materialized'}</span>
-          </h2>
-          <div className="modal-sub">
-            {ARTIFACT_DESCRIPTIONS[artifact.name] || ''}
-            {artifact.computed_at && <span> {'\u00b7'} Computed {new Date(artifact.computed_at).toLocaleString()}</span>}
-            {artifact.compute_ms != null && <span> ({artifact.compute_ms}ms)</span>}
-          </div>
+    <React.Fragment>
+      <div className="modal-header">
+        <h2>
+          <span style={{color:'#58a6ff'}}>{'\u25a0'}</span>
+          {(artifact.name||'').replace(/-/g,' ')}
+          <span className="modal-type-badge" style={{background: isDerived ? 'rgba(188,140,255,0.15)' : 'rgba(88,166,255,0.15)', color: isDerived ? '#bc8cff' : '#58a6ff'}}>{isDerived ? 'derived' : 'materialized'}</span>
+        </h2>
+        <div className="modal-sub">
+          {ARTIFACT_DESCRIPTIONS[artifact.name] || ''}
+          {artifact.computed_at && <span> {'\u00b7'} Computed {new Date(artifact.computed_at).toLocaleString()}</span>}
+          {artifact.compute_ms != null && <span> ({artifact.compute_ms}ms)</span>}
         </div>
-        <div className="modal-body">
-          <div className="meta-section">
-            <div className="meta-section-title"><span className="section-icon">{'\ud83d\udcca'}</span> Records & Coverage</div>
-            <KVTable>
-              <KV label={p.status_breakdown ? 'PR sessions' : p.element_count != null ? 'Elements' : 'Day rows'} value={fmtCompact(pickCount(p))} cls="num" />
-              {p.detail_row_count > 0 && <KV label={p.detail_label ? (p.detail_label.charAt(0).toUpperCase()+p.detail_label.slice(1)) : 'Detail rows'} value={fmtCompact(p.detail_row_count)} cls="num" />}
-              {p.pr_record_count > 0 && <KV label="PR records" value={fmtCompact(p.pr_record_count)} cls="num" />}
-              {p.unique_people > 0 && <KV label={'Unique '+(p.people_label||'people')} value={String(p.unique_people)} cls="num ok" />}
-              {p.unique_repos > 0 && <KV label="Unique repos" value={String(p.unique_repos)} cls="num" />}
-              {p.date_range && p.date_range.first && <KV label="Date range" value={p.date_range.first+' \u2192 '+p.date_range.last} note={p.date_range.days_with_data+' days with data'} />}
-            </KVTable>
-          </div>
+      </div>
+      <div className="modal-body">
+        <div className="meta-section">
+          <div className="meta-section-title"><span className="section-icon">{'\ud83d\udcca'}</span> Records & Coverage</div>
+          <KVTable>
+            <KV label={p.status_breakdown ? 'PR sessions' : p.element_count != null ? 'Elements' : 'Day rows'} value={fmtCompact(pickCount(p))} cls="num" />
+            {p.detail_row_count > 0 && <KV label={p.detail_label ? (p.detail_label.charAt(0).toUpperCase()+p.detail_label.slice(1)) : 'Detail rows'} value={fmtCompact(p.detail_row_count)} cls="num" />}
+            {p.pr_record_count > 0 && <KV label="PR records" value={fmtCompact(p.pr_record_count)} cls="num" />}
+            {p.unique_people > 0 && <KV label={'Unique '+(p.people_label||'people')} value={String(p.unique_people)} cls="num ok" />}
+            {p.unique_repos > 0 && <KV label="Unique repos" value={String(p.unique_repos)} cls="num" />}
+            {p.date_range && p.date_range.first && <KV label="Date range" value={p.date_range.first+' \u2192 '+p.date_range.last} note={p.date_range.days_with_data+' days with data'} />}
+          </KVTable>
+        </div>
 
-          {(p.enterprise_dedup||p.user_dedup||p.devday_dedup||p.session_dedup||p.aggregation||p.org_member_filter) && <div className="meta-section">
+        {(p.enterprise_dedup||p.user_dedup||p.devday_dedup||p.session_dedup||p.aggregation||p.org_member_filter) && <div className="meta-section">
             <div className="meta-section-title"><span className="section-icon">{'\u2699\ufe0f'}</span> Processing Pipeline</div>
             {p.enterprise_dedup && <PipelineStep label="Enterprise dedup" before={p.enterprise_dedup.before} after={p.enterprise_dedup.after} detail={p.enterprise_dedup.removed+' removed'} />}
             {p.user_dedup && <PipelineStep label="User-day dedup" before={p.user_dedup.before} after={p.user_dedup.after} detail={p.user_dedup.unique_logins+' logins'} />}
@@ -425,13 +462,13 @@ function ArtifactModal({ artifact, onClose }) {
             {p.session_dedup && <PipelineStep label="Session dedup" before={p.session_dedup.before} after={p.session_dedup.after} detail={p.session_dedup.removed+' removed'} />}
           </div>}
 
-          {p.pr_processing && <div className="meta-section">
+        {p.pr_processing && <div className="meta-section">
             <div className="meta-section-title"><span className="section-icon">{'\ud83d\udd00'}</span> PR Processing</div>
             <PipelineStep label="Dedup" before={p.pr_processing.before_dedup} after={p.pr_processing.after_dedup} />
             <PipelineStep label="Bot filter" before={p.pr_processing.after_dedup} after={p.pr_processing.after_filter} detail={p.pr_processing.bots_removed+' bots removed'} />
           </div>}
 
-          {p.pr_classification && p.has_pr_data && <div className="meta-section">
+        {p.pr_classification && p.has_pr_data && <div className="meta-section">
             <div className="meta-section-title"><span className="section-icon">{'\ud83c\udff7\ufe0f'}</span> PR-Assist Classification</div>
             <KVTable>
               <KV label="Lookback" value={p.pr_classification.lookback_days+' days'} />
@@ -441,7 +478,7 @@ function ArtifactModal({ artifact, onClose }) {
             </KVTable>
           </div>}
 
-          {p.status_breakdown && <div className="meta-section">
+        {p.status_breakdown && <div className="meta-section">
             <div className="meta-section-title"><span className="section-icon">{'\ud83d\udfe2'}</span> PR Status</div>
             <KVTable>
               <KV label="Merged" value={String(p.status_breakdown.merged)} cls="num ok" />
@@ -451,7 +488,7 @@ function ArtifactModal({ artifact, onClose }) {
             </KVTable>
           </div>}
 
-          {p.loc_summary && <div className="meta-section">
+        {p.loc_summary && <div className="meta-section">
             <div className="meta-section-title"><span className="section-icon">{'\ud83d\udcdd'}</span> Lines of Code</div>
             <KVTable>
               <KV label="Additions" value={'+'+fmtCompact(p.loc_summary.total_additions)} cls="num ok" />
@@ -459,7 +496,7 @@ function ArtifactModal({ artifact, onClose }) {
             </KVTable>
           </div>}
 
-          {p.config_used && <div className="meta-section">
+        {p.config_used && <div className="meta-section">
             <div className="meta-section-title"><span className="section-icon">{'\u2699\ufe0f'}</span> Config Snapshot</div>
             <KVTable>
               {p.config_used.cfg_total_developers != null && <KV label="Total developers" value={fmtCompact(p.config_used.cfg_total_developers)} cls="num" />}
@@ -468,7 +505,7 @@ function ArtifactModal({ artifact, onClose }) {
             </KVTable>
           </div>}
 
-          {p.reconciliation_summary && <div className="meta-section">
+        {p.reconciliation_summary && <div className="meta-section">
             <div className="meta-section-title"><span className="section-icon">{'\u2705'}</span> Reconciliation</div>
             <KVTable>
               {Object.entries(p.reconciliation_summary).filter(function(e){return e[1]>0}).map(function(e){
@@ -478,68 +515,87 @@ function ArtifactModal({ artifact, onClose }) {
             </KVTable>
           </div>}
 
-          {artifact.inputs && artifact.inputs.length>0 && <div className="meta-section">
+        {artifact.inputs && artifact.inputs.length>0 && <div className="meta-section">
             <div className="meta-section-title"><span className="section-icon">{'\ud83d\udcc4'}</span> Source Files</div>
             <KVTable>
               {artifact.inputs.map(function(inp,i){ return <KV key={i} label={shortName(inp.file)} value={inp.file} note={inp.hash ? '#'+inp.hash.slice(0,8) : null} />; })}
             </KVTable>
           </div>}
 
-          {consumers.length>0 && <div className="meta-section">
+        {consumers.length>0 && <div className="meta-section">
             <div className="meta-section-title"><span className="section-icon">{'\ud83d\udcbb'}</span> Consumed By Dashboards</div>
             {consumers.map(function(c,i){ return <div key={i} className="consumer-row">
               <span className="consumer-tag" style={{background:'rgba(210,153,34,0.15)',color:'#d29922'}}>{c.name}</span>
               <span className="consumer-sections">{c.sections}</span>
             </div>; })}
-          </div>}
-        </div>
+        </div>}
       </div>
-    </div>
+    </React.Fragment>
   );
 }
 
-// ─── Dashboard detail modal ─────────────────────────────────────
-function DashboardModal({ name, artifactMeta, onClose }) {
+// ─── Dashboard detail panel content ─────────────────────────────
+function DashboardDetail({ name, artifactMeta }) {
   var desc = DASHBOARD_DESCRIPTIONS[name] || '';
   var artNames = DASHBOARD_ARTIFACTS[name] || [];
   return (
-    <div className="modal-overlay" onClick={function(e){if(e.target===e.currentTarget)onClose()}}>
-      <div className="modal-card">
-        <button className="close-btn" onClick={onClose}>{'\u2715'}</button>
-        <div className="modal-header">
-          <h2>
-            <span style={{color:'#d29922'}}>{'\u25a1'}</span>
-            {name}
-            <span className="modal-type-badge" style={{background:'rgba(210,153,34,0.15)',color:'#d29922'}}>live calcs</span>
-          </h2>
-          {desc && <div className="modal-sub">{desc}</div>}
-        </div>
-        <div className="modal-body">
-          <div className="meta-section">
-            <div className="meta-section-title"><span className="section-icon">{'\ud83d\udd37'}</span> Artifact Dependencies</div>
-            <KVTable>
-              {artNames.map(function(artName) {
-                var art = artifactMeta[artName];
-                var p = art && art.profile ? art.profile : {};
-                var recordLabel = p.status_breakdown ? 'sessions' : p.element_count ? 'elements' : 'day rows';
-                return <KV key={artName} label={artName.replace(/-/g,' ')} value={fmtCompact(pickCount(p))+' '+recordLabel} note={p.date_range && p.date_range.first ? p.date_range.first+' → '+p.date_range.last : null} />;
-              })}
-            </KVTable>
-          </div>
-
-          <div className="meta-section">
-            <div className="meta-section-title"><span className="section-icon">{'\ud83d\udcc4'}</span> Dashboard Sections</div>
+    <React.Fragment>
+      <div className="modal-header">
+        <h2>
+          <span style={{color:'#d29922'}}>{'\u25a1'}</span>
+          {name}
+          <span className="modal-type-badge" style={{background:'rgba(210,153,34,0.15)',color:'#d29922'}}>live calcs</span>
+        </h2>
+        {desc && <div className="modal-sub">{desc}</div>}
+      </div>
+      <div className="modal-body">
+        <div className="meta-section">
+          <div className="meta-section-title"><span className="section-icon">{'\ud83d\udd37'}</span> Artifact Dependencies</div>
+          <KVTable>
             {artNames.map(function(artName) {
-              var consumers = CONSUMERS[artName] || [];
-              var match = consumers.find(function(c){return c.name === name});
-              return match ? <div key={artName} className="consumer-row">
-                <span className="consumer-tag" style={{background:'rgba(88,166,255,0.12)',color:'#58a6ff'}}>{artName.replace(/-/g,' ')}</span>
-                <span className="consumer-sections">{match.sections}</span>
-              </div> : null;
+              var art = artifactMeta[artName];
+              var p = art && art.profile ? art.profile : {};
+              var recordLabel = p.status_breakdown ? 'sessions' : p.element_count ? 'elements' : 'day rows';
+              return <KV key={artName} label={artName.replace(/-/g,' ')} value={fmtCompact(pickCount(p))+' '+recordLabel} note={p.date_range && p.date_range.first ? p.date_range.first+' → '+p.date_range.last : null} />;
             })}
-          </div>
+          </KVTable>
+        </div>
+
+        <div className="meta-section">
+          <div className="meta-section-title"><span className="section-icon">{'\ud83d\udcc4'}</span> Dashboard Sections</div>
+          {artNames.map(function(artName) {
+            var consumers = CONSUMERS[artName] || [];
+            var match = consumers.find(function(c){return c.name === name});
+            return match ? <div key={artName} className="consumer-row">
+              <span className="consumer-tag" style={{background:'rgba(88,166,255,0.12)',color:'#58a6ff'}}>{artName.replace(/-/g,' ')}</span>
+              <span className="consumer-sections">{match.sections}</span>
+            </div> : null;
+          })}
         </div>
       </div>
+    </React.Fragment>
+  );
+}
+
+function DetailPanel({ selected, queryRun, artifactMeta, panelOpen, onTogglePanel, onClearSelection }) {
+  if (!selected) return null;
+
+  var content = null;
+  if (selected.type === 'raw' && selected.data) content = <SourceDetail group={selected.data} queryRun={queryRun} />;
+  else if (selected.type === 'artifact' && selected.data) content = <ArtifactDetail artifact={selected.data} />;
+  else if (selected.type === 'dashboard') content = <DashboardDetail name={selected.name} artifactMeta={artifactMeta} />;
+
+  return (
+    <div className={'detail-panel-shell ' + (panelOpen ? 'open' : 'collapsed')}>
+      <button className={'detail-flap ' + (panelOpen ? 'open' : '')} onClick={onTogglePanel} aria-label={panelOpen ? 'Hide details' : 'Show details'}>
+        {panelOpen ? 'Hide details' : 'Show details'}
+      </button>
+      {panelOpen && (
+        <div className="detail-panel-card">
+          <button className="detail-clear-btn" onClick={onClearSelection} aria-label="Clear selection">{'\u2715'}</button>
+          {content}
+        </div>
+      )}
     </div>
   );
 }
@@ -549,14 +605,19 @@ function App() {
   const [artifactMeta, setArtifactMeta] = useState({});
   const [queryRun, setQueryRun] = useState(null);
   const [selected, setSelected] = useState(null);
+  const [panelOpen, setPanelOpen] = useState(true);
   const [error, setError] = useState(null);
 
-  // Escape key closes modal
+  // Escape key collapses the panel first, then clears the selection
   useEffect(function() {
-    function handleKey(e) { if (e.key === 'Escape' && selected) setSelected(null); }
+    function handleKey(e) {
+      if (e.key !== 'Escape' || !selected) return;
+      if (panelOpen) setPanelOpen(false);
+      else setSelected(null);
+    }
     document.addEventListener('keydown', handleKey);
     return function() { document.removeEventListener('keydown', handleKey); };
-  }, [selected]);
+  }, [selected, panelOpen]);
 
   useEffect(function() {
     (async function() {
@@ -635,7 +696,10 @@ function App() {
 
   function handleSelect(sel) {
     if (selected && selected.type === sel.type && selected.name === sel.name) setSelected(null);
-    else setSelected(sel);
+    else {
+      setSelected(sel);
+      setPanelOpen(true);
+    }
   }
 
   if (error) return (<div className="dataflow-page"><h1 className="f1 color-fg-default mb-2">Dataflow &amp; Coverage</h1><div className="flash flash-error"><p>Failed: {error}</p><p className="f6 color-fg-muted mt-2">Run <code>node scripts/materialize.js</code></p></div></div>);
@@ -702,7 +766,8 @@ function App() {
         </div>
       </div>
 
-      <div className="Box color-shadow-medium p-4">
+      <div className="main-layout">
+        <div className="Box color-shadow-medium p-4">
           <div className="flow-columns">
             <div className="flow-column">
               <div className="flow-label">Data Sources</div>
@@ -738,16 +803,17 @@ function App() {
             </div>
           </div>
         </div>
-
-      {selected && selected.type === 'raw' && selected.data && (
-        <SourceModal group={selected.data} queryRun={queryRun} onClose={function(){setSelected(null)}} />
-      )}
-      {selected && selected.type === 'artifact' && selected.data && (
-        <ArtifactModal artifact={selected.data} onClose={function(){setSelected(null)}} />
-      )}
-      {selected && selected.type === 'dashboard' && (
-        <DashboardModal name={selected.name} artifactMeta={artifactMeta} onClose={function(){setSelected(null)}} />
-      )}
+        {selected && (
+          <DetailPanel
+            selected={selected}
+            queryRun={queryRun}
+            artifactMeta={artifactMeta}
+            panelOpen={panelOpen}
+            onTogglePanel={function(){setPanelOpen(function(v){return !v;});}}
+            onClearSelection={function(){setSelected(null);}}
+          />
+        )}
+      </div>
 
       <div className="Box p-3 mt-3 f6 color-fg-muted" style={{borderLeft:'3px solid #58a6ff'}}>
         <strong className="color-fg-default">How it works:</strong> Raw API data (
