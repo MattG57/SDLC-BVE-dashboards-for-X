@@ -2,7 +2,8 @@
   "name": "BVE Dashboards",
   "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
   "features": {
-    "ghcr.io/devcontainers/features/github-cli:1": {}
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/copilot-cli:1": {}
   },
   "postCreateCommand": "bash .devcontainer/post-create.sh",
   "customizations": {
