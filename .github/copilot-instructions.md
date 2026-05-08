@@ -28,6 +28,23 @@ npm workspaces monorepo producing self-contained, browser-only HTML dashboards (
 - **Users learning, debugging, or modifying the repo:** point them to the relevant docs up front. Make them aware that the repo still contains legacy or deprecated files and workflows, so they should confirm whether they are touching the active path or an older compatibility path before making changes.
 - **Current-vs-legacy guidance:** prefer current dashboard and deployment paths first. Start from `dashboard/v4/` when present, treat `dashboard/v4/ai-assisted-efficiency/` as the current AI-assisted efficiency dashboard, treat `.github/workflows/pipeline-deploy.yml` as the active pipeline, and treat `.github/workflows/deploy-dashboards.yml` plus older v1/v2/v3 or manual-upload paths as legacy unless the task is explicitly about them.
 
+## Copilot-led Onboarding Guidance
+
+- For new-user setup and onboarding tasks, prefer a **Copilot-led workflow** over asking the user to manually type commands or edit files line by line.
+- Start by ensuring the user can launch `copilot` successfully. If Copilot CLI is missing, help install or configure it first before proceeding with repo setup steps.
+- After Copilot is available, guide setup in this order:
+  1. read the key docs and summarize the current path
+  2. guide PAT creation and org SSO authorization
+  3. configure `query-settings.json`
+  4. configure `dashboard-config.json`
+  5. run `./run-query.sh --dry-run`
+  6. run or customize local collection/materialization
+  7. serve dashboards locally or prepare `pipeline-deploy.yml`
+  8. troubleshoot errors and recover the flow
+- Prefer doing the typing and edits through Copilot wherever possible: update config files, run validation commands, interpret failures, and propose the next safe step instead of giving the user a large block of manual instructions.
+- Never ask the user to paste secrets into chat, into notebook cells, or into tracked files. For PAT setup, guide the user to create the token, authorize SSO, and then either authenticate `gh`, set `GITHUB_TOKEN` locally, or add `DASHBOARD_GH_TOKEN` in GitHub Actions outside the conversation.
+- When creating onboarding notebooks or guided setup flows, make each step a concrete Copilot prompt the user can paste into an interactive `copilot` session. Prefer one prompt per phase, and keep each prompt scoped to a single objective.
+
 ## Key Conventions
 
 - **[dependencies/README.md](dependencies/README.md) is the authoritative source** for how scripts, dashboards, and schemas relate. Defer to it for any structural or dependency decision — adding dashboards, modifying query targets, renaming scripts, or changing output shapes.
