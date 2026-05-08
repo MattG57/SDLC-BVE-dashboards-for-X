@@ -20,6 +20,14 @@ npm workspaces monorepo producing self-contained, browser-only HTML dashboards (
 
 `run-query.sh` wraps `scripts/collect-and-materialize.sh` to collect data via `gh` CLI → raw JSON → materialized artifacts → dashboards auto-load. Collection targets are registered in `collect-and-materialize.sh`'s `register_targets()` function.
 
+## User Context Guidance
+
+- **Users with prior repo context or active conversation history:** build on the context they already have. Do not restart with a full repo tour unless they ask for it or the task moves into an unfamiliar area.
+- **New users or sessions with no repo context:** first read `README.md`, `docs/getting-started.md`, `docs/data-collection.md`, and `dependencies/README.md` before giving architectural, setup, or deployment guidance. Use those docs to explain what the repo does, how dashboards are published, and which files/workflows are current.
+- **Users setting up data collection:** walk them through PAT creation and org SSO authorization using `docs/pat-setup.md` and `docs/getting-started.md`. Make sure they know about the required scopes, `DASHBOARD_GH_TOKEN`, repo variables like `ORG`/`ENTERPRISE`/`DAYS`, and that `.github/workflows/pipeline-deploy.yml` is the current deployment workflow.
+- **Users learning, debugging, or modifying the repo:** point them to the relevant docs up front. Make them aware that the repo still contains legacy or deprecated files and workflows, so they should confirm whether they are touching the active path or an older compatibility path before making changes.
+- **Current-vs-legacy guidance:** prefer current dashboard and deployment paths first. Start from `dashboard/v4/` when present, treat `dashboard/v4/ai-assisted-efficiency/` as the current AI-assisted efficiency dashboard, treat `.github/workflows/pipeline-deploy.yml` as the active pipeline, and treat `.github/workflows/deploy-dashboards.yml` plus older v1/v2/v3 or manual-upload paths as legacy unless the task is explicitly about them.
+
 ## Key Conventions
 
 - **[dependencies/README.md](dependencies/README.md) is the authoritative source** for how scripts, dashboards, and schemas relate. Defer to it for any structural or dependency decision — adding dashboards, modifying query targets, renaming scripts, or changing output shapes.
@@ -33,5 +41,6 @@ npm workspaces monorepo producing self-contained, browser-only HTML dashboards (
 - [docs/BUILD-SYSTEM.md](docs/BUILD-SYSTEM.md) — build internals and dual-mode behavior
 - [docs/getting-started.md](docs/getting-started.md) — onboarding and first run
 - [docs/data-collection.md](docs/data-collection.md) — query workflow and targets
+- [docs/pat-setup.md](docs/pat-setup.md) — PAT creation, scopes, and SSO authorization
 - [docs/dashboard-status.md](docs/dashboard-status.md) — readiness and migration state
 - [dependencies/README.md](dependencies/README.md) — script-to-dashboard dependency map, schemas, and checklists for adding/modifying dashboards

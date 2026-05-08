@@ -36,6 +36,7 @@ DASHBOARDS=(
   "v3/ai-assisted-efficiency|dashboard/v3/ai-assisted-efficiency"
   "v3/ai-assisted-structural|dashboard/v3/ai-assisted-structural"
   "v4/ai-assisted-efficiency|dashboard/v4/ai-assisted-efficiency"
+  "v4/agentic-efficiency|dashboard/v4/agentic-efficiency"
 )
 
 dashboard_slugs() {
@@ -354,7 +355,7 @@ cat > "$SITE_DIR/index.html" << 'LANDING_EOF'
         <div class="icon-tile tile-leverage">⚡</div>
         <span class="icon-label">Element</span>
       </a>
-      <a class="app-icon" href="v2/agentic-efficiency/">
+      <a class="app-icon" href="v4/agentic-efficiency/">
         <div class="icon-tile tile-efficiency">📈</div>
         <span class="icon-label">Efficiency</span>
       </a>
