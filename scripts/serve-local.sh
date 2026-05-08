@@ -23,6 +23,16 @@ if ! [ -d "$SERVE_DIR" ]; then
   exit 1
 fi
 
+# Make dashboard-config.json available to all dashboards via data/config.json
+CONFIG_SRC="${REPO_ROOT}/dashboard-config.json"
+CONFIG_DST="${SERVE_DIR}/data/config.json"
+if [ -f "$CONFIG_SRC" ]; then
+  mkdir -p "$(dirname "$CONFIG_DST")"
+  rm -f "$CONFIG_DST"
+  ln -s "$CONFIG_SRC" "$CONFIG_DST"
+  echo "🔗 Refreshed dashboard-config.json → data/config.json"
+fi
+
 echo "🌐 Serving dashboards from: $SERVE_DIR"
 echo "   http://127.0.0.1:${PORT}/"
 echo ""

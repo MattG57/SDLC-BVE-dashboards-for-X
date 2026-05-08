@@ -56,3 +56,4 @@ calculation_results.txt
 _data-status/
 BVE-dashboards-for-ai-assisted-coding/data/queries/tmp/
 dashboard/dataflow/data/
+dashboard/data/config.json
