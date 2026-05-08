@@ -9,8 +9,8 @@ echo "🔧 Installing jq (required by data collection scripts)..."
 sudo apt-get update -qq && sudo apt-get install -y -qq jq > /dev/null
 
 echo "📓 Installing JupyterLab..."
-python3 -m pip install --user --upgrade pip > /dev/null
-python3 -m pip install --user jupyterlab ipykernel > /dev/null
+python3 -m pip install --user --break-system-packages --upgrade pip > /dev/null
+python3 -m pip install --user --break-system-packages jupyterlab ipykernel > /dev/null
 python3 -m ipykernel install --user --name bve-dashboards --display-name "Python 3 (BVE Dashboards)" > /dev/null
 
 echo "🎭 Installing Playwright browsers..."
