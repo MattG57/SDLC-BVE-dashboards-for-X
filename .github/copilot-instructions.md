@@ -43,7 +43,8 @@ npm workspaces monorepo producing self-contained, browser-only HTML dashboards (
   8. troubleshoot errors and recover the flow
 - Prefer doing the typing and edits through Copilot wherever possible: update config files, run validation commands, interpret failures, and propose the next safe step instead of giving the user a large block of manual instructions.
 - Never ask the user to paste secrets into chat, into notebook cells, or into tracked files. For PAT setup, guide the user to create the token, authorize SSO, and then either authenticate `gh`, set `GITHUB_TOKEN` locally, or add `DASHBOARD_GH_TOKEN` in GitHub Actions outside the conversation.
-- When creating onboarding notebooks or guided setup flows, make each step a concrete Copilot prompt the user can paste into an interactive `copilot` session. Prefer one prompt per phase, and keep each prompt scoped to a single objective.
+- When creating onboarding notebooks or guided setup flows, prefer **programmatic Copilot CLI commands** over raw prompt text. Use command examples such as `copilot -p "..." --allow-all-tools` or more scoped `--allow-tool` variants so users can run one concrete command per phase.
+- Use the documented programmatic flags in notebook examples. Prefer `--allow-all-tools` for the easiest onboarding path when broad approval is acceptable, and use `--allow-tool` when a narrower example is important. Reserve `/allow-all` and `/yolo` for interactive-session guidance.
 
 ## Key Conventions
 
