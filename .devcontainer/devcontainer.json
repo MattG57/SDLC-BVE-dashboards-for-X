@@ -8,7 +8,9 @@
   },
   "postCreateCommand": "bash .devcontainer/post-create.sh",
   "remoteEnv": {
-    "PATH": "${containerEnv:PATH}:/home/node/.local/bin"
+    "PATH": "${containerEnv:PATH}:/home/node/.local/bin",
+    "GITHUB_TOKEN": "${localEnv:GITHUB_TOKEN}",
+    "GH_TOKEN": "${localEnv:GH_TOKEN}"
   },
   "customizations": {
     "vscode": {
