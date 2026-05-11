@@ -27,6 +27,21 @@ npm workspaces monorepo producing self-contained, browser-only HTML dashboards (
 - Tests use Vitest with `happy-dom` environment. Target coverage is 80%.
 - The build system intentionally supports partially migrated dashboards (monolithic fallback).
 
+## Copilot Agent Skills
+
+Eight skills are available in `.github/skills/` to help with common workflows:
+
+| Skill | When to use |
+|---|---|
+| `run-bve-pipeline` | Run the data pipeline, collect metrics, materialize artifacts |
+| `configure-bve-dashboards` | Set up query-settings.json profiles, dashboard-config.json parameters, PATs |
+| `add-bve-dashboard` | Add a new dashboard, query script, data source, or extend the pipeline |
+| `compute-leverage-metrics` | Understand leverage formulas, time-saved estimates, projections |
+| `analyze-copilot-adoption` | PR-assist classification, Copilot user detection, structural analysis |
+| `validate-bve-data` | Run tests, validate schemas, check data quality, lint |
+| `troubleshoot-bve-pipeline` | Debug auth errors, empty data, materializer failures, loading issues |
+| `deploy-bve-dashboards` | Deploy to GitHub Pages, trigger CI/CD workflows, build dashboards |
+
 ## Documentation Map
 
 - [docs/development.md](docs/development.md) — contributor workflow and repo layout
