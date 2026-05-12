@@ -10,33 +10,33 @@ Applies to:
 
 ---
 
-## Element / Leverage View
+## Element of Leverage View
 
-Use this wording for element-of-leverage pages where completion means shipped output.
+Use this wording for element-of-leverage pages
 
 ### Job to Be Done
 
 - **Kicker:** `Job to Be Done`
-- **Title:** `Write and ship code faster with AI assistance`
-- **Body:** `Developers use GitHub Copilot to generate, complete, and iterate on code within their editor and PR workflow.`
+- **Title:** `Complete a Coding Task with AI assistance`
+- **Body:** `Developers use GitHub Copilot to make Coding Tasks more efficient.`
 
 ### What Counts as a Completion
 
 - **Kicker:** `What Counts as a Completion`
-- **Title:** `A PR merged by a Copilot-active developer`
-- **Body:** `Valid = PR achieved its purpose (shipped a working change). Failed/flawed = reverted PRs or PRs requiring significant rework.`
+- **Title:** `A PR opened by a Copilot-active developer`
+- **Body:** `Valid = Developer Opened a PR for review. Failed/flawed = reverted PRs or PRs closed without merging.`
 
 ### Job Class
 
 - **Kicker:** `Job Class`
 - **Title:** `Value-creating`
-- **Body:** `Valid completions directly produce desired output -- shipped code that moves the product forward.`
+- **Body:** `Valid completions represent value creation -- shipped code requires completed coding tasks.`
 
 ---
 
 ## Efficiency View
 
-Use this wording for efficiency pages where the task boundary is the coding task itself and the main question is how many saved dev-hours are implied relative to dev-hours invested.
+Use this wording for efficiency pages 
 
 ### Job to Be Done
 
@@ -55,66 +55,72 @@ Use this wording for efficiency pages where the task boundary is the coding task
 
 - **Kicker:** `Job Class`
 - **Title:** `Value-creating`
-- **Body:** `Valid completions directly produce desired output -- shipped code that moves the product forward.`
+- **Body:** `Valid completions represent value creation -- shipped code requires completed coding tasks.`
 
 ### How Efficiency Improves
 
 - **Kicker:** `How Efficiency Improves`
-- **Title:** `Higher leverage = more value-creating output per dev-hour invested`
-- **Body:** `This view gauges efficiency through the relationship between dev-hours invested, completions produced, and estimated hours saved. Shorter duration can matter, but so can better acceptance, less rework, and more useful output from the same effort.`
+- **Title:** `Developers save time completing coding tasks.`
+- **Body:** `Efficiency can lead to 1)fewer dev-hours invested, 2)more completions per time period, 3)the completions increase in size or difficulty, and/or 4) expanding the scope to address tech debt `
 
 ### Estimates and Assumptions
 
 - **Kicker:** `Estimates and Assumptions`
-- **Title pattern:** `{method label} translates activity into saved dev-hours`
-- **Body when configured:** `Saved dev-hours are estimated, not measured directly. The selected method converts observed activity into hours saved, and the capacity framing uses total developers, percent time coding, and baseline work hours.`
-- **Body when additional inputs are required:** `The selected estimate needs additional configuration before saved dev-hours can be calculated. The side panel controls the estimate method and the coding-capacity assumptions used for context.`
+- **Title:** `Proxy metrics are used to triangulater on saved dev-hours`
+- **Body:** `The total hours allocated to the area are estimated as a flat percentage of the grand total of org dev hours. The saved hours is estimated based on 3 methods. Each of which linearly converts observed activity into hours saved. Confidence increases when the all three are calibrated and their predictions closely agree. `
+- **Card hint or too-tip:** `The estimates require additional configuration before saved dev-hours can be calculated. The side panel shows the current config.`
 
 ### Indicators of Progress
 
 - **Kicker:** `Indicators of Progress`
-- **Title:** `Efficiency / Activity Signals explain current performance`
-- **Body pattern:** `Track per-active-dev activity and output signals such as {interactions} interactions, {acceptance_rate} acceptance, {loc_added} LoC added, and {hours_saved_per_dev_day} estimated hrs/dev/day saved to explain how much value is being created relative to dev-hours invested.`
+- **Title:** `Efficiency is implied by 4 different metric patterns`
+- **Body pattern:** ` Improving Yield, or Improving Efficiency based on the following patterns:
+  Increased AI activity combined with Increased Lines of Code Accepted and Increased Completions.
+  Increased AI activity and combined with Increased Lines of Code Accepted and Decreased Area Total Dev hours.
+  Increased AI activity and combined with Increased Lines of Code Accepted and Increased Size of Completions.
 
 ---
 
 ## Structural View
 
-Use this wording for pages whose purpose is to describe structural conditions, coverage, and consistency rather than saved-hour estimates.
+Use this wording for pages focused on structural changes that create value or reduce risk.
 
 ### Job to Be Done
 
 - **Kicker:** `Job to Be Done`
-- **Title:** `Expand the structural conditions for AI-assisted coding`
-- **Body:** `This view examines how broadly and consistently AI-assisted coding is present across developers, pull requests, and lines of code.`
+- **Title:** `Produce code changes with AI assistance`
+- **Body:** `Developers use GitHub Copilot to generate, complete, and iterate on code within their editor and pull request workflow.`
 
-### What Counts as Progress
+### What Counts as a Completion
 
-- **Kicker:** `What Counts as Progress`
-- **Title:** `Broader and more consistent evidence of AI-assisted coding`
-- **Body:** `Progress appears as higher adoption, higher PR-assisted share, higher AI-assisted LoC share, and more stable day-to-day coverage across the observed population.`
+- **Kicker:** `What Counts as a Completion`
+- **Title:** `A PR opened by a Copilot-active developer`
+- **Body:** `For this efficiency view, the coding task completes when a developer opens a pull request. Opened-but-never-merged PRs are a potential failed-attempt signal that should be tracked separately in a later enhancement.`
+- **Deferred follow-up:** GitHub issue #30 tracks the later enhancement to count opened-but-not-merged PRs as failed attempts.
 
 ### Job Class
 
 - **Kicker:** `Job Class`
-- **Title:** `Structural`
-- **Body:** `Structural improvement does not directly create output by itself. It expands the conditions under which efficient work can occur across more developer-hours and more workflows.`
+- **Title:** `Value-creating`
+- **Body:** `Valid completions represent value creation -- shipped code requires completed coding tasks.`
+
 
 ### How Structural Improvement Improves Outcomes
 
-- **Kicker:** `How Structural Improvement Improves Outcomes`
-- **Title:** `Same per-developer efficiency reaches more eligible work`
-- **Body:** `Structural expansion increases the share of developer activity and pull request work that can benefit from AI assistance. It matters because an efficient practice has more room to contribute.`
+- **Kicker:** `How Structure Can Improve`
+- **Title:** `Higher number of devs getting average per-developer efficiency or higher number of completions getting the average per-completion efficiency`
+- **Body:** `Adoption, Broader feature usage, and Applying AI more consistently all improve the structural factors that can otherwise limit realized benefit.`
 
 ### Estimates and Assumptions
 
 - **Kicker:** `Estimates and Assumptions`
-- **Title:** `Structural rates are observed from materialized usage and PR evidence`
-- **Body:** `These metrics are based on observed adoption, PR classification, and LoC classification. They are structural indicators, not labor-savings estimates.`
+- **Title:** `Completeness metrics are used to highlight the opportunity and progress for different structural dimensions`
+- **Body:** `Structural progress can be monitored via trends of improvable, or improving, Adoption, Assisted PRs, Assisted Lines of Code, and Consistency of Usage. `
+
 
 ### Indicators of Progress
 
 - **Kicker:** `Indicators of Progress`
-- **Title:** `Adoption and coverage signals explain current structural reach`
-- **Body pattern:** `Track adoption %, PRs assisted %, AI-assisted LoC %, consistency over time, and PR data coverage to explain how broadly AI-assisted coding is embedded.`
+- **Title:** `Trends and levels of Adoption and other completeness metrics indicate progress for each structural factor`
+- **Body pattern:** `Structural improvements are complete when 100% of developers are being assisted with AI, Feature usage is sufficiently broad, and a high percentage of attempts that could benefit from AI are shown to be assisted.`
 
