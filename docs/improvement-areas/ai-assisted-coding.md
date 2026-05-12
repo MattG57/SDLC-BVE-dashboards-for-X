@@ -61,7 +61,7 @@ Use this wording for efficiency pages
 
 - **Kicker:** `How Efficiency Improves`
 - **Title:** `Developers save time completing coding tasks.`
-- **Body:** `Efficiency can lead to 1)fewer dev-hours invested, 2)more completions per time period, 3)the completions increase in size or difficulty, and/or 4) expanding the scope to address tech debt `
+- **Body:** `Efficiency can lead to 1)fewer dev-hours invested, 2)more completions per time period, 3)the completions increase in size or difficulty, and/or 4) Completions with expanded scope to address tech debt or support new capabilities. `
 
 ### Estimates and Assumptions
 
