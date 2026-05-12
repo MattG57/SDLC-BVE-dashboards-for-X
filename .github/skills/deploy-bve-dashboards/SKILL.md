@@ -127,7 +127,7 @@ permissions:
 The workflow caches raw data between runs:
 - Cache key: `pipeline-data-{run_id}`
 - Restore keys: `pipeline-data-` (falls back to latest)
-- Cached paths: `dashboard/dataflow/data/raw/*.json`
+- Cached paths: `_data/raw/*.json`
 
 ## Workflow: deploy-dashboards.yml
 
