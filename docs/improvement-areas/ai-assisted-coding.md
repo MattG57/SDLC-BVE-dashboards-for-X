@@ -105,7 +105,7 @@ Use this wording for pages focused on structural changes that create value or re
 - **Body:** `Valid completions represent value creation -- shipped code requires completed coding tasks.`
 
 
-### How Structural Improvement Improves Outcomes
+### How Structural Improvement Improves
 
 - **Kicker:** `How Structure Can Improve`
 - **Title:** `Higher number of devs getting average per-developer efficiency or higher number of completions getting the average per-completion efficiency`
