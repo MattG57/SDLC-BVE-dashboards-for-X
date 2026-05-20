@@ -302,6 +302,10 @@ function main() {
     : null;
   if (mergedSessionLogs) {
     console.log(`  📋 Session logs: ${mergedSessionLogs.session_logs.length} sessions with compute time`);
+    const fname = writeArtifact('agent-session-logs', mergedSessionLogs);
+    artifactFiles.push(fname);
+    artifactMap['agent-session-logs'] = fname;
+    fileInfo.sessionLogs.forEach(f => edges.push({ from: f.file, to: fname }));
   }
 
   // Leverage Summary — reads from the 4 artifacts above + session logs

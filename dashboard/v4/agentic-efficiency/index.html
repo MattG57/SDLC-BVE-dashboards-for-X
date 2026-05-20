@@ -168,7 +168,7 @@ Highcharts.setOptions({
 
 async function loadData() {
   const bases = ['../../dataflow/data/', '../dataflow/data/'];
-  let eff = null, sess = null, cfg = null;
+  let eff = null, sess = null, sessionLogs = null, cfg = null;
   for (const base of bases) {
     try {
       const r = await fetch(base + 'pipeline-manifest.json');
@@ -176,10 +176,12 @@ async function loadData() {
       const manifest = await r.json();
       const effFile = (manifest.artifacts || []).find(f => f.startsWith('agentic-efficiency-days'));
       const sessFile = (manifest.artifacts || []).find(f => f.startsWith('agentic-pr-sessions'));
+      const slFile = (manifest.artifacts || []).find(f => f.startsWith('agent-session-logs'));
       if (!effFile) continue;
       const artBase = base + 'materialized/';
       eff = await fetch(artBase + effFile).then(x => x.ok ? x.json() : null);
       sess = sessFile ? await fetch(artBase + sessFile).then(x => x.ok ? x.json() : null) : null;
+      sessionLogs = slFile ? await fetch(artBase + slFile).then(x => x.ok ? x.json() : null) : null;
       if (eff) break;
     } catch (e) {}
   }
@@ -189,7 +191,7 @@ async function loadData() {
       if (r.ok) { cfg = await r.json(); break; }
     } catch (e) {}
   }
-  return { efficiency: eff, sessions: sess, config: cfg };
+  return { efficiency: eff, sessions: sess, sessionLogs, config: cfg };
 }
 
 async function loadFramingSource() {
@@ -238,6 +240,13 @@ const ESTIMATION_METHODS = [
     formula: (c) => `hrs = (merged_loc_added ÷ 1000) × ${c.est_hrs_per_kloc || 4}`,
     calc: (d, c) => ((d.merged_loc_added || 0) / 1000) * (c.est_hrs_per_kloc || 4),
   },
+  {
+    key: 'dev-time',
+    label: 'Dev Time Model',
+    desc: () => 'Modeled dev time: prompt + compute + intervention + review (merged PRs only)',
+    formula: () => 'hrs = (files×prompt_rate + active_mins + interventions×15 + files×review_rate×merged) ÷ 60',
+    calc: (d) => ((d.dev_time_estimate_total || 0) / 60),
+  },
 ];
 
 const DRIVER_SERIES = [
@@ -246,6 +255,7 @@ const DRIVER_SERIES = [
   { key: 'agent_prs_merged', perDev: 'prs_merged_per_dev', label: 'PRs Merged', color: '#d29922' },
   { key: 'agent_loc_added', perDev: 'loc_added_per_dev', label: 'LoC Added / 100', color: '#bc8cff', scale: 100 },
   { key: 'agent_session_minutes', perDev: 'session_mins_per_dev', label: 'Session Mins', color: '#f778ba' },
+  { key: 'active_minutes_total', perDev: null, label: 'Active Mins (Compute)', color: '#e3b341' },
   { key: 'total_agent_requests', perDev: 'requests_per_dev', label: 'Requests', color: '#79c0ff' },
 ];
 
@@ -264,6 +274,36 @@ function hydrateMergedFields(dayRows, sessionRows) {
     ...d,
     merged_session_minutes: d.merged_session_minutes ?? (mergedByDay[d.day]?.mins || 0),
     merged_loc_added: d.merged_loc_added ?? (mergedByDay[d.day]?.loc || 0),
+  }));
+}
+
+function computeSessionDevTime(session) {
+  const files = session.changed_files || 0;
+  const mixed = (session.additions || 0) > 0 && (session.deletions || 0) > 0;
+  const promptRate = mixed ? 3 : 1;
+  const reviewRate = mixed ? 15 : 5;
+  const timeToPrompt = files * promptRate;
+  const compute = session.active_minutes || 0;
+  const timeToIntervene = (session.developer_interventions || 0) * 15;
+  const merged = Boolean(session.pr_merged_at);
+  const timeToReview = merged ? files * reviewRate : 0;
+  return timeToPrompt + compute + timeToIntervene + timeToReview;
+}
+
+function hydrateSessionLogs(dayRows, sessionLogsData) {
+  if (!sessionLogsData || !sessionLogsData.length) return dayRows;
+  const byDay = {};
+  sessionLogsData.forEach(s => {
+    const day = (s.pr_created_at || '').slice(0, 10);
+    if (!day) return;
+    if (!byDay[day]) byDay[day] = { active_minutes: 0, dev_time_estimate: 0 };
+    byDay[day].active_minutes += (s.active_minutes || 0);
+    byDay[day].dev_time_estimate += computeSessionDevTime(s);
+  });
+  return dayRows.map(d => ({
+    ...d,
+    active_minutes_total: d.active_minutes_total ?? (byDay[d.day]?.active_minutes || 0),
+    dev_time_estimate_total: d.dev_time_estimate_total ?? (byDay[d.day]?.dev_time_estimate || 0),
   }));
 }
 
@@ -481,9 +521,13 @@ function App() {
       }
 
       const sessionRows = result.sessions?.data || [];
-      const baseDays = hydrateMergedFields(
-        [...eff.data].sort((a, b) => (a.day || '').localeCompare(b.day || '')),
-        sessionRows
+      const sessionLogRows = result.sessionLogs?.session_logs || [];
+      const baseDays = hydrateSessionLogs(
+        hydrateMergedFields(
+          [...eff.data].sort((a, b) => (a.day || '').localeCompare(b.day || '')),
+          sessionRows
+        ),
+        sessionLogRows
       );
       setLoaded({
         ...result,
@@ -538,7 +582,7 @@ function App() {
   const codingPct = config.cfg_pct_time_coding || 0.25;
   const baseHrsPerDay = (config.cfg_baseline_hours_per_dev_per_week || 40) / (config.cfg_workdays_per_week || 5);
   const totalCapacity = totalDevs * codingPct * baseHrsPerDay * n;
-  const totalSessionHours = days.reduce((s, d) => s + ((d.agent_session_minutes || 0) / 60), 0);
+  const totalSessionHours = days.reduce((s, d) => s + ((d.active_minutes_total || d.agent_session_minutes || 0) / 60), 0);
   const totalHrs = days.reduce((s, d) => s + (d['est_' + method + '_hrs'] || 0), 0);
   const avgPerDev = (() => {
     const vals = days.map(d => d['est_' + method + '_per_dev']).filter(v => v != null);
@@ -763,7 +807,11 @@ function App() {
   const yieldRate = safeDiv(completions, attempts);
   const uniqueDevs = effProfile.unique_people || new Set(users.map(u => u.developer)).size;
   const devDayCount = effProfile.detail_row_count || users.length;
-  const loadedArtifacts = sessions.length ? 'agentic-efficiency-days + agentic-pr-sessions' : 'agentic-efficiency-days';
+  const loadedArtifacts = [
+    'agentic-efficiency-days',
+    ...(sessions.length ? ['agentic-pr-sessions'] : []),
+    ...(loaded.sessionLogs?.session_logs?.length ? ['agent-session-logs'] : []),
+  ].join(' + ');
 
   const dqComparison = ESTIMATION_METHODS.map(m => {
     const field = 'est_' + m.key + '_per_dev';
@@ -870,7 +918,7 @@ function App() {
                 <div className="sup-card">
                   <div className="sup-label">Observed Agent Hrs</div>
                   <div className="sup-value">{fmtCompact(totalSessionHours)}</div>
-                  <div className="sup-sub">session minutes ÷ 60</div>
+                  <div className="sup-sub">compute minutes ÷ 60</div>
                 </div>
               </div>
             </div>
@@ -1037,7 +1085,7 @@ function App() {
             </div>
 
             <div className="d-flex flex-items-center flex-justify-between mt-3 pt-2" style={{ borderTop: '1px solid var(--borderColor-muted)' }}>
-              <span className="f6 color-fg-muted">Sources: <strong>agentic-efficiency-days</strong> + <strong>agentic-pr-sessions</strong></span>
+              <span className="f6 color-fg-muted">Sources: <strong>{loadedArtifacts}</strong></span>
               <a href="../../data-status/" className="f6 color-fg-muted" style={{ textDecoration: 'underline' }}>Pipeline Status →</a>
             </div>
           </div>
