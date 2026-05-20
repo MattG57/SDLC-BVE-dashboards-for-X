@@ -10,6 +10,6 @@
   "cfg_baseline_hours_per_dev_per_week": 40,
   "est_interactions_per_hour": 30,
   "est_hrs_per_kloc": 1.5,
-  "est_duration_factor": 10,
+  "est_duration_factor": 0.20,
   "est_human_to_agent_ratio": 10
 }

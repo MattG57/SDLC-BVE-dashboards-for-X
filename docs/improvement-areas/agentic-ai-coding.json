@@ -6,57 +6,57 @@
   ],
   "views": {
     "element": {
-      "description": "Use this wording for element-of-leverage pages where completion means merged delegated output.",
+      "description": "Use this wording for element-of-leverage pages where completion means a merged agent-authored PR.",
       "cards": {
         "jobToBeDone": {
           "kicker": "Job to Be Done",
-          "title": "Complete and Merge a Coding Task with Asynchronous use of an Agent",
-          "body": "Developers assign issues to Copilot, which creates pull requests. Humans review and merge."
+          "title": "Complete a Coding Task by Delegating to an Asynchronous Agent",
+          "body": "Developers assign issues to a coding agent, which creates pull requests that humans review, guide, and merge."
         },
         "whatCountsAsCompletion": {
           "kicker": "What Counts as a Completion",
           "title": "A Copilot-authored PR that gets merged",
-          "body": "Valid = PR was reviewed and merged by a human reviewer. Failed/flawed = PR closed or abandoned without a merge."
+          "body": "Valid = PR was reviewed and merged by a human. Failed/flawed = PR closed without merging."
         },
         "jobClass": {
           "kicker": "Job Class",
           "title": "Value-creating",
-          "body": "Valid completions represent an intentional valuable result."
+          "body": "Valid completions create valuable work product."
         }
       }
     },
     "efficiency": {
-      "description": "Use this wording for efficiency pages where the question is how much human-equivalent value the coding agent creates relative to the hours and sessions engaged.",
+      "description": "Use this wording for efficiency pages where the questions are: at the population level, how many completions are occurring and how many dev-hours are being consumed; and at the individual level, how many completions each active user generates per hour spent.",
       "cards": {
         "jobToBeDone": {
           "kicker": "Job to Be Done",
-          "title": "Complete and Merge a Coding Task with Asynchronous use of an Agent",
+          "title": "Complete a Coding Task by Delegating to an Asynchronous Agent",
           "body": "Developers delegate implementation work to the coding agent, which creates pull requests that humans review, guide, and merge."
         },
         "whatCountsAsCompletion": {
           "kicker": "What Counts as a Completion",
           "title": "A Copilot-authored PR that gets merged",
-          "body": "Valid = PR was reviewed and merged by a human reviewer. Failed/flawed = PR closed or abandoned without a merge."
+          "body": "Valid = PR was reviewed and merged by a human. Failed/flawed = PR closed without merging."
         },
         "jobClass": {
           "kicker": "Job Class",
           "title": "Value-creating",
-          "body": "Valid completions represent an intentional valuable result."
+          "body": "Valid completions create valuable work product."
         },
         "howEfficiencyImproves": {
           "kicker": "How Efficiency Improves",
-          "title": "Asynchronous GitHub Copilot Sessions complete Coding Tasks autonomously.",
-          "body": "Efficiency can show up if a completion 1) consumes fewer dev-hours, 2) encounters less risk, 3) is larger in size, scope, or difficulty, and/or 4) consumes fewer dollars than otherwise would have been required without Copilot."
+          "title": "Developers use GitHub Agents to complete additional Coding tasks, and/or reduce hours spent or other costs.",
+          "body": "Efficiency can show up if a completion \n1) consumes fewer dev-hours, \n2) encounters less risk, \n3) is increasing in session duration, scope, or difficulty."
         },
         "estimatesAndAssumptions": {
           "kicker": "Estimates and Assumptions",
-          "title": "Conversion factors translate merged agent activity into saved dev-hours",
-          "body": "The hours spent is modeled as a percentage of Session Duration minutes and other Session Characteristics, which can be configured (reflecting an expectation that dev hours spent using Agents is growing as agent workload grows). Copilot Agent Session logs and statistics provide various measures of Agent session duration, costs, and failures."
+          "title": "Completion counts and hours spent per completion are modeled from agent session activity",
+          "body": "Hours invested per completion is estimated from agent session duration and level of human intervention. \nCompletion counts are drawn from merged Copilot-authored PRs."
         },
         "indicatorsOfProgress": {
           "kicker": "Indicators of Progress",
-          "title": "Increases in Sessions per day and improving Session characteristics, like Yield, indicate that average AI benefits from Agent Usage are increasing.",
-          "body": "When the modeled time savings based on multiple indicators agree, we have increasing confidence in the calculated average Leverage."
+          "title": "Rising completions per user and falling hours per completion indicate that agent delegation is becoming more efficient.",
+          "body": "Completion rate, completions per active user, and hours invested per completion are the primary indicators. \nWhen these indicators move together in the expected direction, we have higher confidence that efficiency is genuinely improving."
         }
       }
     }

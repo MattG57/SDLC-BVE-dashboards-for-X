@@ -185,7 +185,7 @@ async function loadData() {
   }
   for (const p of ['./data/config.json', '../data/config.json', '../../data/config.json']) {
     try {
-      const r = await fetch(p);
+      const r = await fetch(p, { cache: 'no-store' });
       if (r.ok) { cfg = await r.json(); break; }
     } catch (e) {}
   }
@@ -219,7 +219,7 @@ const DEFAULT_CONFIG = {
   cfg_baseline_hours_per_dev_per_week: 40,
   cfg_workdays_per_week: 5,
   cfg_labor_cost_per_hour: 100,
-  est_duration_factor: 0.5,
+  est_duration_factor: 0.20,
   est_hrs_per_kloc: 4,
 };
 
@@ -227,9 +227,9 @@ const ESTIMATION_METHODS = [
   {
     key: 'duration',
     label: 'Duration-Based (Merged)',
-    desc: (c) => `${c.est_duration_factor || 0.5}× duration multiplier applied to merged PR session minutes`,
-    formula: (c) => `hrs = (merged_session_minutes ÷ 60) × ${c.est_duration_factor || 0.5}`,
-    calc: (d, c) => ((d.merged_session_minutes || 0) / 60) * (c.est_duration_factor || 0.5),
+    desc: (c) => `${c.est_duration_factor || 0.20}× duration factor applied to all agent session minutes`,
+    formula: (c) => `hrs = (agent_session_minutes ÷ 60) × ${c.est_duration_factor || 0.20}`,
+    calc: (d, c) => ((d.agent_session_minutes || 0) / 60) * (c.est_duration_factor || 0.20),
   },
   {
     key: 'loc',
@@ -371,7 +371,7 @@ function SidePanel({ config, setConfig, method, setMethod, days, users, selected
         <div className="sp-section">
           <div className="sp-title">Assumptions</div>
           <div className="sp-input">
-            <label>Duration multiplier <input type="number" value={config.est_duration_factor ?? 0.5} min="0" step="0.1" onChange={e => updateCfg('est_duration_factor', parseFloat(e.target.value) || 0)} /></label>
+            <label>Duration multiplier <input type="number" value={config.est_duration_factor ?? 0.20} min="0" step="0.1" onChange={e => updateCfg('est_duration_factor', parseFloat(e.target.value) || 0)} /></label>
             <label>Hrs / 1K merged LoC <input type="number" value={config.est_hrs_per_kloc ?? 4} min="0" step="0.5" onChange={e => updateCfg('est_hrs_per_kloc', parseFloat(e.target.value) || 0)} /></label>
           </div>
         </div>
@@ -574,7 +574,7 @@ function App() {
   const userKPIs = hasUser ? (() => {
     const uDays = Object.values(userDayMap);
     const activeDays = uDays.length;
-    const total = uDays.reduce((s, u) => s + (methodDef.calc({ merged_session_minutes: u.agent_session_minutes || 0, merged_loc_added: u.agent_loc_added || 0 }, config) || 0), 0);
+    const total = uDays.reduce((s, u) => s + (methodDef.calc({ agent_session_minutes: u.agent_session_minutes || 0, merged_loc_added: u.agent_loc_added || 0 }, config) || 0), 0);
     const avg = activeDays > 0 ? total / activeDays : null;
     const vsOrg = avgPerDev != null && avg != null ? avg - avgPerDev : null;
     const econValue = config.cfg_labor_cost_per_hour != null ? total * config.cfg_labor_cost_per_hour : null;
@@ -597,7 +597,7 @@ function App() {
     series: [{
       name: 'Hours',
       data: [
-        { name: 'Est. hours saved', y: Math.round(hrsSavedForPie), color: '#3fb950' },
+        { name: 'Est. hours spent', y: Math.round(hrsSavedForPie), color: '#58a6ff' },
         { name: 'Coding', y: Math.max(0, Math.round(totalCapacity - hrsSavedForPie)), color: '#58a6ff' },
         { name: 'Non-coding', y: Math.round(nonCodingHrs), color: '#30363d' },
       ],
@@ -606,7 +606,7 @@ function App() {
 
   const pctOfTotalOpts = {
     chart: { type: 'areaspline', height: 240 },
-    title: { text: 'Hours Saved as % of Total Coding Capacity' },
+    title: { text: 'Hours Spent as % of Total Coding Capacity' },
     subtitle: { text: methodDef.desc(config) },
     xAxis: { categories: xLabels, labels: { rotation: -45, style: { fontSize: '9px' } }, tickInterval: tickInt },
     yAxis: { title: { text: null }, min: 0, labels: { format: '{value}%' } },
@@ -627,7 +627,7 @@ function App() {
 
   const perDevOpts = {
     chart: { type: 'areaspline', height: 240 },
-    title: { text: 'Hours Saved per Active Developer per Day' },
+    title: { text: 'Hours Spent per Active Developer per Day' },
     subtitle: { text: methodDef.desc(config) },
     xAxis: { categories: xLabels, labels: { rotation: -45, style: { fontSize: '9px' } }, tickInterval: tickInt },
     yAxis: { title: { text: null }, min: 0, labels: { format: '{value} hrs' } },
@@ -639,7 +639,7 @@ function App() {
         name: selectedUser,
         data: days.map(d => {
           const u = userDayMap[d.day];
-          return u ? methodDef.calc({ merged_session_minutes: u.agent_session_minutes || 0, merged_loc_added: u.agent_loc_added || 0 }, config) : null;
+          return u ? methodDef.calc({ agent_session_minutes: u.agent_session_minutes || 0, merged_loc_added: u.agent_loc_added || 0 }, config) : null;
         }),
         color: '#f78166',
         dashStyle: 'ShortDash',
@@ -652,7 +652,7 @@ function App() {
 
   const enterpriseOpts = {
     chart: { type: 'column', height: 220 },
-    title: { text: 'Enterprise-Wide Hours Saved per Day' },
+    title: { text: 'Enterprise-Wide Hours Spent per Day' },
     xAxis: { categories: xLabels, labels: { rotation: -45, style: { fontSize: '9px' } }, tickInterval: tickInt },
     yAxis: [
       { title: { text: null }, min: 0, labels: { format: '{value} hrs' } },
@@ -662,7 +662,7 @@ function App() {
     plotOptions: { column: { borderRadius: 2, opacity: 0.8 } },
     legend: { enabled: true },
     series: [
-      { name: 'Hours saved', type: 'column', data: days.map(d => Math.round(d['est_' + method + '_hrs'] || 0)), color: '#3fb950', yAxis: 0 },
+      { name: 'Hours spent', type: 'column', data: days.map(d => Math.round(d['est_' + method + '_hrs'] || 0)), color: '#58a6ff', yAxis: 0 },
       { name: 'Active devs', type: 'spline', data: days.map(d => d.active_devs || 0), color: '#58a6ff', yAxis: 1, dashStyle: 'ShortDot', marker: { radius: 2 }, lineWidth: 1.5 },
     ],
   };
@@ -853,14 +853,14 @@ function App() {
               </div>
               <div className="supporting-kpis">
                 <div className="sup-card">
-                  <div className="sup-label">Est. Hours Saved</div>
-                  <div className="sup-value" style={{ color: '#3fb950' }}>{fmtCompact(totalHrs)}</div>
+                  <div className="sup-label">Est. Hours Spent</div>
+                  <div className="sup-value" style={{ color: '#58a6ff' }}>{fmtCompact(totalHrs)}</div>
                   <div className="sup-sub">{methodDef.label} method</div>
                 </div>
                 <div className="sup-card">
                   <div className="sup-label">% of Total</div>
-                  <div className="sup-value" style={{ color: '#3fb950' }}>{fmtPct(pctSavedOfTotal)}</div>
-                  <div className="sup-sub">est. time saved ÷ total capacity</div>
+                  <div className="sup-value" style={{ color: '#58a6ff' }}>{fmtPct(pctSavedOfTotal)}</div>
+                  <div className="sup-sub">est. time spent ÷ total capacity</div>
                 </div>
                 <div className="sup-card">
                   <div className="sup-label">Agentic Active %</div>
@@ -903,11 +903,11 @@ function App() {
           </div>
 
           <div className="section">
-            <div className="section-head">How much time is agentic-AI saving the average user?</div>
-            <div className="section-desc">Estimated time savings per active agent user over the selected period</div>
+            <div className="section-head">How is Agent usage increasing?</div>
+            <div className="section-desc">Active agent users and time spent per developer over the selected period</div>
             <div className="hero-strip">
               <div className="hero-card primary">
-                <div className="hero-label">Hrs Saved / Active User / Day</div>
+                <div className="hero-label">Hrs Spent / Active User / Day</div>
                 <div className="hero-value" style={{ color: '#58a6ff' }}>{fmtDec(avgPerDev, 2)}</div>
                 <div className="hero-sub">{pctSavedOfCodingTime != null ? fmtPct(pctSavedOfCodingTime) + ' of coding time' : ''}</div>
                 <div className="hero-method">{methodDef.label} method</div>
