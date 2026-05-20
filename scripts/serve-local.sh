@@ -33,6 +33,22 @@ if [ -f "$CONFIG_SRC" ]; then
   echo "🔗 Refreshed dashboard-config.json → data/config.json"
 fi
 
+# Make shared framing sources available via data/
+link_shared_data() {
+  local source_file="$1"
+  local target_path="${SERVE_DIR}/data/${source_file}"
+  local source_path="${REPO_ROOT}/docs/improvement-areas/${source_file}"
+  if [ -f "$source_path" ]; then
+    mkdir -p "$(dirname "$target_path")"
+    rm -f "$target_path"
+    ln -s "$source_path" "$target_path"
+    echo "🔗 Refreshed data/${source_file}"
+  fi
+}
+
+link_shared_data "ai-assisted-coding.json"
+link_shared_data "agentic-ai-coding.json"
+
 echo "🌐 Serving dashboards from: $SERVE_DIR"
 echo "   http://127.0.0.1:${PORT}/"
 echo ""

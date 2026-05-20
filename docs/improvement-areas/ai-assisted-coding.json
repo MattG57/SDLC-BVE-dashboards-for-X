@@ -1,0 +1,100 @@
+{
+  "area": "AI-Assisted Coding",
+  "appliesTo": [
+    "dashboard/v4/ai-assisted-efficiency/",
+    "dashboard/v3/ai-assisted-structural/",
+    "dashboard/v2/ai-assisted-element/"
+  ],
+  "views": {
+    "element": {
+      "description": "Use this wording for element-of-leverage pages where completion means shipped output.",
+      "cards": {
+        "jobToBeDone": {
+          "kicker": "Job to Be Done",
+          "title": "Complete a Coding Task using Synchronous AI assistance",
+          "body": "Developers use GitHub Copilot to complete coding tasks within their editor and terminal."
+        },
+        "whatCountsAsCompletion": {
+          "kicker": "What Counts as a Completion",
+          "title": "A PR opened by a Copilot-active developer",
+          "body": "Valid = Developer opened a PR for review. Failed/flawed = PRs closed without merging are subtracted from valid completions."
+        },
+        "jobClass": {
+          "kicker": "Job Class",
+          "title": "Value-creating",
+          "body": "Valid completions create valuable work product."
+        }
+      }
+    },
+    "efficiency": {
+      "description": "Use this wording for efficiency pages where the task boundary is the coding task itself and the main question is how many saved dev-hours are implied relative to dev-hours invested.",
+      "cards": {
+        "jobToBeDone": {
+          "kicker": "Job to Be Done",
+          "title": "Complete a Coding Task using Synchronous AI assistance",
+          "body": "Developers use GitHub Copilot to complete coding tasks within their editor and terminal."
+        },
+        "whatCountsAsCompletion": {
+          "kicker": "What Counts as a Completion",
+          "title": "A PR opened by a Copilot-active developer",
+          "body": "Valid = Developer opened a PR for review. \nFailed/flawed = PRs closed without merging are subtracted from valid completions."
+        },
+        "jobClass": {
+          "kicker": "Job Class",
+          "title": "Value-creating",
+          "body": "Valid completions create valuable work product."
+        },
+        "howEfficiencyImproves": {
+          "kicker": "How Efficiency Improves",
+          "title": "Developers use GitHub Copilot to improve Coding results, or reduce Coding resource consumption.",
+          "body": "Efficiency can show up if a completion \n1) consumes fewer dev-hours, \n2) encounters less risk, \n3) is larger in size, scope, or difficulty, and/or \n4) consumes fewer dollars than otherwise would have been required without Copilot."
+        },
+        "estimatesAndAssumptions": {
+          "kicker": "Estimates and Assumptions",
+          "title": "Conversion factors allow activity, usage, and output to estimate saved dev-hours",
+          "body": "The hours spent is modeled as a stable percentage of Total Dev Capacity(reflecting a decision to keep dev capacity stable). \nThe hours saved is modeled based on 3 factors: \n1) Activity level of Copilot Usage, \n2) Lines of Code accepted from Copilot, \n3) Fixed productivity gain per dev-day of usage (reflecting the expected impact of improving average usage levels)."
+        },
+        "indicatorsOfProgress": {
+          "kicker": "Indicators of Progress",
+          "title": "The Average levels of copilot metrics correlate to efficiency gains",
+          "body": "Activity, lines of code accepted, and dev days of usage are used to estimate time savings. \nThese estimates reflect the magnitude of  efficiency gains and opportunity for improvement .\nWhen the modeled time savings based on these indicators agree, we have higher confidence in the time saved estimates."
+        }
+      }
+    },
+    "structural": {
+      "description": "Use this wording for pages whose purpose is to describe structural conditions, coverage, and consistency rather than saved-hour estimates.",
+      "cards": {
+        "jobToBeDone": {
+          "kicker": "Job to Be Done",
+          "title": "Expand the structural conditions for AI-assisted coding",
+          "body": "This view examines how broadly and consistently AI-assisted coding is present across developers, pull requests, and lines of code."
+        },
+        "whatCountsAsProgress": {
+          "kicker": "What Counts as Progress",
+          "title": "Broader and more consistent evidence of AI-assisted coding",
+          "body": "Progress appears as higher adoption, higher PR-assisted share, higher AI-assisted LoC share, and more stable day-to-day coverage across the observed population."
+        },
+        "jobClass": {
+          "kicker": "Job Class",
+          "title": "Structural",
+          "body": "Structural improvement does not directly create output by itself. It expands the conditions under which efficient work can occur across more developer-hours and more workflows."
+        },
+        "howStructuralImprovementImprovesOutcomes": {
+          "kicker": "How Structure Can Improve",
+          "title": "Higher number of devs, completions, and percentage of work improved all expand and ultimately limit realized benefit from efficiency gains.",
+          "body": "These are the structural factors that determine how broadly efficiency gains are realized across the organization."
+        },
+        "estimatesAndAssumptions": {
+          "kicker": "Estimates and Assumptions",
+          "title": "The value used for 100% is configured for % Adopted; other dimensions use measured values for 100%.",
+          "body": "These metrics are based on observed adoption, PR classification, and LoC classification. They are structural indicators, not labor-savings estimates."
+        },
+        "indicatorsOfProgress": {
+          "kicker": "Indicators of Progress",
+          "title": "Completeness metrics show the opportunity and progress for different structural dimensions.",
+          "body": "Structural progress can be viewed in terms of completeness across dimensions such as % Adoption, % Assisted PRs, % Assisted Lines of Code, etc."
+        }
+      }
+    }
+  }
+}

@@ -84,6 +84,17 @@ for entry in "${DASHBOARDS[@]}"; do
   fi
 done
 
+# ─── Copy shared framing sources into site data/ ───────────────────────────────
+FRAMING_DATA_DEST="${SITE_DIR}/data"
+mkdir -p "$FRAMING_DATA_DEST"
+for source_file in ai-assisted-coding.json agentic-ai-coding.json; do
+  src="${REPO_ROOT}/docs/improvement-areas/${source_file}"
+  if [[ -f "$src" ]]; then
+    cp "$src" "${FRAMING_DATA_DEST}/${source_file}"
+    echo "  ✔ data/${source_file}"
+  fi
+done
+
 # ─── Copy shared dashboard config into every dashboard's data/ ─────────────────
 CONFIG_SRC="${REPO_ROOT}/dashboard-config.json"
 if [[ -f "$CONFIG_SRC" ]]; then

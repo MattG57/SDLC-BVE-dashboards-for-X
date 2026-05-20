@@ -1,0 +1,64 @@
+{
+  "area": "Agentic AI Coding",
+  "appliesTo": [
+    "dashboard/v4/agentic-efficiency/",
+    "dashboard/v2/agentic-element/"
+  ],
+  "views": {
+    "element": {
+      "description": "Use this wording for element-of-leverage pages where completion means merged delegated output.",
+      "cards": {
+        "jobToBeDone": {
+          "kicker": "Job to Be Done",
+          "title": "Complete and Merge a Coding Task with Asynchronous use of an Agent",
+          "body": "Developers assign issues to Copilot, which creates pull requests. Humans review and merge."
+        },
+        "whatCountsAsCompletion": {
+          "kicker": "What Counts as a Completion",
+          "title": "A Copilot-authored PR that gets merged",
+          "body": "Valid = PR was reviewed and merged by a human reviewer. Failed/flawed = PR closed or abandoned without a merge."
+        },
+        "jobClass": {
+          "kicker": "Job Class",
+          "title": "Value-creating",
+          "body": "Valid completions represent an intentional valuable result."
+        }
+      }
+    },
+    "efficiency": {
+      "description": "Use this wording for efficiency pages where the question is how much human-equivalent value the coding agent creates relative to the hours and sessions engaged.",
+      "cards": {
+        "jobToBeDone": {
+          "kicker": "Job to Be Done",
+          "title": "Complete and Merge a Coding Task with Asynchronous use of an Agent",
+          "body": "Developers delegate implementation work to the coding agent, which creates pull requests that humans review, guide, and merge."
+        },
+        "whatCountsAsCompletion": {
+          "kicker": "What Counts as a Completion",
+          "title": "A Copilot-authored PR that gets merged",
+          "body": "Valid = PR was reviewed and merged by a human reviewer. Failed/flawed = PR closed or abandoned without a merge."
+        },
+        "jobClass": {
+          "kicker": "Job Class",
+          "title": "Value-creating",
+          "body": "Valid completions represent an intentional valuable result."
+        },
+        "howEfficiencyImproves": {
+          "kicker": "How Efficiency Improves",
+          "title": "Asynchronous GitHub Copilot Sessions complete Coding Tasks autonomously.",
+          "body": "Efficiency can show up if a completion 1) consumes fewer dev-hours, 2) encounters less risk, 3) is larger in size, scope, or difficulty, and/or 4) consumes fewer dollars than otherwise would have been required without Copilot."
+        },
+        "estimatesAndAssumptions": {
+          "kicker": "Estimates and Assumptions",
+          "title": "Conversion factors translate merged agent activity into saved dev-hours",
+          "body": "The hours spent is modeled as a percentage of Session Duration minutes and other Session Characteristics, which can be configured (reflecting an expectation that dev hours spent using Agents is growing as agent workload grows). Copilot Agent Session logs and statistics provide various measures of Agent session duration, costs, and failures."
+        },
+        "indicatorsOfProgress": {
+          "kicker": "Indicators of Progress",
+          "title": "Increases in Sessions per day and improving Session characteristics, like Yield, indicate that average AI benefits from Agent Usage are increasing.",
+          "body": "When the modeled time savings based on multiple indicators agree, we have increasing confidence in the calculated average Leverage."
+        }
+      }
+    }
+  }
+}

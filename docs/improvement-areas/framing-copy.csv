@@ -1,0 +1,33 @@
+﻿Area of Improvement,Element of Leverage Definition,,,,,,Efficiency View,,,,,
+,Job to Be Done,What Counts as a Completion,Job Class,Job to Be Done,What Counts as a Completion,Job Class,How Efficiency Improves,Estimates and Assumptions,Indicators of Progress,How Structure Can Improve,Estimates and Assumptions,Indicators of Progress
+AI Assisted Coding,Complete a Coding Task with Synchronous AI assistance,A PR opened by a Copilot-active developer | Valid = Developer Opened a PR for review. Failed/flawed = reverted PRs or PRs closed without merging.,Value-creating | Valid completions represent an intentional valuable result ,Complete a Coding Task with Synchronous AI assistance,A PR opened by a Copilot-active developer | Valid = Developer Opened a PR for review. Failed/flawed = reverted PRs or PRs closed without merging.,Value-creating | Valid completions represent an intentional valuable result ," Developers use GitHub Copilot to make Coding Tasks more valuable or consume fewer resources. | Efficiency can show up Efficiency can show up if a completion 
+ 1)  consumes  fewer dev-hours
+ 2)  encounters less risk, 
+3)   is larger  in size, scope, or difficulty, and/or
+ 4)  consumes fewer dollars
+...than otherwise would have been required without Copilot."," The hours spent is modeled as a fixed percentage of Total Dev Capacity, which can be configured.
+(this reflects a decision to keep dev capacity stable)
+The hours saved is modeled based on 3 factors:
+1) Activity level of Copilot Usage
+2) Lines of Code accepted from Copilot
+3) Fixed productivity gain per dev-day of usage
+(this reflects a decisio/expected impact of improving average usage levels)","Increases in average copilot activity, lines of code accepted, dev days of usage indicate that average AI benefits are increasing.
+(when the modeled time savings based on these indicators agree, then we have increasing confidence in the time saved measurement)","Higher number of devs
+Higher number of completions 
+Higher percentage of work improved
+all are structural factors that improve and ultimately limit  realized benefit from efficiency gains.","The value used for 100% is configured for % Adopted.
+Other dimensions use measured values for 100%","Completeness metrics are used to show  the opportunity and progress for different structural dimensions 
+Structural progress can be viewed in terms of ""completeness"" across dimensions such as % Adoption, %Assisted PRs, %Assisted Lines of Code, etc."
+Agentic AI Coding,Complete and Merge a Coding Task with Asynchronous use of an Agent ,An Copilot-authored PR that gets merged | Valid = PR was reviewed and was merged by a human reviewer. Failed/flawed = PR closed or abandoned without a merge.,Value-creating | Valid completions represent an intentional valuable result ,Complete and Merge a Coding Task with Asynchronous use of an Agent ,An Copilot-authored PR that gets merged | Valid = PR was reviewed and was merged by a human reviewer. Failed/flawed = PR closed or abandoned without a merge.,Value-creating | Valid completions represent an intentional valuable result ,"Asynchronous GitHub Copilot Sessions complete Coding Tasks autonomously. | Efficiency can show up if a completion 
+ 1)  consumes  fewer dev-hours
+ 2)  encounters less risk, 
+3)   is larger  in size, scope, or difficulty, and/or
+ 4)  consumes fewer dollars
+...than otherwise would have been required without Copilot.","The hours spent is modeled as a  percentage of Session Duration minutes and other Session Characteristics, which can be configured.
+(this reflects an expectation  that Dev hours spent using Agents is growing as agent workload is growing. )
+Copilot Agent Session logs and statistics provide various  measures of Agent session duration, 
+costs,and failures. )","Increases in Sessions per day, improving Session characteristics, like Yield,  indicate that average AI benefits from Agent Usage are increasing.
+(when the modeled time savings based on multiple indicators agree, then we have increasing confidence in the calculated average Leverage.)","Higher % of devs benefiting from Agents or higher % of Completions attributed to Agents, and growing structural improvements to Session Yield or Rfficiency.","The value used for 100% is configured for % Adopted.
+Other dimensions use measured values for 100%","Completeness metrics are used to show  the opportunity and progress for different structural dimensions 
+Structural progress can be viewed in terms of ""completeness"" across dimensions such as % Dev Adoption, %Agent-Assisted PRs, %Agent-Assisted Lines of Code, etc."
+,,,,,,,,,,,, 

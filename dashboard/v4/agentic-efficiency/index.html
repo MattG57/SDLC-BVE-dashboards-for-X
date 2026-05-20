@@ -77,6 +77,75 @@
   .dev-search { position: relative; }
   .dev-search input { width: 100%; }
   .dev-dropdown { position: absolute; top: 100%; left: 0; right: 0; z-index: 100; max-height: 200px; overflow: auto; }
+
+  .loaded-banner {
+    margin-bottom: 22px;
+    padding: 14px 18px;
+    border: 1px solid rgba(63,185,80,0.45);
+    border-radius: 8px;
+    background: rgba(35,134,54,0.16);
+    color: #e6edf3;
+    font-size: 13px;
+  }
+  .framing-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+    align-items: stretch;
+  }
+  @media (max-width: 1100px) { .framing-row { grid-template-columns: 1fr; } }
+  .framing-card {
+    border-top: 3px solid rgba(88,166,255,0.8);
+  }
+  .framing-label {
+    font-size: 11px;
+    color: #6e7681;
+    font-weight: 500;
+    margin-bottom: 10px;
+  }
+  .framing-title {
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--fgColor-default);
+  }
+  .framing-text {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--fgColor-muted);
+    margin-top: 14px;
+    white-space: pre-line;
+  }
+  .framing-flap {
+    margin-bottom: 16px;
+  }
+  .framing-flap-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    border: 1px solid var(--borderColor-default);
+    border-radius: 8px;
+    background: var(--bgColor-muted);
+    color: #58a6ff;
+    cursor: pointer;
+    font-size: 18px;
+    font-weight: 600;
+  }
+  .framing-flap-btn:hover {
+    background: var(--bgColor-accent-muted);
+  }
+  .framing-flap-chevron {
+    color: #58a6ff;
+    font-size: 16px;
+    line-height: 1;
+  }
+  .framing-flap-body {
+    padding-top: 12px;
+  }
 </style>
 </head>
 <body>
@@ -123,10 +192,30 @@ async function loadData() {
   return { efficiency: eff, sessions: sess, config: cfg };
 }
 
+async function loadFramingSource() {
+  const sourcePath = '../../data/agentic-ai-coding.json';
+  try {
+    const response = await fetch(sourcePath);
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    return await response.json();
+  } catch (error) {
+    throw new Error('Failed to load framing source: ' + sourcePath + ' (' + error.message + ')');
+  }
+}
+
 function safeDiv(a, b) { return b > 0 ? a / b : null; }
+
+function renderTemplate(text, replacements) {
+  let output = text;
+  Object.entries(replacements || {}).forEach(([key, value]) => {
+    output = output.split('{' + key + '}').join(value == null ? '—' : String(value));
+  });
+  return output;
+}
 
 const DEFAULT_CONFIG = {
   cfg_total_developers: 1100,
+  cfg_pct_time_coding: 0.25,
   cfg_baseline_hours_per_dev_per_week: 40,
   cfg_workdays_per_week: 5,
   cfg_labor_cost_per_hour: 100,
@@ -218,6 +307,29 @@ function Chart({ options, className }) {
   return <div ref={ref} className={className || 'chart-box'} />;
 }
 
+function FramingCard({ label, title, text }) {
+  return (
+    <div className="Box p-3 framing-card">
+      {label ? <div className="framing-label">{label}</div> : null}
+      <div className="framing-title">{title}</div>
+      <div className="framing-text">{text}</div>
+    </div>
+  );
+}
+
+function FramingFlap({ label, meta, children, defaultOpen = false }) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  return (
+    <div className="framing-flap">
+      <button type="button" className="framing-flap-btn" onClick={() => setIsOpen(!isOpen)} aria-expanded={isOpen}>
+        <span>{label}</span>
+        <span className="framing-flap-chevron">{isOpen ? '▾' : '▸'}</span>
+      </button>
+      {isOpen ? <div className="framing-flap-body">{children}</div> : null}
+    </div>
+  );
+}
+
 function SidePanel({ config, setConfig, method, setMethod, days, users, selectedUser, setSelectedUser, configSource }) {
   const methodDef = ESTIMATION_METHODS.find(m => m.key === method) || ESTIMATION_METHODS[0];
   const comparison = ESTIMATION_METHODS.map(m => {
@@ -270,6 +382,7 @@ function SidePanel({ config, setConfig, method, setMethod, days, users, selected
           <div className="sp-title">Organization</div>
           <div className="sp-input">
             <label>Total developers <input type="number" value={config.cfg_total_developers ?? ''} min="0" step="1" onChange={e => updateCfg('cfg_total_developers', parseFloat(e.target.value) || null)} /></label>
+            <label>% time coding <input type="number" value={config.cfg_pct_time_coding ?? 0.25} min="0" max="1" step="0.05" onChange={e => updateCfg('cfg_pct_time_coding', parseFloat(e.target.value) || 0.25)} /></label>
             <label>Labor cost $/hr <input type="number" value={config.cfg_labor_cost_per_hour ?? ''} min="0" step="1" onChange={e => updateCfg('cfg_labor_cost_per_hour', e.target.value ? parseFloat(e.target.value) : null)} /></label>
             <label>Workdays / week <input type="number" value={config.cfg_workdays_per_week ?? 5} min="1" max="7" step="1" onChange={e => updateCfg('cfg_workdays_per_week', parseFloat(e.target.value) || 5)} /></label>
             <label>Baseline hrs / week <input type="number" value={config.cfg_baseline_hours_per_dev_per_week ?? 40} min="1" step="1" onChange={e => updateCfg('cfg_baseline_hours_per_dev_per_week', parseFloat(e.target.value) || 40)} /></label>
@@ -339,6 +452,7 @@ function SidePanel({ config, setConfig, method, setMethod, days, users, selected
 
 function App() {
   const [loaded, setLoaded] = useState(null);
+  const [framing, setFraming] = useState(null);
   const [config, setConfig] = useState({ ...DEFAULT_CONFIG });
   const [configSource, setConfigSource] = useState(false);
   const [method, setMethod] = useState('duration');
@@ -351,9 +465,10 @@ function App() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [lookback, setLookback] = useState(28);
 
   useEffect(() => {
-    loadData().then(result => {
+    Promise.all([loadData(), loadFramingSource()]).then(([result, framingSource]) => {
       const mergedConfig = { ...DEFAULT_CONFIG, ...(result.config || {}) };
       setConfig(mergedConfig);
       setConfigSource(Boolean(result.config));
@@ -376,6 +491,7 @@ function App() {
         days: computeAll(baseDays, mergedConfig),
         devDays: eff._devDays || [],
       });
+      setFraming(framingSource);
       setLoading(false);
     }).catch(e => {
       console.error('Artifact load error:', e);
@@ -405,31 +521,44 @@ function App() {
       </div>
     );
   }
+  if (!framing?.views?.efficiency?.cards) return null;
 
-  const days = loaded.days;
+  const allBaseDays = loaded.baseDays;
+  const filteredBase = lookback != null ? allBaseDays.slice(-lookback) : allBaseDays;
+  const days = computeAll(filteredBase, config);
   const users = loaded.devDays;
   const sessions = loaded.sessions?.data || [];
   const effProfile = loaded.efficiency?.artifact?.profile || {};
   const sessionProfile = loaded.sessions?.artifact?.profile || {};
   const methodDef = ESTIMATION_METHODS.find(m => m.key === method) || ESTIMATION_METHODS[0];
+  const framingCards = framing.views.efficiency.cards;
   const n = days.length;
   const dateRange = n > 0 ? days[0].day + ' → ' + days[n - 1].day : '';
   const totalDevs = config.cfg_total_developers || 0;
+  const codingPct = config.cfg_pct_time_coding || 0.25;
   const baseHrsPerDay = (config.cfg_baseline_hours_per_dev_per_week || 40) / (config.cfg_workdays_per_week || 5);
-  const totalCapacity = totalDevs * baseHrsPerDay * n;
+  const totalCapacity = totalDevs * codingPct * baseHrsPerDay * n;
   const totalSessionHours = days.reduce((s, d) => s + ((d.agent_session_minutes || 0) / 60), 0);
   const totalHrs = days.reduce((s, d) => s + (d['est_' + method + '_hrs'] || 0), 0);
   const avgPerDev = (() => {
     const vals = days.map(d => d['est_' + method + '_per_dev']).filter(v => v != null);
     return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
   })();
+  const avgRequestsPerDev = (() => {
+    const vals = days.map(d => d.requests_per_dev).filter(v => v != null);
+    return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  })();
+  const avgMergedOutputPerDev = (() => {
+    const vals = days.map(d => d.prs_merged_per_dev).filter(v => v != null);
+    return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  })();
   const avgActiveDevs = n > 0 ? Math.round(days.reduce((s, d) => s + (d.active_devs || 0), 0) / n) : 0;
   const pctOfCapacityCovered = safeDiv(totalSessionHours, totalCapacity);
   const pctSavedOfTotal = safeDiv(totalHrs, totalCapacity);
-  const pctSavedPerActiveDev = safeDiv(avgPerDev, baseHrsPerDay);
+  const pctSavedOfCodingTime = avgPerDev != null && (baseHrsPerDay * codingPct) > 0 ? avgPerDev / (baseHrsPerDay * codingPct) : null;
   const orgHrsPerDay = safeDiv(totalHrs, n);
   const laborCost = config.cfg_labor_cost_per_hour != null ? totalHrs * config.cfg_labor_cost_per_hour : null;
-  const fteEquiv = safeDiv(totalHrs, baseHrsPerDay * n);
+  const laborCostPerDay = orgHrsPerDay != null && config.cfg_labor_cost_per_hour != null ? orgHrsPerDay * config.cfg_labor_cost_per_hour : null;
 
   const computedAt = loaded.efficiency?.artifact?.computed_at;
   const materializedAge = computedAt ? (() => {
@@ -455,24 +584,29 @@ function App() {
   const xLabels = days.map(d => d.day);
   const tickInt = Math.max(1, Math.floor(n / 12));
 
+  const totalDevHrs = totalDevs * baseHrsPerDay * n;
+  const nonCodingHrs = totalDevHrs - totalCapacity;
+  const hrsSavedForPie = totalHrs || 0;
+
   const capacityPieOpts = {
     chart: { type: 'pie', height: 280 },
     title: { text: 'Developer Hours in Period' },
-    subtitle: { text: fmtCompact(totalCapacity) + ' total hrs · ' + fmt(totalDevs) + ' devs × ' + n + ' days' },
+    subtitle: { text: fmtCompact(totalDevHrs) + ' total hrs · ' + fmt(totalDevs) + ' devs × ' + n + ' days' },
     tooltip: { pointFormat: '<b>{point.y:,.0f} hrs</b> ({point.percentage:.1f}%)' },
     plotOptions: { pie: { borderWidth: 0, dataLabels: { enabled: true, format: '<b>{point.name}</b>: {point.percentage:.1f}%', style: { color: '#e6edf3', fontSize: '11px', textOutline: 'none' } } } },
     series: [{
       name: 'Hours',
       data: [
-        { name: 'Agent session hours', y: Math.round(totalSessionHours), color: '#58a6ff' },
-        { name: 'Other developer hours', y: Math.max(0, Math.round(totalCapacity - totalSessionHours)), color: '#30363d' },
+        { name: 'Est. hours saved', y: Math.round(hrsSavedForPie), color: '#3fb950' },
+        { name: 'Coding', y: Math.max(0, Math.round(totalCapacity - hrsSavedForPie)), color: '#58a6ff' },
+        { name: 'Non-coding', y: Math.round(nonCodingHrs), color: '#30363d' },
       ],
     }],
   };
 
   const pctOfTotalOpts = {
     chart: { type: 'areaspline', height: 240 },
-    title: { text: 'Estimated Hours Saved as % of Total Developer Capacity' },
+    title: { text: 'Hours Saved as % of Total Coding Capacity' },
     subtitle: { text: methodDef.desc(config) },
     xAxis: { categories: xLabels, labels: { rotation: -45, style: { fontSize: '9px' } }, tickInterval: tickInt },
     yAxis: { title: { text: null }, min: 0, labels: { format: '{value}%' } },
@@ -481,9 +615,9 @@ function App() {
     series: [{
       name: '% of total capacity',
       data: days.map(d => {
-        const dailyCapacity = totalDevs * baseHrsPerDay;
+        const dailyCodingCapacity = totalDevs * codingPct * baseHrsPerDay;
         const saved = d['est_' + method + '_hrs'] || 0;
-        return dailyCapacity > 0 ? Math.round((saved / dailyCapacity) * 10000) / 100 : 0;
+        return dailyCodingCapacity > 0 ? Math.round((saved / dailyCodingCapacity) * 10000) / 100 : 0;
       }),
       color: '#3fb950',
       fillOpacity: 0.08,
@@ -493,7 +627,7 @@ function App() {
 
   const perDevOpts = {
     chart: { type: 'areaspline', height: 240 },
-    title: { text: 'Hours Saved per Active Agent User per Day' },
+    title: { text: 'Hours Saved per Active Developer per Day' },
     subtitle: { text: methodDef.desc(config) },
     xAxis: { categories: xLabels, labels: { rotation: -45, style: { fontSize: '9px' } }, tickInterval: tickInt },
     yAxis: { title: { text: null }, min: 0, labels: { format: '{value} hrs' } },
@@ -517,14 +651,20 @@ function App() {
   };
 
   const enterpriseOpts = {
-    chart: { type: 'column', height: 200 },
+    chart: { type: 'column', height: 220 },
     title: { text: 'Enterprise-Wide Hours Saved per Day' },
     xAxis: { categories: xLabels, labels: { rotation: -45, style: { fontSize: '9px' } }, tickInterval: tickInt },
-    yAxis: { title: { text: null }, min: 0, labels: { format: '{value} hrs' } },
-    tooltip: { valueDecimals: 0, valueSuffix: ' hrs' },
-    plotOptions: { column: { borderRadius: 2, color: '#3fb950', opacity: 0.8 } },
-    legend: { enabled: false },
-    series: [{ name: 'Enterprise total', data: days.map(d => Math.round(d['est_' + method + '_hrs'] || 0)) }],
+    yAxis: [
+      { title: { text: null }, min: 0, labels: { format: '{value} hrs' } },
+      { title: { text: null }, opposite: true, min: 0, labels: { format: '{value}' } },
+    ],
+    tooltip: { shared: true },
+    plotOptions: { column: { borderRadius: 2, opacity: 0.8 } },
+    legend: { enabled: true },
+    series: [
+      { name: 'Hours saved', type: 'column', data: days.map(d => Math.round(d['est_' + method + '_hrs'] || 0)), color: '#3fb950', yAxis: 0 },
+      { name: 'Active devs', type: 'spline', data: days.map(d => d.active_devs || 0), color: '#58a6ff', yAxis: 1, dashStyle: 'ShortDot', marker: { radius: 2 }, lineWidth: 1.5 },
+    ],
   };
 
   const activeDrivers = DRIVER_SERIES.filter(s => toggles[s.key] && days.some(d => (d[s.key] || 0) > 0));
@@ -621,6 +761,9 @@ function App() {
   const closedNoMerge = statusBreakdown.closed_no_merge ?? sessions.filter(s => !s.merged && (s.state || '').toLowerCase() === 'closed').length;
   const otherSessions = statusBreakdown.other ?? Math.max(0, attempts - completions - openSessions - closedNoMerge);
   const yieldRate = safeDiv(completions, attempts);
+  const uniqueDevs = effProfile.unique_people || new Set(users.map(u => u.developer)).size;
+  const devDayCount = effProfile.detail_row_count || users.length;
+  const loadedArtifacts = sessions.length ? 'agentic-efficiency-days + agentic-pr-sessions' : 'agentic-efficiency-days';
 
   const dqComparison = ESTIMATION_METHODS.map(m => {
     const field = 'est_' + m.key + '_per_dev';
@@ -640,16 +783,71 @@ function App() {
           </h1>
           <p className="f6 color-fg-muted mt-1">{dateRange} · {n} days · {fmt(avgActiveDevs)} avg active devs{materializedAge ? ' · materialized ' + materializedAge : ''}</p>
         </div>
+        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+          {[14, 28, 60, 90, null].map(v => (
+            <button key={String(v)} onClick={() => setLookback(v)}
+              style={{ padding: '3px 10px', borderRadius: '20px', border: '1px solid', fontSize: '12px', cursor: 'pointer',
+                background: lookback === v ? '#58a6ff' : 'transparent',
+                color: lookback === v ? '#0d1117' : 'var(--fgColor-muted)',
+                borderColor: lookback === v ? '#58a6ff' : 'var(--borderColor-default)' }}>
+              {v == null ? 'All' : v + 'd'}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="v3-layout">
         <div className="main-col">
+          <div className="loaded-banner">
+            ✅ Loaded <strong>{loadedArtifacts}</strong> · {n} days ({dateRange}) · {fmt(uniqueDevs)} developers · {fmt(devDayCount)} dev-days · {fmt(attempts)} PR sessions
+          </div>
+
+          <FramingFlap label="Job Scope">
+            <div className="framing-row">
+              <FramingCard
+                label={framingCards.jobToBeDone.kicker}
+                title={framingCards.jobToBeDone.title}
+                text={framingCards.jobToBeDone.body}
+              />
+              <FramingCard
+                label={framingCards.whatCountsAsCompletion.kicker}
+                title={framingCards.whatCountsAsCompletion.title}
+                text={framingCards.whatCountsAsCompletion.body}
+              />
+              <FramingCard
+                label={framingCards.jobClass.kicker}
+                title={framingCards.jobClass.title}
+                text={framingCards.jobClass.body}
+              />
+            </div>
+          </FramingFlap>
+
+          <FramingFlap label="Improvement Frame">
+            <div className="framing-row">
+              <FramingCard
+                label={framingCards.howEfficiencyImproves.kicker}
+                title={framingCards.howEfficiencyImproves.title}
+                text={framingCards.howEfficiencyImproves.body}
+              />
+              <FramingCard
+                label={framingCards.estimatesAndAssumptions.kicker}
+                title={framingCards.estimatesAndAssumptions.title}
+                text={framingCards.estimatesAndAssumptions.body}
+              />
+              <FramingCard
+                label={framingCards.indicatorsOfProgress.kicker}
+                title={framingCards.indicatorsOfProgress.title}
+                text={framingCards.indicatorsOfProgress.body}
+              />
+            </div>
+          </FramingFlap>
+
           <div className="section">
             <div className="section-head">How much developer time is engaged in agentic work?</div>
-            <div className="section-desc">Total enterprise work capacity: {fmt(totalDevs)} developers × {baseHrsPerDay.toFixed(0)}h workday over the selected period</div>
+            <div className="section-desc">Total enterprise coding capacity: {fmt(totalDevs)} developers × {fmtPct(codingPct)} coding time × {baseHrsPerDay.toFixed(0)}h workday</div>
             <div className="hero-strip">
               <div className="hero-card primary">
-                <div className="hero-label">Total Developer Capacity</div>
+                <div className="hero-label">Total Coding Capacity</div>
                 <div className="hero-value" style={{ color: 'var(--fgColor-default)' }}>{fmtCompact(totalCapacity)}<span style={{ fontSize: '0.5em', opacity: 0.6 }}> hrs</span></div>
                 <div className="hero-sub">{fmt(totalDevs)} devs × {n} days</div>
               </div>
@@ -705,13 +903,13 @@ function App() {
           </div>
 
           <div className="section">
-            <div className="section-head">How much time is the coding agent saving?</div>
-            <div className="section-desc">Estimated time savings from agent-assisted pull request work over the selected period</div>
+            <div className="section-head">How much time is agentic-AI saving the average user?</div>
+            <div className="section-desc">Estimated time savings per active agent user over the selected period</div>
             <div className="hero-strip">
               <div className="hero-card primary">
-                <div className="hero-label">Hours Saved / Dev / Day</div>
+                <div className="hero-label">Hrs Saved / Active User / Day</div>
                 <div className="hero-value" style={{ color: '#58a6ff' }}>{fmtDec(avgPerDev, 2)}</div>
-                <div className="hero-sub">{pctSavedPerActiveDev != null ? fmtPct(pctSavedPerActiveDev) + ' of ' + baseHrsPerDay.toFixed(0) + 'h workday' : ''}</div>
+                <div className="hero-sub">{pctSavedOfCodingTime != null ? fmtPct(pctSavedOfCodingTime) + ' of coding time' : ''}</div>
                 <div className="hero-method">{methodDef.label} method</div>
                 {userKPIs && (
                   <div className="user-inline">
@@ -725,20 +923,14 @@ function App() {
               </div>
               <div className="supporting-kpis">
                 <div className="sup-card">
-                  <div className="sup-label">Total Hours Saved</div>
-                  <div className="sup-value">{fmtCompact(totalHrs)}</div>
-                  <div className="sup-sub">across {n} days</div>
-                  {userKPIs && (
-                    <div className="user-inline">
-                      <div className="ui-val">{fmtDec(userKPIs.total, 1)}<span style={{ fontSize: '0.7em', opacity: 0.6 }}> hrs</span></div>
-                      <div className="ui-label">{userKPIs.activeDays} active days</div>
-                    </div>
-                  )}
-                </div>
-                <div className="sup-card">
-                  <div className="sup-label">All Devs Combined / Day</div>
+                  <div className="sup-label">All Active Users / Day</div>
                   <div className="sup-value">{fmtDec(orgHrsPerDay, 1)}<span style={{ fontSize: '0.7em', opacity: 0.6 }}> hrs</span></div>
                   <div className="sup-sub">sum across {fmt(avgActiveDevs)} active devs</div>
+                </div>
+                <div className="sup-card">
+                  <div className="sup-label">Economic Value / Day</div>
+                  <div className="sup-value" style={{ color: '#3fb950' }}>{fmtCurrency(laborCostPerDay)}</div>
+                  <div className="sup-sub">{config.cfg_labor_cost_per_hour != null ? '$' + config.cfg_labor_cost_per_hour + '/hr' : 'set in config'}</div>
                 </div>
                 <div className="sup-card">
                   <div className="sup-label">Economic Value ({n} days)</div>
@@ -750,11 +942,6 @@ function App() {
                       <div className="ui-label">{selectedUser}</div>
                     </div>
                   )}
-                </div>
-                <div className="sup-card">
-                  <div className="sup-label">Developer Equivalent</div>
-                  <div className="sup-value">{fmtDec(fteEquiv, 2)}</div>
-                  <div className="sup-sub">full-period developer equivalents</div>
                 </div>
               </div>
             </div>

@@ -64,6 +64,85 @@
   .pr-stat { text-align: center; padding: 8px; border-radius: 6px; border: 1px solid var(--borderColor-default); }
   .pr-stat .pr-val { font-size: 1.3rem; font-weight: 700; }
   .pr-stat .pr-lbl { font-size: 9px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--fgColor-muted); }
+
+  .loaded-banner {
+    margin-bottom: 22px;
+    padding: 14px 18px;
+    border: 1px solid rgba(63,185,80,0.45);
+    border-radius: 8px;
+    background: rgba(35,134,54,0.16);
+    color: #e6edf3;
+    font-size: 13px;
+  }
+  .framing-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  @media (max-width: 1100px) { .framing-row { grid-template-columns: 1fr; } }
+  .framing-card {
+    border-top: 3px solid rgba(88,166,255,0.8);
+    min-height: 172px;
+  }
+  .framing-kicker {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--fgColor-muted);
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .framing-title {
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--fgColor-default);
+  }
+  .framing-text {
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--fgColor-muted);
+    margin-top: 10px;
+  }
+  .framing-flap {
+    margin-bottom: 16px;
+  }
+  .framing-flap-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    border: 1px solid var(--borderColor-default);
+    border-radius: 8px;
+    background: var(--bgColor-muted);
+    color: var(--fgColor-default);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .framing-flap-btn:hover {
+    background: var(--bgColor-accent-muted);
+  }
+  .framing-flap-meta {
+    color: var(--fgColor-muted);
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: normal;
+  }
+  .framing-flap-chevron {
+    color: #58a6ff;
+    font-size: 14px;
+    line-height: 1;
+  }
+  .framing-flap-body {
+    padding-top: 12px;
+  }
 </style>
 </head>
 <body>
@@ -108,6 +187,17 @@ async function loadConfig() {
   return null;
 }
 
+async function loadFramingSource() {
+  var sourcePath = '../../data/ai-assisted-coding.json';
+  try {
+    var response = await fetch(sourcePath);
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    return await response.json();
+  } catch (error) {
+    throw new Error('Failed to load framing source: ' + sourcePath + ' (' + error.message + ')');
+  }
+}
+
 function safeDiv(a, b) { return b > 0 ? a / b : null; }
 function mean(arr) { var v = arr.filter(x => x != null); return v.length ? v.reduce((a,b) => a+b,0)/v.length : null; }
 function median(arr) { var s = arr.filter(x => x != null).sort((a,b) => a-b); if (!s.length) return null; var m = Math.floor(s.length/2); return s.length%2 ? s[m] : (s[m-1]+s[m])/2; }
@@ -126,6 +216,29 @@ function Chart({ options, className }) {
   }, [JSON.stringify(options)]);
   useEffect(() => () => { if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; } }, []);
   return <div ref={ref} className={className || 'chart-box'} />;
+}
+
+function FramingCard({ kicker, title, text }) {
+  return (
+    <div className="Box p-3 framing-card">
+      <div className="framing-kicker">{kicker}</div>
+      <div className="framing-title">{title}</div>
+      <div className="framing-text">{text}</div>
+    </div>
+  );
+}
+
+function FramingFlap({ label, meta, children, defaultOpen = false }) {
+  var [isOpen, setIsOpen] = useState(defaultOpen);
+  return (
+    <div className="framing-flap">
+      <button type="button" className="framing-flap-btn" onClick={() => setIsOpen(!isOpen)} aria-expanded={isOpen}>
+        <span>{label}{meta ? <span className="framing-flap-meta"> · {meta}</span> : null}</span>
+        <span className="framing-flap-chevron">{isOpen ? '▾' : '▸'}</span>
+      </button>
+      {isOpen ? <div className="framing-flap-body">{children}</div> : null}
+    </div>
+  );
 }
 
 function trendDirection(arr) {
@@ -252,6 +365,7 @@ function SidePanel({ config, setConfig, days, artifact, selectedUser, setSelecte
 function App() {
   var [days, setDays] = useState(null);
   var [artifact, setArtifact] = useState(null);
+  var [framing, setFraming] = useState(null);
   var [config, setConfig] = useState({ cfg_total_developers: 100, cfg_pr_assist_lookback_days: 3 });
   var [selectedUser, setSelectedUser] = useState(null);
   var [showPrTable, setShowPrTable] = useState(false);
@@ -259,7 +373,7 @@ function App() {
   var [error, setError] = useState(null);
 
   useEffect(() => {
-    Promise.all([loadData(), loadConfig()]).then(([art, cfg]) => {
+    Promise.all([loadData(), loadConfig(), loadFramingSource()]).then(([art, cfg, framingSource]) => {
       if (!art || !art.data || !art.data.length) { setError('Artifact not found. Run: ./scripts/collect-and-materialize.sh'); setLoading(false); return; }
       var merged = { cfg_total_developers: 100, cfg_pr_assist_lookback_days: 3, ...(cfg||{}) };
       if (!cfg?.cfg_total_developers) {
@@ -268,6 +382,7 @@ function App() {
       }
       setConfig(merged);
       setArtifact(art);
+      setFraming(framingSource);
       setDays(art.data.sort((a,b) => a.day.localeCompare(b.day)));
       setLoading(false);
     }).catch(e => { setError('Load failed: '+e.message); setLoading(false); });
@@ -275,9 +390,10 @@ function App() {
 
   if (loading) return <div className="v3-page"><h1 className="f1">How deeply is Copilot embedded?</h1><div className="Box p-4 text-center color-fg-muted">Loading…</div></div>;
   if (error) return <div className="v3-page"><h1 className="f1">How deeply is Copilot embedded?</h1><div className="flash flash-warn">{error}</div></div>;
-  if (!days) return null;
+  if (!days || !framing?.views?.structural?.cards) return null;
 
   var n = days.length;
+  var framingCards = framing.views.structural.cards;
   var avgAdoption = mean(days.map(d => d.adopted_individuals_pct));
   var prAssistPct = artifact._periodPrsAssistedPct;
   var locAssistPct = artifact._periodLocAssistedPct;
@@ -355,6 +471,50 @@ function App() {
 
       <div className="v3-layout">
         <div className="main-col">
+
+          <div className="loaded-banner">
+            ✅ Loaded <strong>ai-assisted-structural-days</strong> · {n} enterprise days ({dateRange}) · {fmt(profile.unique_people)} developers · {fmt(totalPrs)} PR records
+          </div>
+
+          <FramingFlap label="Definition framing" meta="job, progress, class">
+            <div className="framing-row">
+              <FramingCard
+                kicker={framingCards.jobToBeDone.kicker}
+                title={framingCards.jobToBeDone.title}
+                text={framingCards.jobToBeDone.body}
+              />
+              <FramingCard
+                kicker={framingCards.whatCountsAsProgress.kicker}
+                title={framingCards.whatCountsAsProgress.title}
+                text={framingCards.whatCountsAsProgress.body}
+              />
+              <FramingCard
+                kicker={framingCards.jobClass.kicker}
+                title={framingCards.jobClass.title}
+                text={framingCards.jobClass.body}
+              />
+            </div>
+          </FramingFlap>
+
+          <FramingFlap label="Interpretation framing" meta="outcomes, assumptions, indicators">
+            <div className="framing-row">
+              <FramingCard
+                kicker={framingCards.howStructuralImprovementImprovesOutcomes.kicker}
+                title={framingCards.howStructuralImprovementImprovesOutcomes.title}
+                text={framingCards.howStructuralImprovementImprovesOutcomes.body}
+              />
+              <FramingCard
+                kicker={framingCards.estimatesAndAssumptions.kicker}
+                title={framingCards.estimatesAndAssumptions.title}
+                text={framingCards.estimatesAndAssumptions.body}
+              />
+              <FramingCard
+                kicker={framingCards.indicatorsOfProgress.kicker}
+                title={framingCards.indicatorsOfProgress.title}
+                text={framingCards.indicatorsOfProgress.bodyPattern}
+              />
+            </div>
+          </FramingFlap>
 
           {/* Hero strip */}
           <div className="hero-strip">

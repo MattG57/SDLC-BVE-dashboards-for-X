@@ -1,6 +1,6 @@
 # Improvement Area Card Text Sources
 
-These documents are the source markdown references for framing-card copy by improvement area.
+These JSON documents are the single source of truth for framing-card copy by improvement area.
 
 Use them when:
 
@@ -12,6 +12,5 @@ Update these docs before or alongside dashboard copy changes so the wording stay
 
 ## Areas
 
-- [AI-Assisted Coding](ai-assisted-coding.md)
-- [Agentic AI Coding](agentic-ai-coding.md)
-
+- [AI-Assisted Coding](ai-assisted-coding.json)
+- [Agentic AI Coding](agentic-ai-coding.json)

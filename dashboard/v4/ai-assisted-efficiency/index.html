@@ -95,6 +95,76 @@
   .dev-search { position: relative; }
   .dev-search input { width: 100%; }
   .dev-dropdown { position: absolute; top: 100%; left: 0; right: 0; z-index: 100; max-height: 200px; overflow: auto; }
+
+  /* ── Page framing ── */
+  .loaded-banner {
+    margin-bottom: 22px;
+    padding: 14px 18px;
+    border: 1px solid rgba(63,185,80,0.45);
+    border-radius: 8px;
+    background: rgba(35,134,54,0.16);
+    color: #e6edf3;
+    font-size: 13px;
+  }
+  .framing-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+    align-items: stretch;
+  }
+  @media (max-width: 1100px) { .framing-row { grid-template-columns: 1fr; } }
+  .framing-card {
+    border-top: 3px solid rgba(88,166,255,0.8);
+  }
+  .framing-label {
+    font-size: 11px;
+    color: #6e7681;
+    font-weight: 500;
+    margin-bottom: 10px;
+  }
+  .framing-title {
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--fgColor-default);
+  }
+  .framing-text {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--fgColor-muted);
+    margin-top: 14px;
+    white-space: pre-line;
+  }
+  .framing-flap {
+    margin-bottom: 16px;
+  }
+  .framing-flap-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    border: 1px solid var(--borderColor-default);
+    border-radius: 8px;
+    background: var(--bgColor-muted);
+    color: #58a6ff;
+    cursor: pointer;
+    font-size: 18px;
+    font-weight: 600;
+  }
+  .framing-flap-btn:hover {
+    background: var(--bgColor-accent-muted);
+  }
+  .framing-flap-chevron {
+    color: #58a6ff;
+    font-size: 16px;
+    line-height: 1;
+  }
+  .framing-flap-body {
+    padding-top: 12px;
+  }
 </style>
 </head>
 <body>
@@ -145,7 +215,26 @@ async function loadData() {
   return { artifact: art, structural: structArt, config: cfg, manifest };
 }
 
+async function loadFramingSource() {
+  const sourcePath = '../../data/ai-assisted-coding.json';
+  try {
+    const response = await fetch(sourcePath);
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    return await response.json();
+  } catch (error) {
+    throw new Error('Failed to load framing source: ' + sourcePath + ' (' + error.message + ')');
+  }
+}
+
 function safeDiv(a, b) { return b > 0 ? a / b : null; }
+
+function renderTemplate(text, replacements) {
+  let output = text;
+  Object.entries(replacements || {}).forEach(([key, value]) => {
+    output = output.split('{' + key + '}').join(value == null ? '—' : String(value));
+  });
+  return output;
+}
 
 const DEFAULT_CONFIG = {
   cfg_total_developers: 100,
@@ -363,24 +452,49 @@ const DRIVER_SERIES = [
   { key: 'cli_prompt_count', perDev: 'cli_prompts_per_active_dev', label: 'CLI Prompts', color: '#79c0ff', scale: 1 },
 ];
 
+function FramingCard({ label, title, text }) {
+  return (
+    <div className="Box p-3 framing-card">
+      {label ? <div className="framing-label">{label}</div> : null}
+      <div className="framing-title">{title}</div>
+      <div className="framing-text">{text}</div>
+    </div>
+  );
+}
+
+function FramingFlap({ label, meta, children, defaultOpen = false }) {
+  var [isOpen, setIsOpen] = useState(defaultOpen);
+  return (
+    <div className="framing-flap">
+      <button type="button" className="framing-flap-btn" onClick={() => setIsOpen(!isOpen)} aria-expanded={isOpen}>
+        <span>{label}</span>
+        <span className="framing-flap-chevron">{isOpen ? '▾' : '▸'}</span>
+      </button>
+      {isOpen ? <div className="framing-flap-body">{children}</div> : null}
+    </div>
+  );
+}
+
 function App() {
   var [days, setDays] = useState(null);
   var [baseDays, setBaseDays] = useState(null);
   var [users, setUsers] = useState([]);
   var [artifact, setArtifact] = useState(null);
   var [prData, setPrData] = useState(null);
+  var [framing, setFraming] = useState(null);
   var [config, setConfig] = useState({...DEFAULT_CONFIG});
   var [configSource, setConfigSource] = useState(null);
   var [method, setMethod] = useState('interactions');
   var [selectedUser, setSelectedUser] = useState(null);
   var [loading, setLoading] = useState(true);
   var [error, setError] = useState(null);
+  var [lookback, setLookback] = useState(28);
   var [viewMode, setViewMode] = useState('combined');
   var [toggles, setToggles] = useState(() => { var t = {}; DRIVER_SERIES.forEach(s => t[s.key] = true); return t; });
 
   // Load data
   useEffect(() => {
-    loadData().then(({ artifact: art, structural, config: cfg }) => {
+    Promise.all([loadData(), loadFramingSource()]).then(([{ artifact: art, structural, config: cfg }, framingSource]) => {
       if (!art || !art.data || !art.data.length) {
         setError('Materialized artifact not found or empty. Run: ./scripts/collect-and-materialize.sh');
         setLoading(false);
@@ -391,6 +505,7 @@ function App() {
       if (cfg) setConfigSource(cfg);
       setArtifact(art);
       if (structural && structural._prPeriod) setPrData(structural._prPeriod);
+      setFraming(framingSource);
       var sorted = art.data.sort((a,b) => a.day.localeCompare(b.day));
       setBaseDays(sorted);
       setUsers(art._users || []);
@@ -399,18 +514,19 @@ function App() {
     }).catch(e => { setError('Load failed: ' + e.message); setLoading(false); });
   }, []);
 
-  // Reactive recompute when config or method changes
+  // Reactive recompute when config or lookback changes
   useEffect(() => {
-    if (baseDays) setDays(computeAll(baseDays, config));
-  }, [config, baseDays]);
+    if (baseDays) setDays(computeAll(lookback != null ? baseDays.slice(-lookback) : baseDays, config));
+  }, [config, baseDays, lookback]);
 
   if (loading) return <div className="v3-page"><h1 className="f1 color-fg-default">AI Assisted Coding — Efficiency</h1><div className="Box p-4 text-center color-fg-muted">Loading…</div></div>;
   if (error) return <div className="v3-page"><h1 className="f1 color-fg-default">AI Assisted Coding — Efficiency</h1><div className="flash flash-warn">{error}</div></div>;
-  if (!days) return null;
+  if (!days || !framing?.views?.efficiency?.cards) return null;
 
   var n = days.length;
   var methodDef = ESTIMATION_METHODS.find(m => m.key === method) || ESTIMATION_METHODS[0];
   var needsCfg = methodDef.needsConfig && methodDef.needsConfig(config);
+  var framingCards = framing.views.efficiency.cards;
 
   // ── KPIs ──
   var totalHrs = needsCfg ? null : days.reduce((s,d) => s + (d['est_'+method+'_hrs']||0), 0);
@@ -421,7 +537,6 @@ function App() {
   var orgHrsPerDay = totalHrs != null ? totalHrs / n : null;
   var baseHrsPerDay = (config.cfg_baseline_hours_per_dev_per_week || 40) / (config.cfg_workdays_per_week || 5);
   var pctSaved = avgPerDev != null ? avgPerDev / baseHrsPerDay : null;
-  var fteEquiv = totalHrs != null ? totalHrs / (8 * n) : null;
   var dateRange = n > 0 ? days[0].day + ' → ' + days[n-1].day : '';
 
   // ── User overlay ──
@@ -465,7 +580,7 @@ function App() {
     ],
   } : {
     chart: { type: 'areaspline', height: 240 },
-    title: { text: 'Hours Saved per Developer per Day' },
+    title: { text: 'Hours Saved per Active Developer per Day' },
     subtitle: { text: methodDef.desc(config) },
     xAxis: { categories: xLabels, labels: { rotation: -45, style: { fontSize: '9px' } }, tickInterval: tickInt },
     yAxis: { title: { text: null }, min: 0, labels: { format: '{value} hrs' } },
@@ -479,15 +594,19 @@ function App() {
 
   // For Manual %, skip the separate enterprise chart (already shown above with DAU)
   var enterpriseOpts = isManual ? null : {
-    chart: { type: 'column', height: 200 },
+    chart: { type: 'column', height: 220 },
     title: { text: 'Enterprise-Wide Hours Saved per Day' },
     xAxis: { categories: xLabels, labels: { rotation: -45, style: { fontSize: '9px' } }, tickInterval: tickInt },
-    yAxis: { title: { text: null }, min: 0, labels: { format: '{value} hrs' } },
-    tooltip: { valueDecimals: 0, valueSuffix: ' hrs' },
-    plotOptions: { column: { borderRadius: 2, color: '#3fb950', opacity: 0.8 } },
-    legend: { enabled: false },
+    yAxis: [
+      { title: { text: null }, min: 0, labels: { format: '{value} hrs' } },
+      { title: { text: null }, opposite: true, min: 0, labels: { format: '{value}' } },
+    ],
+    tooltip: { shared: true },
+    plotOptions: { column: { borderRadius: 2, opacity: 0.8 } },
+    legend: { enabled: true },
     series: [
-      { name: 'Enterprise total', data: days.map(d => Math.round(d['est_'+method+'_hrs']||0)) },
+      { name: 'Hours saved', type: 'column', data: days.map(d => Math.round(d['est_'+method+'_hrs']||0)), color: '#3fb950', yAxis: 0 },
+      { name: 'Active devs', type: 'spline', data: days.map(d => d.daily_active_users||0), color: '#58a6ff', yAxis: 1, dashStyle: 'ShortDot', marker: { radius: 2 }, lineWidth: 1.5 },
     ],
   };
 
@@ -500,7 +619,8 @@ function App() {
   var totalDevDays = days.reduce((s,d) => s + (d.daily_active_users||0), 0);
   var copilotCodingHrs = totalDevDays * codingHrsPerDev;
   var pctOfCapacityCovered = copilotCodingHrs / totalCodingCapacity;
-  var pctOfCodingSaved = totalHrs != null && copilotCodingHrs > 0 ? totalHrs / copilotCodingHrs : null;
+  var pctSavedOfCodingTime = avgPerDev != null && codingHrsPerDev > 0 ? avgPerDev / codingHrsPerDev : null;
+  var laborCostPerDay = orgHrsPerDay != null && config.cfg_labor_cost_per_hour != null ? orgHrsPerDay * config.cfg_labor_cost_per_hour : null;
 
   // ── Capacity chart — total org capacity vs Copilot-assisted subset ──
   var totalDevHrs = totalDevs * baseHrsPerDay * n;
@@ -595,6 +715,16 @@ function App() {
   var userDedup = profile.user_dedup;
   var profileDateRange = profile.date_range || {};
   var requestedDays = profileDateRange.days_with_data || n;
+  var totalGenerations = sum('code_generation_activity_count');
+  var totalAcceptances = sum('code_acceptance_activity_count');
+  var acceptanceRate = safeDiv(totalAcceptances, totalGenerations);
+  var totalInteractions = sum('user_initiated_interaction_count');
+  var totalLocAdded = sum('loc_added_sum');
+  var assistedCompletions = prData?.assisted_prs || 0;
+  var totalCompletions = prData?.total_prs || 0;
+  var assistedCompletionRate = safeDiv(assistedCompletions, totalCompletions);
+  var loadedArtifacts = prData ? 'ai-assisted-efficiency-days + ai-assisted-structural-days' : 'ai-assisted-efficiency-days';
+  var rangeText = n > 0 ? `${days[0].day} → ${days[n-1].day}` : '—';
 
   // Method comparison for DQ panel
   var dqComparison = ESTIMATION_METHODS.map(m => {
@@ -618,15 +748,70 @@ function App() {
           </h1>
           <p className="f6 color-fg-muted mt-1">{dateRange} · {n} days · {fmt(avgDau)} avg active devs{artifact?.artifact?.computed_at ? ' · materialized ' + (() => { var h = (Date.now()-new Date(artifact.artifact.computed_at).getTime())/3600000; return h < 24 ? Math.floor(h)+'h ago' : Math.floor(h/24)+'d ago'; })() : ''}</p>
         </div>
+        <div style={{display:'flex',gap:'4px',alignItems:'center'}}>
+          {[14,28,60,90,null].map(v => (
+            <button key={String(v)} onClick={() => setLookback(v)}
+              style={{padding:'3px 10px',borderRadius:'20px',border:'1px solid',fontSize:'12px',cursor:'pointer',
+                background: lookback===v ? '#58a6ff' : 'transparent',
+                color: lookback===v ? '#0d1117' : 'var(--fgColor-muted)',
+                borderColor: lookback===v ? '#58a6ff' : 'var(--borderColor-default)'}}>
+              {v == null ? 'All' : v+'d'}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="v3-layout">
         {/* ══════════ MAIN COLUMN ══════════ */}
         <div className="main-col">
 
+          <div className="loaded-banner">
+            ✅ Loaded <strong>{loadedArtifacts}</strong> · {n} enterprise days ({rangeText}) · {fmt(uniqueUsers)} users · {fmt(userDayCount)} user-day records{prData ? ` · ${fmt(totalCompletions)} merged PRs` : ''}
+          </div>
+
+          <FramingFlap label="Job Scope">
+            <div className="framing-row">
+              <FramingCard
+                label={framingCards.jobToBeDone.kicker}
+                title={framingCards.jobToBeDone.title}
+                text={framingCards.jobToBeDone.body}
+              />
+              <FramingCard
+                label={framingCards.whatCountsAsCompletion.kicker}
+                title={framingCards.whatCountsAsCompletion.title}
+                text={framingCards.whatCountsAsCompletion.body}
+              />
+              <FramingCard
+                label={framingCards.jobClass.kicker}
+                title={framingCards.jobClass.title}
+                text={framingCards.jobClass.body}
+              />
+            </div>
+          </FramingFlap>
+
+          <FramingFlap label="Improvement Frame">
+            <div className="framing-row">
+              <FramingCard
+                label={framingCards.howEfficiencyImproves.kicker}
+                title={framingCards.howEfficiencyImproves.title}
+                text={framingCards.howEfficiencyImproves.body}
+              />
+              <FramingCard
+                label={framingCards.estimatesAndAssumptions.kicker}
+                title={framingCards.estimatesAndAssumptions.title}
+                text={framingCards.estimatesAndAssumptions.body}
+              />
+              <FramingCard
+                label={framingCards.indicatorsOfProgress.kicker}
+                title={framingCards.indicatorsOfProgress.title}
+                text={framingCards.indicatorsOfProgress.body}
+              />
+            </div>
+          </FramingFlap>
+
           {/* ═══ SECTION 1: CAPACITY BASELINE ═══ */}
           <div className="section">
-            <div className="section-head">How much human time is spent coding?</div>
+            <div className="section-head">How much developer time is spent coding?</div>
             <div className="section-desc">Total enterprise coding capacity: {fmt(totalDevs)} developers × {fmtPct(codingPct)} coding time × {baseHrsPerDay.toFixed(0)}h workday</div>
             <div className="hero-strip">
               <div className="hero-card primary">
@@ -658,45 +843,44 @@ function App() {
             </div>
           </div>
 
-          {/* ═══ SECTION 2: ATTEMPTS & COMPLETIONS ═══ */}
+          {/* ═══ SECTION 2: OBSERVED PR OUTPUT ═══ */}
           <div className="section">
             <div className="section-head">Attempts and completions</div>
-            <div className="section-desc">Copilot-assisted PRs opened in the period — a PR is "assisted" if its author used Copilot within 3 days before opening it.</div>
+            <div className="section-desc">Pull requests in the period — attempts are PRs opened, completions are Copilot-assisted PRs opened.</div>
             {prData ? (() => {
-              var totalPrs = prData.total_prs || 0;
-              var assistedPrs = prData.assisted_prs || 0;
               return (
                 <div className="d-flex flex-wrap" style={{gap:'12px'}}>
                   <div className="sup-card" style={{flex:'1 1 140px'}}>
                     <div className="sup-label">Attempts</div>
-                    <div className="sup-value">{fmt(assistedPrs)}</div>
-                    <div className="sup-sub">Copilot-assisted PRs</div>
+                    <div className="sup-value">{fmt(totalCompletions)}</div>
+                    <div className="sup-sub">PRs opened</div>
                   </div>
                   <div className="sup-card" style={{flex:'1 1 140px'}}>
                     <div className="sup-label">Completions</div>
-                    <div className="sup-value">{fmt(assistedPrs)}</div>
-                    <div className="sup-sub">Copilot-assisted PRs</div>
+                    <div className="sup-value">{fmt(assistedCompletions)}</div>
+                    <div className="sup-sub">assisted PRs opened</div>
                   </div>
                   <div className="sup-card" style={{flex:'1 1 140px'}}>
                     <div className="sup-label">Yield</div>
-                    <div className="sup-value" style={{color:'#3fb950'}}>100%</div>
+                    <div className="sup-value" style={{color:'#3fb950'}}>{fmtPct(assistedCompletionRate)}</div>
+                    <div className="sup-sub">completions ÷ attempts</div>
                   </div>
                 </div>
               );
             })() : (
               <div className="d-flex flex-wrap" style={{gap:'12px'}}>
                 <div className="sup-card" style={{flex:'1 1 140px'}}>
-                  <div className="sup-label">Total PRs Merged</div>
+                  <div className="sup-label">Attempts</div>
                   <div className="sup-value color-fg-muted">—</div>
                   <div className="sup-sub">structural artifact not loaded</div>
                 </div>
                 <div className="sup-card" style={{flex:'1 1 140px'}}>
-                  <div className="sup-label">Copilot-Assisted PRs</div>
+                  <div className="sup-label">Completions</div>
                   <div className="sup-value color-fg-muted">—</div>
                   <div className="sup-sub">—</div>
                 </div>
                 <div className="sup-card" style={{flex:'1 1 140px'}}>
-                  <div className="sup-label">Assisted %</div>
+                  <div className="sup-label">Yield</div>
                   <div className="sup-value color-fg-muted">—</div>
                   <div className="sup-sub">—</div>
                 </div>
@@ -711,13 +895,13 @@ function App() {
             </div>
           ) : (
             <div className="section">
-              <div className="section-head">How much time is Copilot saving?</div>
-              <div className="section-desc">Estimated time savings from widening Copilot adoption across the developer population</div>
+            <div className="section-head">How much time is AI-assistance saving the average user?</div>
+              <div className="section-desc">Estimated time savings per active Copilot user over the selected period</div>
               <div className="hero-strip">
                 <div className="hero-card primary">
-                  <div className="hero-label">Hours Saved / Dev / Day</div>
+                  <div className="hero-label">Hrs Saved / Active User / Day</div>
                   <div className="hero-value" style={{color:'#58a6ff'}}>{fmtDec(avgPerDev, 2)}</div>
-                  <div className="hero-sub">{pctOfCodingSaved != null ? fmtPct(pctOfCodingSaved) + ' of Copilot-assisted coding time' : ''}</div>
+                  <div className="hero-sub">{pctSavedOfCodingTime != null ? fmtPct(pctSavedOfCodingTime) + ' of coding time' : ''}</div>
                   <div className="hero-method">{methodDef.label} method</div>
                   {userKPIs && (
                     <div className="user-inline">
@@ -731,20 +915,14 @@ function App() {
                 </div>
                 <div className="supporting-kpis">
                   <div className="sup-card">
-                    <div className="sup-label">Total Hours Saved</div>
-                    <div className="sup-value">{fmtCompact(totalHrs)}</div>
-                    <div className="sup-sub">across {n} days</div>
-                    {userKPIs && (
-                      <div className="user-inline">
-                        <div className="ui-val">{fmtDec(userKPIs.total, 1)}<span style={{fontSize:'0.7em',opacity:0.6}}> hrs</span></div>
-                        <div className="ui-label">{userKPIs.activeDays} active days</div>
-                      </div>
-                    )}
+                    <div className="sup-label">All Active Users / Day</div>
+                    <div className="sup-value">{fmtDec(orgHrsPerDay, 1)}<span style={{fontSize:'0.7em',opacity:0.6}}> hrs</span></div>
+                    <div className="sup-sub">sum across {fmt(avgDau)} active devs</div>
                   </div>
                   <div className="sup-card">
-                    <div className="sup-label">All Devs Combined / Day</div>
-                    <div className="sup-value">{fmtDec(orgHrsPerDay, 0)}<span style={{fontSize:'0.7em',opacity:0.6}}> hrs</span></div>
-                    <div className="sup-sub">sum across {fmt(avgDau)} active devs</div>
+                    <div className="sup-label">Economic Value / Day</div>
+                    <div className="sup-value" style={{color:'#3fb950'}}>{fmtCurrency(laborCostPerDay)}</div>
+                    <div className="sup-sub">{config.cfg_labor_cost_per_hour != null ? '$'+config.cfg_labor_cost_per_hour+'/hr' : 'set in config'}</div>
                   </div>
                   <div className="sup-card">
                     <div className="sup-label">Economic Value ({n} days)</div>
@@ -769,9 +947,9 @@ function App() {
           {/* ═══ DRIVERS ═══ */}
           <div className="section">
             <div className="d-flex flex-items-center flex-justify-between mb-1">
-              <div>
-                <div className="section-head">Trend of Copilot usage over the period ({n} days)</div>
-                <div className="section-desc">Daily activity metrics of the average Copilot user that make efficiency gains possible</div>
+                <div>
+                <div className="section-head">Trend of Copilot-assisted activity over the period ({n} days)</div>
+                <div className="section-desc">Daily activity metrics for the average Copilot-active developer that help explain changes in average efficiency</div>
               </div>
               <div className="view-toggle">
                 <button className={viewMode==='combined'?'active':''} onClick={() => setViewMode('combined')}>Combined</button>
