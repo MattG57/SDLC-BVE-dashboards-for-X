@@ -237,6 +237,8 @@ function renderTemplate(text, replacements) {
 }
 
 const DEFAULT_CONFIG = {
+  // Fallback values — overridden by data/config.json (from dashboard-config.json) at runtime.
+  // If config.json is missing, these fallbacks are used and a warning is shown.
   cfg_total_developers: 100,
   cfg_pct_time_coding: 0.5,
   cfg_time_saved_pct_day: 0.38,
@@ -528,6 +530,12 @@ function App() {
   var needsCfg = methodDef.needsConfig && methodDef.needsConfig(config);
   var framingCards = framing.views.efficiency.cards;
 
+  // ── Config fallback detection ──
+  var configFallbacks = configSource
+    ? Object.keys(DEFAULT_CONFIG).filter(k => !(k in configSource))
+    : Object.keys(DEFAULT_CONFIG);
+  var usingFallback = !configSource || configFallbacks.length > 0;
+
   // ── KPIs ──
   var totalHrs = needsCfg ? null : days.reduce((s,d) => s + (d['est_'+method+'_hrs']||0), 0);
   var perDevVals = days.map(d => d['est_'+method+'_per_dev']).filter(v => v != null);
@@ -764,6 +772,12 @@ function App() {
       <div className="v3-layout">
         {/* ══════════ MAIN COLUMN ══════════ */}
         <div className="main-col">
+
+          {usingFallback && <div className="flash flash-warn mb-3" style={{fontSize:'12px',padding:'8px 12px'}}>
+            ⚠️ {!configSource
+              ? 'No config.json found — using built-in fallback values for all parameters. Deploy the pipeline or add data/config.json.'
+              : `Config loaded but missing keys (using fallbacks): ${configFallbacks.join(', ')}`}
+          </div>}
 
           <div className="loaded-banner">
             ✅ Loaded <strong>{loadedArtifacts}</strong> · {n} enterprise days ({rangeText}) · {fmt(uniqueUsers)} users · {fmt(userDayCount)} user-day records{prData ? ` · ${fmt(totalCompletions)} merged PRs` : ''}

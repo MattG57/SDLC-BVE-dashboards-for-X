@@ -6,10 +6,10 @@
 /**
  * Calculate hours saved based on interaction count
  * @param {number} interactions - Total user-initiated interactions
- * @param {number} interactionsPerHour - Estimated interactions per hour of work saved (default: 20)
+ * @param {number} interactionsPerHour - Estimated interactions per hour of work saved (default: 30)
  * @returns {number} Estimated hours saved
  */
-export function calculateInteractionBasedHours(interactions, interactionsPerHour = 20) {
+export function calculateInteractionBasedHours(interactions, interactionsPerHour = 30) {
   if (!interactions || interactions <= 0) return 0;
   if (!interactionsPerHour || interactionsPerHour <= 0) {
     throw new Error('interactionsPerHour must be positive');
@@ -20,10 +20,10 @@ export function calculateInteractionBasedHours(interactions, interactionsPerHour
 /**
  * Calculate hours saved based on lines of code added
  * @param {number} locAdded - Lines of code added via Copilot
- * @param {number} hoursPerKloc - Estimated hours to manually write 1000 lines (default: 2)
+ * @param {number} hoursPerKloc - Estimated hours to manually write 1000 lines (default: 1.5)
  * @returns {number} Estimated hours saved
  */
-export function calculateLocBasedHours(locAdded, hoursPerKloc = 2) {
+export function calculateLocBasedHours(locAdded, hoursPerKloc = 1.5) {
   if (!locAdded || locAdded <= 0) return 0;
   if (!hoursPerKloc || hoursPerKloc <= 0) {
     throw new Error('hoursPerKloc must be positive');

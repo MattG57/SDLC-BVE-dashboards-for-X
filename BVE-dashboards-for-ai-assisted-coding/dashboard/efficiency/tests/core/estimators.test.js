@@ -9,10 +9,10 @@ import {
 } from '../../src/core/estimators.js';
 
 describe('Estimators - Interaction Based', () => {
-  it('calculates hours with default rate (20 interactions per hour)', () => {
-    expect(calculateInteractionBasedHours(100)).toBe(5);
-    expect(calculateInteractionBasedHours(40)).toBe(2);
-    expect(calculateInteractionBasedHours(200)).toBe(10);
+  it('calculates hours with default rate (30 interactions per hour)', () => {
+    expect(calculateInteractionBasedHours(90)).toBe(3);
+    expect(calculateInteractionBasedHours(60)).toBe(2);
+    expect(calculateInteractionBasedHours(300)).toBe(10);
   });
 
   it('calculates hours with custom rate', () => {
@@ -31,10 +31,10 @@ describe('Estimators - Interaction Based', () => {
 });
 
 describe('Estimators - LoC Based', () => {
-  it('calculates hours with default rate (2 hours per 1000 LoC)', () => {
-    expect(calculateLocBasedHours(1000)).toBe(2);
-    expect(calculateLocBasedHours(500)).toBe(1);
-    expect(calculateLocBasedHours(2000)).toBe(4);
+  it('calculates hours with default rate (1.5 hours per 1000 LoC)', () => {
+    expect(calculateLocBasedHours(1000)).toBe(1.5);
+    expect(calculateLocBasedHours(2000)).toBe(3);
+    expect(calculateLocBasedHours(4000)).toBe(6);
   });
 
   it('calculates hours with custom rate', () => {
