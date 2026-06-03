@@ -35,11 +35,25 @@ copilot login
 - Classic PATs (`ghp_...`) are not supported by Copilot CLI.
 - If JupyterLab or another tool was already running before auth was set up, restart it so the process inherits the same environment.
 
+### Prerequisites for data collection
+
+The query scripts call `gh` directly. Install it before running any collection:
+
+```bash
+# macOS
+brew install gh
+
+# Other platforms: https://github.com/cli/cli#installation
+
+gh auth login --web --git-protocol ssh --scopes repo,read:org,read:enterprise,copilot
+```
+
 Useful manual checks:
 
 ```bash
 which copilot
 copilot --version
+which gh
 gh auth status
 env | grep -E '^(COPILOT_GITHUB_TOKEN|GH_TOKEN|GITHUB_TOKEN)='
 copilot -p "Reply with exactly: copilot-auth-ok" --allow-all
@@ -48,6 +62,29 @@ copilot -p "Reply with exactly: copilot-auth-ok" --allow-all
 ## Security note
 
 Do **not** put secret PAT values into notebooks or tracked files. Let Copilot explain the setup, but create and store secrets outside the repo.
+
+## Important naming constraints
+
+- **PAT names**: Use only alphanumerics and underscores (e.g., `BVE_dashboard_queries`). Hyphens are not allowed in GitHub repository secret names, so keeping PAT names consistent avoids confusion.
+- **Repository secret**: The workflow expects `DASHBOARD_GH_TOKEN` — use this exact name regardless of what you named the PAT itself.
+- **`GH_TOKEN_NAME` in `query-settings.json`**: This is a label used by local scripted paths. Changing it does **not** change the workflow secret name.
+
+## Repository setup for new orgs
+
+When deploying to a new org:
+
+1. **Do not fork** this repo if you need a private repo — forks inherit the source's visibility and cannot be made private. Instead, create a fresh private repo and push your clone.
+2. **Enable Actions** — if the org restricts Actions to "selected repositories," an admin must add the new repo to the allowed list (Org Settings → Actions → General → Policies).
+3. **Check enterprise policy** — enterprise-level Actions policies override org settings. If workflows don't appear, check the enterprise Actions policy first.
+4. **Verify workflow recognition** after pushing:
+
+```bash
+gh workflow list -R <owner>/<repo>
+```
+
+If this returns "no workflows found," the workflow file may not be on the default branch, may have a YAML syntax error, or may be blocked by org/enterprise policy.
+
+5. **First run note**: The agent session logs enrichment step will be skipped on first run because there is no agentic raw data yet. This is expected.
 
 ## Suggested Copilot workflow
 
@@ -73,7 +110,7 @@ Read README.md, docs/getting-started.md, docs/pat-setup.md, docs/data-collection
 ### PAT setup and SSO
 
 ```text
-Use docs/pat-setup.md and docs/getting-started.md to guide a new user through creating the correct GitHub Personal Access Token for this repo. Explain the required scopes, explain SSO authorization, and explain the safest next step for using the token locally or in GitHub Actions without asking the user to paste the secret into chat or into files.
+Use docs/pat-setup.md and docs/getting-started.md to guide a new user through creating the correct GitHub Personal Access Token for this repo. The required scopes are: copilot, read:org, repo, and optionally read:enterprise. Explain that the PAT name should use only alphanumerics and underscores (no hyphens). Explain SSO authorization, and explain the safest next step for using the token locally or in GitHub Actions. The repository secret must be named DASHBOARD_GH_TOKEN. Do not ask the user to paste the secret into chat or into files.
 ```
 
 ### Configure query settings
@@ -115,7 +152,7 @@ Serve the dashboards locally for this repository, tell me which local URL to ope
 ### Prepare deployment
 
 ```text
-Help me prepare GitHub Pages deployment for this repository using .github/workflows/pipeline-deploy.yml. Check what still needs to be configured for DASHBOARD_GH_TOKEN, ORG or ENTERPRISE variables, DAYS, and Pages settings. Then give me the smallest safe next steps and the command to trigger the workflow.
+Help me prepare GitHub Pages deployment for this repository using .github/workflows/pipeline-deploy.yml. Check what still needs to be configured for DASHBOARD_GH_TOKEN (repository secret, alphanumerics and underscores only), ORG or ENTERPRISE variables, DAYS, and Pages settings. Verify the repo is enabled for Actions in the org policy. Then run 'gh workflow list' to confirm GitHub recognizes the workflow. Give me the smallest safe next steps and the command to trigger the workflow.
 ```
 
 ### Trigger deployment
@@ -127,7 +164,7 @@ Trigger the current pipeline deploy workflow for this repository with data colle
 ### Troubleshoot setup problems
 
 ```text
-Diagnose my setup problem for this repository. Check the environment, authentication state, config files, dry-run output, current workflow path, and devcontainer or Jupyter setup. Fix what you can directly, explain what is blocked, and tell me the exact next action if manual intervention is required.
+Diagnose my setup problem for this repository. Check the environment, authentication state, config files, dry-run output, current workflow path, and devcontainer or Jupyter setup. Also check: Is gh CLI installed? Does 'gh workflow list' recognize the workflows? Is the repo in the org's allowed Actions list? Is there an enterprise-level policy overriding org settings? Fix what you can directly, explain what is blocked, and tell me the exact next action if manual intervention is required.
 ```
 
 ## Quick context to give Copilot
