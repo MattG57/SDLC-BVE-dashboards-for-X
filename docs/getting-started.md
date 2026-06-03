@@ -134,10 +134,27 @@ when working with Copilot CLI to review dashboard changes.
 
 Push your configured repo and set up the nightly pipeline:
 
-1. **Add the PAT** as a repository secret named `DASHBOARD_GH_TOKEN`
-2. **Set repository variables**: `ENTERPRISE`, `ORG`, `DAYS`
-3. **Enable GitHub Pages** (Settings → Pages → Source: GitHub Actions)
-4. **Trigger the pipeline**: `gh workflow run pipeline-deploy.yml`
+1. **Create the repo** — if the repo will be private, do **not** fork the
+   template; forks inherit the source's visibility and cannot be made private.
+   Instead, create a fresh private repo and push your configured clone to it.
+2. **Add the PAT** as a repository secret named `DASHBOARD_GH_TOKEN`.
+   Repository secret names must use only alphanumerics and underscores
+   (no hyphens or special characters).
+3. **Set repository variables**: `ENTERPRISE`, `ORG`, `DAYS`
+4. **Enable GitHub Pages** (Settings → Pages → Source: GitHub Actions)
+5. **Enable Actions for the repo** — if your org restricts Actions to
+   "selected repositories," an org admin must add the new repo to the
+   allowed list (Settings → Actions → General → Policies).
+6. **Verify workflow recognition** — after pushing to the default branch,
+   confirm GitHub sees the workflow before trying to dispatch it:
+
+```bash
+gh workflow list -R <owner>/<repo>
+```
+
+If this returns "no workflows found," see the [Actions troubleshooting](#actions-workflow-not-found) section below.
+
+7. **Trigger the pipeline**: `gh workflow run pipeline-deploy.yml`
 
 The nightly workflow runs at 6 AM UTC automatically. Dashboards
 auto-load the latest materialized artifacts.
@@ -151,10 +168,22 @@ and [data-sources.md](data-sources.md) for the full pipeline execution plan.
 
 - Node.js `>=18`
 - npm `>=9`
-- `gh` CLI authenticated with `gh auth login`
+- **`gh` CLI installed and authenticated** — query scripts call `gh` directly,
+  so local collection will fail if it is not installed:
+
+```bash
+# macOS
+brew install gh
+
+# Other platforms: https://github.com/cli/cli#installation
+
+gh auth login --web --git-protocol ssh --scopes repo,read:org,read:enterprise,copilot
+```
+
 - GitHub access appropriate for the data you want:
   - `copilot`
   - `read:org` or `read:enterprise`
+  - `repo` (for PR metrics and Actions workflow logs)
 
 If you use a token instead of the GitHub CLI session:
 
@@ -229,6 +258,25 @@ If query scripts fail with GitHub authentication errors:
 - if your org uses SAML SSO, authorize the token for the org (see [PAT setup](pat-setup.md))
 - run `./run-query.sh --dry-run` to verify config before a full run
 
+### Actions workflow not found
+
+If `gh workflow list` returns "no workflows found" after pushing:
+
+1. **Confirm the file is on the default branch** — GitHub only registers
+   workflows from `.github/workflows/` on the default branch (usually `main`).
+   Workflow files on feature branches are invisible until merged.
+2. **Check YAML syntax** — a malformed workflow file is silently ignored.
+   Open the file in the GitHub web editor to see parsing errors, or run
+   `actionlint` locally.
+3. **Check org-level Actions policy** — if the org restricts Actions to
+   "selected repositories," an org admin must add your repo to the list
+   (Org Settings → Actions → General → Policies).
+4. **Check enterprise policy** — enterprise-level Actions policies override
+   org settings. If the enterprise restricts which orgs or repos can run
+   Actions, org-level settings alone will not unblock it.
+5. **Wait a moment** — GitHub sometimes takes 30–60 seconds to index new
+   workflow files after a push. Retry `gh workflow list` after a minute.
+
 ### Empty or incomplete output
 
 If a query completes but the data looks empty:
@@ -236,6 +284,21 @@ If a query completes but the data looks empty:
 - confirm you set the right `ORG` or `ENTERPRISE` in `query-settings.json`
 - increase or decrease `DAYS` to sanity-check the window
 - run `./run-query.sh --dry-run` to confirm the resolved configuration
+
+### First run shows session-logs step as skipped
+
+On a clean repo with no prior data collection, the agent session logs
+enrichment step will be skipped because there is no agentic raw data yet.
+This is expected — it will run automatically once agentic PR data has been
+collected at least once.
+
+### Repository secret naming
+
+GitHub repository secret names must use only alphanumerics and underscores.
+If your PAT is named `Copilot-Dashboard-test` (with hyphens), you **cannot**
+use that same string as the secret name. The workflow expects a secret named
+`DASHBOARD_GH_TOKEN` — use that exact name regardless of what you named
+the PAT itself.
 
 ### Test tools not installed
 

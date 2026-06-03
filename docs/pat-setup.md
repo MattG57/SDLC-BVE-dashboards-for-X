@@ -11,6 +11,7 @@ The dashboards need the following token scopes depending on the data you collect
 | `copilot` | Always — required for Copilot metrics |
 | `read:org` | Organization-level queries |
 | `read:enterprise` | Enterprise-level queries |
+| `repo` | PR metrics and Actions workflow logs |
 
 ## Step 1 — Create the Token
 
@@ -18,9 +19,12 @@ The dashboards need the following token scopes depending on the data you collect
 2. In the left sidebar, click **Developer settings**.
 3. Click **Personal access tokens** → **Tokens (classic)**.
 4. Click **Generate new token** → **Generate new token (classic)**.
-5. Give the token a descriptive name (e.g., `BVE dashboard queries`).
+5. Give the token a descriptive name (e.g., `BVE_dashboard_queries`).
+   **Important:** Use only alphanumerics and underscores — hyphens and
+   special characters are not allowed in GitHub repository secret names,
+   and keeping the PAT name consistent avoids confusion later.
 6. Set an expiration that fits your security policy.
-7. Select the scopes listed above (`copilot`, `read:org`, and optionally `read:enterprise`).
+7. Select the scopes listed above (`copilot`, `read:org`, `repo`, and optionally `read:enterprise`).
 8. Click **Generate token** and copy it immediately — you won't see it again.
 
 ## Step 2 — Authorize the Token for Your Organization (SSO)
@@ -59,6 +63,17 @@ gh auth login --with-token <<< "ghp_your_token_here"
 1. Go to your repository **Settings** → **Secrets and variables** → **Actions**.
 2. Create a secret named `DASHBOARD_GH_TOKEN` with the token value.
 3. The nightly workflow uses this secret automatically.
+
+> **`GH_TOKEN_NAME` vs `DASHBOARD_GH_TOKEN`** — these are separate concepts:
+>
+> - `DASHBOARD_GH_TOKEN` is the **repository secret name** that
+>   `pipeline-deploy.yml` reads. This name is fixed in the workflow YAML.
+> - `GH_TOKEN_NAME` in `query-settings.json` is a **label** used by some
+>   local/scripted paths to identify which token to use. Changing it does
+>   **not** change the workflow secret name.
+>
+> Always use `DASHBOARD_GH_TOKEN` as the repository secret name regardless
+> of what you named the PAT itself.
 
 ## Troubleshooting
 

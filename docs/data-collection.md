@@ -87,13 +87,39 @@ to GitHub Pages.
 
 ### Setup
 
-1. **Create a GitHub PAT** with `copilot`, `read:org` (and `read:enterprise` if using enterprise-level metrics) scopes — see [PAT setup](pat-setup.md) for detailed instructions including org SSO authorization.
+1. **Create a GitHub PAT** with `copilot`, `read:org`, `repo` (and `read:enterprise` if using enterprise-level metrics) scopes — see [PAT setup](pat-setup.md) for detailed instructions including org SSO authorization.
 2. **Add the PAT** as a repository secret named `DASHBOARD_GH_TOKEN`.
+   Secret names must use only alphanumerics and underscores (no hyphens).
 3. **Set repository variables** for the query parameters:
    - `ENTERPRISE` — GitHub Enterprise slug (if applicable)
    - `ORG` — GitHub Organization name
    - `DAYS` — Lookback window in days (default: `28`)
 4. **Enable GitHub Pages** in the repository settings (Source: GitHub Actions).
+5. **Enable Actions for the repo** — if your org restricts Actions to
+   selected repositories, an admin must add the repo to the allowed list.
+
+### Post-push verification
+
+After pushing workflows to a new repo, always verify GitHub has
+registered them before attempting to dispatch:
+
+```bash
+gh workflow list -R <owner>/<repo>
+```
+
+If this returns "no workflows found":
+- Confirm the `.github/workflows/` files are on the default branch
+- Check the org's Actions policy (see [getting-started.md](getting-started.md#actions-workflow-not-found))
+- If the org belongs to an Enterprise, check the enterprise-level Actions policy — it overrides org settings
+
+### First-run behavior
+
+On a completely fresh repo with no prior data:
+- The **agent session logs** enrichment step will be skipped because there is
+  no agentic raw data yet. This is normal and will resolve after the first
+  successful agentic data collection.
+- The `--dry-run` flag may report some artifacts as "no raw data available"
+  until the first full collection completes.
 
 ### How it works
 
@@ -144,7 +170,7 @@ BVE-dashboards-for-agentic-ai-coding/data/queries/coding-agent-pr-metrics.sh
 run-query.sh
 query-settings.json
 scripts/build-pages.sh
-.github/workflows/deploy-dashboards.yml
+.github/workflows/pipeline-deploy.yml
 ```
 
 For dependency mapping, expected schema details, and change-propagation checklists, see [../dependencies/README.md](../dependencies/README.md).
