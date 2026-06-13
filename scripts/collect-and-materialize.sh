@@ -298,9 +298,11 @@ write_status() {
 # ─── Session logs collection ──────────────────────────────────────────────────
 
 run_session_logs() {
-  local agentic_raw
-  agentic_raw=$(ls "$RAW_DIR"/*coding-agent-pr-metrics*.json 2>/dev/null | head -1)
-  if [[ -z "$agentic_raw" || ! -f "$agentic_raw" ]]; then
+  local agentic_raw=""
+  for _f in "$RAW_DIR"/*coding-agent-pr-metrics*.json; do
+    [[ -f "$_f" ]] && agentic_raw="$_f" && break
+  done
+  if [[ -z "$agentic_raw" ]]; then
     echo ""
     echo "  ⚠ No agentic data found — skipping session logs"
     return 0
@@ -405,9 +407,11 @@ dry_run() {
   if [[ "${SKIP_SESSION_LOGS:-false}" == "true" ]]; then
     echo "  SKIPPED (SKIP_SESSION_LOGS=true)"
   else
-    local agentic_raw
-    agentic_raw=$(ls "$RAW_DIR"/*coding-agent-pr-metrics*.json 2>/dev/null | head -1)
-    if [[ -n "$agentic_raw" && -f "$agentic_raw" ]]; then
+    local agentic_raw=""
+    for _f in "$RAW_DIR"/*coding-agent-pr-metrics*.json; do
+      [[ -f "$_f" ]] && agentic_raw="$_f" && break
+    done
+    if [[ -n "$agentic_raw" ]]; then
       echo "  ✔ WOULD RUN — input: $(basename "$agentic_raw")"
     else
       echo "  ⚠ WOULD SKIP — no agentic data in _data/raw/"
