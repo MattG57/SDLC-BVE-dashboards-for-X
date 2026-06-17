@@ -354,7 +354,7 @@ cat > "$SITE_DIR/index.html" << 'LANDING_EOF'
         <div class="icon-tile tile-efficiency">📈</div>
         <span class="icon-label">Efficiency</span>
       </a>
-      <a class="app-icon" href="v2/ai-assisted-structural/">
+      <a class="app-icon" href="v3/ai-assisted-structural/">
         <div class="icon-tile tile-structure">🏗️</div>
         <span class="icon-label">Structure</span>
       </a>
