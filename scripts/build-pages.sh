@@ -326,10 +326,6 @@ cat > "$SITE_DIR/index.html" << 'LANDING_EOF'
       <div class="icon-tile" style="background: linear-gradient(135deg, #58a6ff, #bc8cff);">💡</div>
       <span class="icon-label">Concepts &amp; Rationale</span>
     </a>
-    <a class="app-icon" href="v2/leverage-demo-live/">
-      <div class="icon-tile" style="background: linear-gradient(135deg, #3fb950, #58a6ff);">📊</div>
-      <span class="icon-label">Live Examples</span>
-    </a>
   </div>
 
   <!-- v2 Dashboards -->
@@ -382,37 +378,7 @@ cat > "$SITE_DIR/index.html" << 'LANDING_EOF'
     <p class="mt-2"><a href="data-status/" class="color-fg-accent">🔧 Data Status</a> · <a href="dataflow/" class="color-fg-accent">🔀 Dataflow</a> — view collection results, data inventory, and pipeline health.</p>
   </div>
 
-  <!-- v1 Archived -->
-  <div class="mt-6 pt-4" style="border-top: 1px solid var(--borderColor-default);">
-    <p class="row-label" style="opacity: 0.5;">v1 — Archived</p>
-    <div class="icon-grid" style="opacity: 0.4;">
-      <a class="app-icon" href="integrated/">
-        <div class="icon-tile tile-leverage">⚡</div>
-        <span class="icon-label">Integrated v1</span>
-      </a>
-      <a class="app-icon" href="ai-assisted-coding/element/">
-        <div class="icon-tile tile-leverage">⚡</div>
-        <span class="icon-label">AI Element v1</span>
-      </a>
-      <a class="app-icon" href="ai-assisted-coding/efficiency/">
-        <div class="icon-tile tile-efficiency">📈</div>
-        <span class="icon-label">AI Efficiency v1</span>
-      </a>
-      <a class="app-icon" href="ai-assisted-coding/structural/">
-        <div class="icon-tile tile-structure">🏗️</div>
-        <span class="icon-label">AI Structure v1</span>
-      </a>
-      <a class="app-icon" href="agentic-ai-coding/element/">
-        <div class="icon-tile tile-leverage">⚡</div>
-        <span class="icon-label">Agentic Elem v1</span>
-      </a>
-      <a class="app-icon" href="agentic-ai-coding/efficiency/">
-        <div class="icon-tile tile-efficiency">📈</div>
-        <span class="icon-label">Agentic Eff v1</span>
-      </a>
-    </div>
-    <p class="f6 color-fg-muted text-center" style="opacity: 0.5;">v1 dashboards load raw data directly (~100MB). Kept for reference.</p>
-  </div>
+
 </div>
 </body>
 </html>
