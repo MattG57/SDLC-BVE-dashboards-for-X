@@ -589,10 +589,10 @@ main() {
   echo ""
   if [[ "$USE_STREAMING" == "true" ]]; then
     echo "Materializing pipeline artifacts (streaming)..."
-    node --max-old-space-size=4096 "${REPO_ROOT}/scripts/materialize-streaming.js"
+    node --max-old-space-size="${NODE_HEAP_MB:-8192}" "${REPO_ROOT}/scripts/materialize-streaming.js"
   else
     echo "Materializing pipeline artifacts (standard)..."
-    node --max-old-space-size=4096 "${REPO_ROOT}/scripts/materialize.js"
+    node --max-old-space-size="${NODE_HEAP_MB:-8192}" "${REPO_ROOT}/scripts/materialize.js"
   fi
 
   echo ""
