@@ -164,13 +164,18 @@ if command -v node >/dev/null 2>&1; then
   fi
   DATAFLOW_SRC="${REPO_ROOT}/dashboard/dataflow/data"
   DATAFLOW_DEST="${SITE_DIR}/dataflow/data"
-  for subdir in raw materialized; do
+  # Only the materialized artifacts are served. The raw/ inputs are NOT copied:
+  # the dataflow dashboard renders raw sources from names+metadata in
+  # pipeline-manifest.json and never fetches raw file bodies. Publishing the raw
+  # dir (tens of MB per copilot-metrics snapshot, accumulated daily) would bloat
+  # the Pages artifact and exhaust runner disk during upload.
+  for subdir in materialized; do
     if [[ -d "${DATAFLOW_SRC}/${subdir}" ]]; then
       mkdir -p "${DATAFLOW_DEST}/${subdir}"
       cp "${DATAFLOW_SRC}/${subdir}"/*.json "${DATAFLOW_DEST}/${subdir}/" 2>/dev/null || true
     fi
   done
-  echo "  ✔ dataflow/data/{raw,materialized}/ copied to site"
+  echo "  ✔ dataflow/data/materialized/ copied to site (raw inputs intentionally excluded)"
 fi
 
 # ─── Generate data-status.json for the data management dashboard ──────────────
