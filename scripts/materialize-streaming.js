@@ -441,6 +441,13 @@ async function main() {
     }
     mergedSessionLogs = { session_logs: allSessions };
     console.log(`  📋 Session logs: ${allSessions.length} sessions with compute time`);
+    // Emit the agent-session-logs artifact so dashboards can hydrate per-session
+    // dev-time fields (active_minutes, changed_files, additions/deletions,
+    // developer_interventions). Without this the Dev Time Model reads zeros.
+    const slFname = writeArtifact('agent-session-logs', mergedSessionLogs);
+    artifactFiles.push(slFname);
+    artifactMap['agent-session-logs'] = slFname;
+    fileInfo.sessionLogs.forEach(f => edges.push({ from: f.file, to: slFname }));
   }
 
   // Leverage Summary
