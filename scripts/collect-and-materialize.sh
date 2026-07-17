@@ -299,8 +299,11 @@ write_status() {
 
 run_session_logs() {
   local agentic_raw=""
+  # Pick the NEWEST coding-agent file: the glob expands in sorted order and the
+  # ISO-8601 run timestamps sort chronologically, so the last match is newest.
+  # (Do NOT break on the first match — that would pick the oldest cached file.)
   for _f in "$RAW_DIR"/*coding-agent-pr-metrics*.json; do
-    [[ -f "$_f" ]] && agentic_raw="$_f" && break
+    [[ -f "$_f" ]] && agentic_raw="$_f"
   done
   if [[ -z "$agentic_raw" ]]; then
     echo ""
@@ -408,8 +411,9 @@ dry_run() {
     echo "  SKIPPED (SKIP_SESSION_LOGS=true)"
   else
     local agentic_raw=""
+    # Newest coding-agent file (see run_session_logs); last sorted match wins.
     for _f in "$RAW_DIR"/*coding-agent-pr-metrics*.json; do
-      [[ -f "$_f" ]] && agentic_raw="$_f" && break
+      [[ -f "$_f" ]] && agentic_raw="$_f"
     done
     if [[ -n "$agentic_raw" ]]; then
       echo "  ✔ WOULD RUN — input: $(basename "$agentic_raw")"
