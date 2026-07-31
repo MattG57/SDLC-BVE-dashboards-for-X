@@ -280,16 +280,19 @@ write_status() {
   done
   files_json="${files_json}]"
 
-  jq -n \
+  # Pass the (potentially large) files array via stdin rather than argv to
+  # avoid "Argument list too long" (E2BIG) once _data/raw accumulates many
+  # files. --slurpfile reads the single JSON array from stdin as $files[0].
+  printf '%s' "$files_json" | jq -n \
     --arg started "$RUN_TS" \
     --arg finished "$run_finished" \
     --arg profile "$PROFILE" \
-    --argjson files "$files_json" \
+    --slurpfile files /dev/stdin \
     '{
       run_started: $started,
       run_finished: $finished,
       profile: $profile,
-      raw_files: $files
+      raw_files: $files[0]
     }' > "$status_file"
 
   echo "  ✔ query-status.json"
