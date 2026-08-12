@@ -296,22 +296,41 @@ async function main() {
     }
   }
 
-  // ── Stream copilot-metrics files ──
-  const allEntDays = [];
-  const allSlimUsers = [];
+  // ── Stream copilot-metrics files (incremental dedup to bound memory) ──
+  // Use Maps keyed by dedup key so memory stays proportional to unique
+  // days/users rather than total raw records across all cached files.
+  const entDayMap = new Map();   // day → day_total object (last wins)
+  const userDayMap = new Map();  // "day|login" → slim user object (last wins)
   const allMetadata = [];
+  let totalEntDaysBefore = 0;
+  let totalUsersBefore = 0;
 
   for (const fp of classified.copilot) {
     const { metadata, enterpriseReport, slimUsers } = await streamCopilotMetricsFile(fp);
-    if (enterpriseReport?.day_totals) allEntDays.push(...enterpriseReport.day_totals);
-    allSlimUsers.push(...slimUsers);
+    if (enterpriseReport?.day_totals) {
+      for (const d of enterpriseReport.day_totals) {
+        totalEntDaysBefore++;
+        entDayMap.set(d.day, d);
+      }
+    }
+    for (const u of slimUsers) {
+      totalUsersBefore++;
+      userDayMap.set(u.day + '|' + u.user_login, u);
+    }
     if (metadata) {
       allMetadata.push(metadata);
       const idx = fileInfo.copilot.findIndex(f => f.file === basename(fp));
       if (idx >= 0) fileInfo.copilot[idx].metadata = metadata;
     }
   }
-  if (classified.copilot.length > 1) console.log(`  🔗 Merged ${classified.copilot.length} copilot-metrics files`);
+  // Materialized arrays — bounded by unique days/users, not file count
+  const allEntDays = [...entDayMap.values()].sort((a, b) => a.day.localeCompare(b.day));
+  const allSlimUsers = [...userDayMap.values()];
+  if (classified.copilot.length > 1) {
+    console.log(`  🔗 Merged ${classified.copilot.length} copilot-metrics files`);
+    console.log(`     Enterprise days: ${totalEntDaysBefore} raw → ${allEntDays.length} unique`);
+    console.log(`     User-days: ${totalUsersBefore} raw → ${allSlimUsers.length} unique`);
+  }
 
   // ── Load small files normally ──
   const prDataFiles = classified.pr.map(fp => loadSmallFile(fp));
@@ -360,14 +379,8 @@ async function main() {
 
   // AI-Assisted Efficiency Days (from streamed data)
   if (allEntDays.length > 0) {
-    // Dedup slim users across files
-    const userDedup = new Map();
-    const totalUsersBefore = allSlimUsers.length;
-    for (const u of allSlimUsers) {
-      const key = u.day + '|' + u.user_login;
-      if (!userDedup.has(key)) userDedup.set(key, u);
-    }
-    const dedupedUsers = [...userDedup.values()];
+    // Users already deduped incrementally during streaming above
+    const dedupedUsers = allSlimUsers;
 
     const result = buildEfficiencyFromStreamed(allEntDays, dedupedUsers, {
       inputFiles: fileInfo.copilot,
