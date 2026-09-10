@@ -66,7 +66,7 @@ The build assembles:
 
 ## Workflow: pipeline-deploy.yml
 
-The primary deployment workflow. Runs nightly at 6 AM UTC.
+The sole deployment workflow. Runs nightly at 6 AM UTC.
 
 ### Automatic (nightly)
 
@@ -128,10 +128,6 @@ The workflow caches raw data between runs:
 - Cache key: `pipeline-data-{run_id}`
 - Restore keys: `pipeline-data-` (falls back to latest)
 - Cached paths: `_data/raw/*.json`
-
-## Workflow: deploy-dashboards.yml
-
-Legacy deployment workflow. Also runs nightly at 6 AM UTC. Uses `./run-query.sh --all` for data collection.
 
 ## Monitoring Deployments
 

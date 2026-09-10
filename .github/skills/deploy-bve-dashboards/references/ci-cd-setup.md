@@ -68,10 +68,9 @@ gh api repos/{owner}/{repo}/pages --jq '.html_url'
 
 | Workflow | File | Trigger | Purpose |
 |---|---|---|---|
-| Pipeline Collect & Deploy | `.github/workflows/pipeline-deploy.yml` | Nightly 6 AM UTC + manual | Primary pipeline (collect, materialize, deploy) |
-| Collect Data & Deploy | `.github/workflows/deploy-dashboards.yml` | Nightly 6 AM UTC + manual | Legacy workflow |
+| Pipeline Collect & Deploy | `.github/workflows/pipeline-deploy.yml` | Nightly 6 AM UTC + manual | Sole deployment pipeline (collect, materialize, deploy) |
 
-Both workflows use the same `pages-deploy` concurrency group to prevent conflicts.
+The deployment workflow uses the `pages-deploy` concurrency group to serialize deployments.
 
 ## Token Rotation
 

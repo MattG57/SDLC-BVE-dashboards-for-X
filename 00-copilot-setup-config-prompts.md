@@ -6,8 +6,7 @@ The command and prompt blocks below are examples to run in a terminal or reuse i
 
 ## Current paths to prefer
 
-- Use `.github/workflows/pipeline-deploy.yml` as the current pipeline workflow.
-- Treat `.github/workflows/deploy-dashboards.yml` as legacy.
+- Use `.github/workflows/pipeline-deploy.yml` as the sole deployment pipeline workflow.
 - Prefer current V4 dashboards when they exist, especially:
   - `dashboard/v4/ai-assisted-efficiency/`
   - `dashboard/v4/agentic-efficiency/`
