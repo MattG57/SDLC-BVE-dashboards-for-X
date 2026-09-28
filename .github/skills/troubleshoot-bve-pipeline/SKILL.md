@@ -215,6 +215,10 @@ Common causes:
 1. `DASHBOARD_GH_TOKEN` secret expired or revoked
 2. Repository variables not set (`ENTERPRISE`, `ORG`, `DAYS`)
 3. GitHub Pages not enabled
+4. `No space left on device`: the restored raw cache has outgrown the
+   runner disk. Confirm that the collect/materialize steps set
+   `COMPACT_RAW_SNAPSHOTS=true` and that the log shows `🧹 Compacted …`.
+   Check the `df -h` output from the "Free runner disk space" step.
 
 ### Symptom: Cache issues causing stale data
 

@@ -13,7 +13,10 @@
  * Agentic and PR-review files are small (<2MB) and still use readFileSync.
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'fs';
+import {
+  readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, unlinkSync,
+  openSync, writeSync, closeSync, renameSync, statSync,
+} from 'fs';
 import { createReadStream } from 'fs';
 import { resolve, join, basename, dirname } from 'path';
 import { createHash } from 'crypto';
@@ -28,7 +31,7 @@ const { streamValues } = require('stream-json/streamers/stream-values.js');
 const { pick } = require('stream-json/filters/pick.js');
 const { chain } = require('stream-chain');
 
-import { flattenDayTotal, dedupEnterpriseDays, computeDayRatios } from '../shared/sources/copilot-metrics.js';
+import { flattenDayTotal, dedupEnterpriseDays, computeDayRatios, selectArchiveRecords } from '../shared/sources/copilot-metrics.js';
 import { materializeAiAssistedStructuralDays } from '../shared/materializers/ai-assisted-structural-days.js';
 import { materializeAgenticEfficiencyDays } from '../shared/materializers/agentic-efficiency-days.js';
 import { materializeAgenticPrSessions } from '../shared/materializers/agentic-pr-sessions.js';
@@ -112,16 +115,17 @@ async function streamCopilotUsers(filepath) {
       }
       slim.day = day;
       slim.user_login = login;
-      // Extract agent mode from totals_by_feature array
+      // Extract agent mode from totals_by_feature array (slim archive records
+      // carry the precomputed value instead)
       if (Array.isArray(value.totals_by_feature)) {
         const agentMode = value.totals_by_feature.find(f => f.feature === 'chat_panel_agent_mode');
         slim.agent_mode_interaction_count = (agentMode && agentMode.user_initiated_interaction_count) || 0;
       } else {
-        slim.agent_mode_interaction_count = 0;
+        slim.agent_mode_interaction_count = value.agent_mode_interaction_count || 0;
       }
       // Extract CLI prompt count from totals_by_cli object
       slim.cli_prompt_count = (value.totals_by_cli && typeof value.totals_by_cli === 'object')
-        ? (value.totals_by_cli.prompt_count || 0) : 0;
+        ? (value.totals_by_cli.prompt_count || 0) : (value.cli_prompt_count || 0);
       users.push(slim);
     });
     pipeline.on('end', () => resolve(users));
@@ -252,6 +256,117 @@ function setPrArray(data, prs) {
   data.prs = prs;
 }
 
+// ── Raw snapshot compaction ──
+
+/**
+ * Re-read the proposed compacted file set and confirm that merging it (with
+ * the same last-wins logic as the main merge) reproduces exactly the records
+ * merged from the full snapshot history. Returns null on success or a
+ * description of the first mismatch.
+ */
+async function verifyCompactedSet(files, { entDayMap, userDayMap }) {
+  const ent = new Map();
+  const users = new Map();
+  for (const fp of files) {
+    const { enterpriseReport, slimUsers } = await streamCopilotMetricsFile(fp);
+    for (const d of enterpriseReport?.day_totals || []) ent.set(d.day, d);
+    for (const u of slimUsers) users.set(u.day + '|' + u.user_login, u);
+  }
+  if (ent.size !== entDayMap.size) return `enterprise day count ${ent.size} != ${entDayMap.size}`;
+  if (users.size !== userDayMap.size) return `user-day count ${users.size} != ${userDayMap.size}`;
+  for (const [k, v] of entDayMap) {
+    if (JSON.stringify(ent.get(k)) !== JSON.stringify(v)) return `enterprise day ${k} differs`;
+  }
+  for (const [k, v] of userDayMap) {
+    if (JSON.stringify(users.get(k)) !== JSON.stringify(v)) return `user-day ${k} differs`;
+  }
+  return null;
+}
+
+/**
+ * Replace every copilot-metrics snapshot except the newest with one slim
+ * archive holding the winning records the newest snapshot does not re-report.
+ *
+ * Safety: the archive is written to a temp file and verified (archive + newest
+ * snapshot must reproduce the full merge exactly) before it is renamed into
+ * place and before any snapshot is deleted. On any failure the raw dir is left
+ * untouched. Returns { archive, removed } basenames, or null if skipped.
+ */
+async function compactCopilotSnapshots(copilotFiles, { entDayMap, entDaySrc, userDayMap, userDaySrc }) {
+  const keepIdx = copilotFiles.length - 1;
+  const keepFile = copilotFiles[keepIdx];
+  const olderFiles = copilotFiles.slice(0, keepIdx);
+
+  const archivedDays = selectArchiveRecords(entDayMap, entDaySrc, keepIdx)
+    .sort((a, b) => String(a.day).localeCompare(String(b.day)));
+  // Users stay in merge (Map insertion) order to mirror the uncompacted output.
+  const archivedUsers = selectArchiveRecords(userDayMap, userDaySrc, keepIdx);
+  const hasArchive = archivedDays.length > 0 || archivedUsers.length > 0;
+
+  // "<newest>.archive.json" sorts immediately before "<newest>.json" and after
+  // all older snapshots, preserving chronological merge order.
+  const archivePath = keepFile.replace(/\.json$/, '.archive.json');
+  const tmpPath = `${archivePath}.tmp`;
+
+  try {
+    if (hasArchive) {
+      const days = [...archivedDays.map(d => d.day), ...archivedUsers.map(u => u.day)].filter(Boolean).sort();
+      const metadata = {
+        source: 'copilot-metrics-archive',
+        description: 'Compacted winning records from older copilot-metrics snapshots not re-reported by the retained snapshot',
+        compacted_at: new Date().toISOString(),
+        retained_snapshot: basename(keepFile),
+        compacted_files: olderFiles.map(f => basename(f)),
+        enterprise_days: archivedDays.length,
+        user_days: archivedUsers.length,
+        day_range: { first: days[0] || null, last: days[days.length - 1] || null },
+      };
+      // enterprise_report is written first so classifyFile's 2KB peek finds it.
+      const fd = openSync(tmpPath, 'w');
+      try {
+        writeSync(fd, `{"enterprise_report":${JSON.stringify({ day_totals: archivedDays })},\n`);
+        writeSync(fd, `"metadata":${JSON.stringify(metadata)},\n"user_report":[\n`);
+        const CHUNK = 5000;
+        for (let i = 0; i < archivedUsers.length; i += CHUNK) {
+          const lines = archivedUsers.slice(i, i + CHUNK).map(u => JSON.stringify(u)).join(',\n');
+          writeSync(fd, (i > 0 ? ',\n' : '') + lines);
+        }
+        writeSync(fd, '\n]}\n');
+      } finally {
+        closeSync(fd);
+      }
+    }
+
+    console.log('  🔍 Verifying compacted snapshot set before deleting anything...');
+    const mismatch = await verifyCompactedSet(hasArchive ? [tmpPath, keepFile] : [keepFile], { entDayMap, userDayMap });
+    if (mismatch) throw new Error(`verification failed: ${mismatch}`);
+    console.log('     ✔ Compacted set reproduces the full merge exactly');
+
+    if (hasArchive) renameSync(tmpPath, archivePath);
+  } catch (e) {
+    console.log(`  ⚠ Raw snapshot compaction skipped (raw files left untouched): ${e.message}`);
+    try { if (existsSync(tmpPath)) unlinkSync(tmpPath); } catch { /* ignore */ }
+    return null;
+  }
+
+  const removed = [];
+  for (const fp of olderFiles) {
+    if (fp === archivePath) continue; // re-run on the same retained snapshot already replaced it
+    try {
+      unlinkSync(fp);
+      removed.push(basename(fp));
+    } catch (e) {
+      console.log(`  ⚠ Could not remove ${basename(fp)}: ${e.message}`);
+    }
+  }
+  const archive = hasArchive ? basename(archivePath) : null;
+  const archiveSize = hasArchive ? statSync(archivePath).size : 0;
+  console.log(`  🧹 Compacted ${olderFiles.length} older copilot-metrics snapshot(s) → ${archive || '(nothing to archive)'}` +
+    (archive ? ` (${(archiveSize / 1024 / 1024).toFixed(1)} MB, ${archivedDays.length} enterprise days, ${archivedUsers.length} user-days)` : ''));
+  console.log(`     Retained newest snapshot: ${basename(keepFile)}`);
+  return { archive, removed };
+}
+
 // ── Main ──
 
 async function main() {
@@ -301,21 +416,28 @@ async function main() {
   // days/users rather than total raw records across all cached files.
   const entDayMap = new Map();   // day → day_total object (last wins)
   const userDayMap = new Map();  // "day|login" → slim user object (last wins)
+  // Track which file supplied each winning record so older snapshots can be
+  // compacted into an archive (see compactCopilotSnapshots).
+  const entDaySrc = new Map();
+  const userDaySrc = new Map();
   const allMetadata = [];
   let totalEntDaysBefore = 0;
   let totalUsersBefore = 0;
 
-  for (const fp of classified.copilot) {
+  for (const [fileIdx, fp] of classified.copilot.entries()) {
     const { metadata, enterpriseReport, slimUsers } = await streamCopilotMetricsFile(fp);
     if (enterpriseReport?.day_totals) {
       for (const d of enterpriseReport.day_totals) {
         totalEntDaysBefore++;
         entDayMap.set(d.day, d);
+        entDaySrc.set(d.day, fileIdx);
       }
     }
     for (const u of slimUsers) {
       totalUsersBefore++;
-      userDayMap.set(u.day + '|' + u.user_login, u);
+      const key = u.day + '|' + u.user_login;
+      userDayMap.set(key, u);
+      userDaySrc.set(key, fileIdx);
     }
     if (metadata) {
       allMetadata.push(metadata);
@@ -493,6 +615,20 @@ async function main() {
     }
   }
 
+  // ── Compact older copilot-metrics snapshots (opt-in) ──
+  // Each nightly run adds a full 28-day copilot-metrics snapshot (100+ MB) to
+  // the cached raw dir. Replacing all older snapshots with one slim archive of
+  // their winning records keeps the raw cache (and runner disk) bounded while
+  // producing identical artifacts on the next merge.
+  let compaction = null;
+  if (process.env.COMPACT_RAW_SNAPSHOTS === 'true' && classified.copilot.length > 1) {
+    compaction = await compactCopilotSnapshots(classified.copilot, {
+      entDayMap, entDaySrc, userDayMap, userDaySrc,
+    });
+  }
+  const removedRaw = new Set(compaction?.removed || []);
+  const remapRaw = f => (removedRaw.has(f) ? compaction.archive : f);
+
   // ── Manifest ──
   const allRawFiles = [...new Set([
     ...fileInfo.copilot.map(f => f.file),
@@ -500,7 +636,13 @@ async function main() {
     ...fileInfo.agentic.map(f => f.file),
     ...fileInfo.sessionLogs.map(f => f.file),
     ...fileInfo.orgMembers.map(f => f.file),
-  ])];
+  ].map(remapRaw).filter(Boolean))];
+  const manifestEdges = [...new Map(
+    edges
+      .map(e => ({ ...e, from: remapRaw(e.from) }))
+      .filter(e => e.from)
+      .map(e => [`${e.from}→${e.to}`, e])
+  ).values()];
 
   const manifest = {
     materialized_at: new Date().toISOString(),
@@ -510,7 +652,7 @@ async function main() {
     raw_files: allRawFiles,
     artifacts: artifactFiles,
     artifact_map: artifactMap,
-    edges,
+    edges: manifestEdges,
     streaming: true,
   };
   writeFileSync(join(DATA_DIR, 'pipeline-manifest.json'), JSON.stringify(manifest, null, 2));

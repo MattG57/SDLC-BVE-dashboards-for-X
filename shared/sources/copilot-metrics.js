@@ -104,6 +104,32 @@ export function dedupUserDays(flatUsers) {
 }
 
 /**
+ * Select the merged records that must be carried into a compaction archive.
+ *
+ * Copilot-metrics snapshots are merged with "last entry wins" semantics keyed
+ * by day (enterprise) and day|user_login (users). Each daily snapshot is a
+ * sliding 28-day window, so older snapshots are mostly — but never entirely —
+ * superseded by newer ones. Compaction keeps the newest snapshot untouched and
+ * replaces every older snapshot with a single archive holding only the
+ * winning records the newest snapshot does not re-report. Because the archive
+ * and the newest snapshot share no keys, re-merging them yields exactly the
+ * same result as merging all original snapshots.
+ *
+ * @param {Map<string, Object>} recordMap - dedup key → winning record
+ * @param {Map<string, number>} srcMap - dedup key → index of the file that
+ *   supplied the winning record
+ * @param {number} keepIdx - index of the snapshot being retained as-is
+ * @returns {Object[]} winning records not supplied by the retained snapshot
+ */
+export function selectArchiveRecords(recordMap, srcMap, keepIdx) {
+  const out = [];
+  for (const [key, record] of recordMap) {
+    if (srcMap.get(key) !== keepIdx) out.push(record);
+  }
+  return out;
+}
+
+/**
  * Compute per-dev driver ratios for a day row.
  * These are the materialized derived fields that don't depend on config.
  */

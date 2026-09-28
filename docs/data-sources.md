@@ -221,6 +221,48 @@ This means the pipeline is **idempotent** — running it multiple times
 with overlapping date ranges produces the same result. Newer data
 overwrites older data for the same key.
 
+### Copilot Snapshot Compaction
+
+Each `copilot-metrics` snapshot is a full 28-day report (100+ MB for large
+enterprises), so keeping every nightly snapshot grows the raw cache without
+bound and eventually exhausts the runner disk. When `COMPACT_RAW_SNAPSHOTS=true`
+(set by `pipeline-deploy.yml`), the streaming materializer compacts the raw
+dir after writing artifacts:
+
+- The newest snapshot is kept unchanged.
+- All older snapshots, including any previous archive, are replaced by one
+  `<newest>.archive.json` file. It holds only the winning enterprise-day and
+  slim user-day records that the newest snapshot does not re-report.
+- The archive and the newest snapshot share no dedup keys, so merging them
+  gives the same artifacts as merging the full snapshot history. Only the
+  order of `_users` records can differ, and the dashboards don't depend on
+  it because they look records up by day and login.
+- **Verified before deleting:** the archive is written to a temp file. It is
+  then read back together with the newest snapshot and checked against the
+  full merge record by record. Only if they match is it moved into place and
+  the older snapshots deleted. On any mismatch or error, the raw files are
+  left untouched and a `⚠ Raw snapshot compaction skipped` line is logged.
+
+The archive grows by about one day of slim records per run (a few hundred KB),
+not a full snapshot. Compaction is off by default for local runs; set
+`COMPACT_RAW_SNAPSHOTS=true` to enable it.
+
+**Pre-compaction backup.** Compaction deletes the older snapshots, and the
+archive keeps only the dashboard-used user fields (not the nested
+`totals_by_*` breakdowns). So before the first compacting run, the workflow
+uploads the full raw set as the artifact
+`raw-backup-pre-compaction-<run_id>`. That run is detected as a cache with
+more than one snapshot and no `*.archive.json`. The artifact is kept for 90
+days, the org maximum. Download it before it expires if you need it longer:
+
+```bash
+gh run download <run_id> -n raw-backup-pre-compaction-<run_id> -D raw-backup/
+```
+
+To restore the full history, copy those files into
+`dashboard/dataflow/data/raw/` in place of the compacted files. Then run
+`./run-query.sh --materialize-only` without `COMPACT_RAW_SNAPSHOTS`.
+
 **Materialization dependencies:**
 
 ```

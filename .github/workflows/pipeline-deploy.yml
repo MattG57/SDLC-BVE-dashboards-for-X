@@ -34,13 +34,23 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  collect-and-deploy:
+  # Collect, materialize, and build the site. No environment is attached, so
+  # this job can run from any branch; a non-main run is a full rehearsal
+  # against main's restored cache. Caches saved on a branch aren't visible to
+  # main, so the rehearsal can't change main's data.
+  collect-and-build:
     runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      # The restored raw cache expands to many GB. Remove large preinstalled
+      # toolchains this job never uses so the runner has headroom.
+      - name: Free runner disk space
+        if: runner.os == 'Linux'
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL || true
+          df -h /
 
       - name: Restore cached raw data
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
@@ -49,6 +59,39 @@ jobs:
             dashboard/dataflow/data/raw/*.json
           key: pipeline-data-${{ github.run_id }}
           restore-keys: pipeline-data-
+
+      # One-time safety net: before the first run that compacts copilot-metrics
+      # snapshots (COMPACT_RAW_SNAPSHOTS below), upload the full uncompacted raw
+      # set. Once a *.archive.json exists the cache is already compacted and this
+      # step is skipped. If the upload fails the job stops before compaction.
+      - name: Check for uncompacted raw snapshots
+        id: raw-backup
+        run: |
+          raw=dashboard/dataflow/data/raw
+          shopt -s nullglob
+          archives=("$raw"/*copilot-metrics*.archive.json)
+          snapshots=()
+          for f in "$raw"/*copilot-metrics*.json; do
+            [[ "$f" == *.archive.json ]] || snapshots+=("$f")
+          done
+          if (( ${#archives[@]} == 0 && ${#snapshots[@]} > 1 )); then
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+            echo "Backing up ${#snapshots[@]} uncompacted copilot-metrics snapshot(s) before first compaction"
+            du -sh "$raw"
+          else
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+            echo "No backup needed (${#archives[@]} archive(s), ${#snapshots[@]} snapshot(s))"
+          fi
+
+      - name: Upload pre-compaction raw backup
+        if: steps.raw-backup.outputs.needed == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: raw-backup-pre-compaction-${{ github.run_id }}
+          path: dashboard/dataflow/data/raw/*.json
+          retention-days: 90 # org maximum
+          compression-level: 6
+          if-no-files-found: error
 
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -66,6 +109,7 @@ jobs:
           ORG: ${{ inputs.org || vars.ORG || '' }}
           DAYS: ${{ inputs.days || vars.DAYS || '28' }}
           SKIP_SESSION_LOGS: ${{ inputs.pipeline_steps != '' && !contains(inputs.pipeline_steps, 'session-logs') }}
+          COMPACT_RAW_SNAPSHOTS: 'true'
         run: bash scripts/collect-and-materialize.sh
 
       - name: Session logs only
@@ -74,10 +118,13 @@ jobs:
           GH_TOKEN: ${{ secrets.DASHBOARD_GH_TOKEN }}
           ENTERPRISE: ${{ inputs.enterprise || vars.ENTERPRISE || '' }}
           ORG: ${{ inputs.org || vars.ORG || '' }}
+          COMPACT_RAW_SNAPSHOTS: 'true'
         run: bash scripts/collect-and-materialize.sh --session-logs-only
 
       - name: Materialize only (skip collection)
         if: ${{ (inputs.skip_data_collection == true || (inputs.pipeline_steps != '' && contains(inputs.pipeline_steps, 'materialize') && !contains(inputs.pipeline_steps, 'collect') && !contains(inputs.pipeline_steps, 'session-logs'))) }}
+        env:
+          COMPACT_RAW_SNAPSHOTS: 'true'
         run: bash scripts/collect-and-materialize.sh --materialize-only
 
       - name: Save raw data to cache
@@ -94,6 +141,15 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4.0.0
 
+  # Publish only from main; the github-pages environment allows main only.
+  deploy:
+    needs: collect-and-build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5

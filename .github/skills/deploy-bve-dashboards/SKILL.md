@@ -19,6 +19,17 @@ The deployment pipeline:
 3. **Build** — `scripts/build-pages.sh` assembles `_site/` with all dashboards and data
 4. **Deploy** — Upload to GitHub Pages via `actions/deploy-pages@v4`
 
+Steps 1–3 run in the `collect-and-build` job and step 4 runs in a separate
+`deploy` job. The `deploy` job runs only on `main`, which is the only branch
+the `github-pages` environment allows. Dispatching the workflow on a feature
+branch is a safe rehearsal: it restores `main`'s raw cache and runs collection,
+compaction, and the site build, but it doesn't deploy. Its cache is saved
+under the feature branch, where `main` can't see it.
+
+```bash
+gh workflow run pipeline-deploy.yml --ref <feature-branch>
+```
+
 ## Local Build
 
 Build the site locally without deploying:
@@ -128,6 +139,14 @@ The workflow caches raw data between runs:
 - Cache key: `pipeline-data-{run_id}`
 - Restore keys: `pipeline-data-` (falls back to latest)
 - Cached paths: `_data/raw/*.json`
+- Older `copilot-metrics` snapshots are compacted into a single
+  `*.archive.json` before the cache is saved (`COMPACT_RAW_SNAPSHOTS=true`),
+  which keeps the cache and runner disk usage bounded
+- Before the first compaction, the full uncompacted raw set is uploaded once as
+  the `raw-backup-pre-compaction-<run_id>` artifact (90-day retention). See
+  `docs/data-sources.md` → Copilot Snapshot Compaction for restore steps
+- A "Free runner disk space" step removes unused preinstalled toolchains
+  before the cache is restored
 
 ## Monitoring Deployments
 

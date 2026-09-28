@@ -3,7 +3,7 @@ import {
   flattenDayTotal, flattenUserReport,
   dedupEnterpriseDays, dedupUserDays,
   computeDayRatios, computeReconciliation,
-  isCopilotMetricsSource,
+  isCopilotMetricsSource, selectArchiveRecords,
 } from '../../sources/copilot-metrics.js';
 
 describe('flattenDayTotal', () => {
@@ -171,5 +171,24 @@ describe('isCopilotMetricsSource', () => {
 
   it('rejects null', () => {
     expect(isCopilotMetricsSource(null)).toBe(false);
+  });
+});
+
+describe('selectArchiveRecords', () => {
+  it('returns records whose winning source is not the retained snapshot', () => {
+    const records = new Map([['2026-04-01', { day: '2026-04-01' }], ['2026-04-02', { day: '2026-04-02' }], ['2026-04-03', { day: '2026-04-03' }]]);
+    const src = new Map([['2026-04-01', 0], ['2026-04-02', 1], ['2026-04-03', 2]]);
+    expect(selectArchiveRecords(records, src, 2).map(r => r.day)).toEqual(['2026-04-01', '2026-04-02']);
+  });
+
+  it('returns [] when the retained snapshot supplied every record', () => {
+    const records = new Map([['2026-04-01|a', { day: '2026-04-01' }]]);
+    const src = new Map([['2026-04-01|a', 3]]);
+    expect(selectArchiveRecords(records, src, 3)).toEqual([]);
+  });
+
+  it('treats records with no known source as archivable', () => {
+    const records = new Map([['k', { day: 'x' }]]);
+    expect(selectArchiveRecords(records, new Map(), 0)).toHaveLength(1);
   });
 });
