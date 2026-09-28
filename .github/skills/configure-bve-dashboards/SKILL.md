@@ -16,6 +16,8 @@ BVE dashboards use two configuration files at the repository root:
 1. **`query-settings.json`** — Controls data collection (which org, how many days, which token)
 2. **`dashboard-config.json`** — Controls dashboard calculations (developer count, time estimates, labor cost)
 
+Both files are tracked and hold this repo's own (octodemo) values. A fork owns its copies: edit and commit them, and keep your values when resolving upstream merge conflicts. See `docs/query-settings.md` → "Deployment-specific values".
+
 ## query-settings.json
 
 Stores named profiles used by the data collection pipeline.
@@ -88,7 +90,7 @@ Controls estimation parameters used by all dashboards. These values feed into le
 
 ### Critical Parameters
 
-⚠️ **`cfg_total_developers` is the most important setting.** It sets the denominator for adoption rates. An incorrect value (e.g., default 100 vs actual 1100) produces wildly wrong percentages.
+⚠️ **`cfg_total_developers` is the most important setting.** It sets the denominator for adoption rates. An incorrect value (e.g., default 100 vs actual 1100) produces wildly wrong percentages. This value is deliberately customer-supplied — GitHub cannot measure it (not all developers are in GitHub, and not all GitHub users are developers). See `docs/design-decisions.md`.
 
 ### CONFIG_REGISTRY Keys
 

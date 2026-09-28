@@ -73,7 +73,8 @@ every leverage calculation:
 Getting `cfg_total_developers` right is critical — it sets the
 denominator for adoption rates and aperture. An incorrect value
 (e.g., the default 100 vs actual 1100) will produce wildly wrong
-percentages.
+percentages. GitHub cannot measure this population for you; see
+[design-decisions.md](design-decisions.md#developer-population-cfg_total_developers-is-configured-not-measured).
 
 ### Step 5. Verify with dry-run
 

@@ -2,6 +2,19 @@
 
 `query-settings.json` at the repository root stores named profiles of configuration values used by the data collection pipeline.
 
+## Deployment-specific values
+
+`query-settings.json` and `dashboard-config.json` are tracked and hold the
+values for this repository's own deployment (octodemo). If you fork or clone
+the repo for your own tenant, **your copy owns these files**: edit them for
+your org and commit them. When you pull upstream changes, expect occasional
+merge conflicts in these two files; resolve them by keeping your values and
+adopting any new keys upstream added.
+
+In CI, `ORG`, `ENTERPRISE` and `DAYS` come from repository variables and
+override the profile, so most deployments only need to customise
+`dashboard-config.json`.
+
 ## File Structure
 
 ```json
@@ -27,6 +40,7 @@ Each top-level key is a **profile name**. The `default` profile is used when no 
 | `PIPELINE_STEP` | Comma-separated steps to run (e.g. `"collect,materialize,deploy"`; empty = all) | `""` | `PIPELINE_STEP` env var; `pipeline_steps` workflow input |
 | `RUNNER_LABEL` | GitHub Actions runner label | `"ubuntu-latest"` | `RUNNER_LABEL` repo variable |
 | `SETTINGS_VERSION` | Schema version marker (informational) | `"1"` | — |
+| `GH_HOST` | *(planned)* GitHub hostname for GHE.com / GHES — see [ghe-host-support.md](ghe-host-support.md) | `"github.com"` | `GH_HOST` env var; `vars.GH_HOST` |
 
 ## Override Precedence
 

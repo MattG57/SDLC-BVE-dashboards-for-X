@@ -385,10 +385,10 @@ done < <(echo "$SESSIONS_JSON" | jq -c '.[]')
 
 info "Done: $SUCCEEDED succeeded, $FAILED failed, $SKIPPED skipped (no agent run found)"
 
-# Output final JSON
-RESULTS=$(cat "$RESULTS_FILE")
+# Output final JSON. Sessions are read from the results file rather than
+# --argjson so many sessions don't exceed the kernel's per-argument size limit.
 jq -n \
-  --argjson sessions "$RESULTS" \
+  --slurpfile sessions "$RESULTS_FILE" \
   --argjson total "$TOTAL" \
   --argjson succeeded "$SUCCEEDED" \
   --argjson failed "$FAILED" \
@@ -404,5 +404,5 @@ jq -n \
       failed: $failed,
       skipped: $skipped
     },
-    session_logs: $sessions
+    session_logs: $sessions[0]
   }'

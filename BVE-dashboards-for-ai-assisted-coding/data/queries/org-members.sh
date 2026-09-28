@@ -66,17 +66,17 @@ done
 total=$(echo "$all_members" | jq 'length')
 echo "  Total members collected: $total" >&2
 
-# Output JSON to stdout
+# Output JSON to stdout. The member list is piped via stdin rather than
+# --argjson so large orgs don't exceed the kernel's per-argument size limit.
 jq -n \
-  --argjson members "$all_members" \
+  --slurpfile members /dev/stdin \
   --arg org "$ORG" \
   --arg collected_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-  --argjson total "$total" \
   '{
-    org_members: $members,
+    org_members: $members[0],
     metadata: {
       org: $org,
       collected_at: $collected_at,
-      total_members: $total
+      total_members: ($members[0] | length)
     }
-  }'
+  }' <<< "$all_members"

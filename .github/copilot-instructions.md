@@ -62,3 +62,5 @@ npm workspaces monorepo producing self-contained, browser-only HTML dashboards (
 - [docs/pat-setup.md](docs/pat-setup.md) — PAT creation, scopes, and SSO authorization
 - [docs/dashboard-status.md](docs/dashboard-status.md) — readiness and migration state
 - [dependencies/README.md](dependencies/README.md) — script-to-dashboard dependency map, schemas, and checklists for adding/modifying dashboards
+- [docs/design-decisions.md](docs/design-decisions.md) — deliberate design choices (e.g. why `cfg_total_developers` is configured, not measured)
+- [docs/ghe-host-support.md](docs/ghe-host-support.md) — planned `GH_HOST` support for GHE.com / GHES
