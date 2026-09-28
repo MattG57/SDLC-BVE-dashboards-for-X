@@ -54,3 +54,32 @@ development capacity, so it supplies it.
 `est_*` constants is tracked in #64. See
 [getting-started.md](getting-started.md#step-4-configure-dashboard-parameters)
 for the full parameter list. Raised in #59 (§1.6).
+
+## Estimation constants are documented assumptions with sensitivity bands
+
+**Decision.** Every hours-saved estimate is measured activity multiplied by a
+configured constant (`est_*`, plus some `cfg_*` rates). Each constant has one
+canonical default in `CONFIG_REGISTRY` (`shared/core/config.js`), and that
+entry records the constant's provenance, plausible range and scaling.
+[estimation-parameters.md](estimation-parameters.md) is generated from the
+registry, and a test fails if the two drift apart.
+
+**Why.**
+
+- None of these constants has been measured by a controlled study. The
+  shipped defaults came from calibrating against octodemo data, and that
+  calibration aimed for agreement between methods rather than accuracy.
+- Presenting a single number without its assumptions invites the question
+  "where did that come from?" and has no answer.
+- Publishing the range and the one-at-a-time sensitivity multiplier gives
+  reviewers an honest error bar. It also shows which constant matters most
+  for a given headline.
+
+**Consequences.**
+
+- Changing a default means updating `default` and `rationale` in the
+  registry, adding a row to the calibration history, and regenerating the
+  doc (`node scripts/generate-estimation-docs.js`).
+- `npm run validate` and the materializers warn when `dashboard-config.json`
+  is outside a constant's range.
+

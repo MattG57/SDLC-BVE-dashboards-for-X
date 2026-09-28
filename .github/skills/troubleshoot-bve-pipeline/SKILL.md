@@ -191,9 +191,11 @@ Use the actual number of developers in your org, not the default (100).
 ### Symptom: Time saved estimates seem too high or too low
 
 **Tune these parameters:**
-- `est_interactions_per_hour` — higher values = less time saved (default: 20)
-- `est_hrs_per_kloc` — higher values = more time saved (default: 2)
-- `est_duration_factor` — higher values = more agentic time saved (default: 2)
+- `est_interactions_per_hour` — higher values = less time saved (default: 30)
+- `est_hrs_per_kloc` — higher values = more time saved (default: 0.22)
+- `est_duration_factor` — higher values = more agentic time saved (default: 0.2)
+
+Check each value against its plausible range and sensitivity in [docs/estimation-parameters.md](../../../docs/estimation-parameters.md). `npm run validate` warns about out-of-range values.
 
 ### Symptom: Projections show unrealistic numbers
 

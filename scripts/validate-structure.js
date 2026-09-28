@@ -10,6 +10,8 @@ import { resolve, join } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import dashboardConfig from '../build-config/dashboard-config.js';
+import { checkConfigRanges } from '../shared/core/config.js';
+import { renderEstimationParametersDoc } from '../shared/core/config-docs.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -79,6 +81,32 @@ function validateDashboard(key, config) {
   return { issues, warnings };
 }
 
+function validateEstimationConfig() {
+  console.log('\n📋 Validating: estimation parameters');
+  const issues = [];
+  const warnings = [];
+
+  const cfgPath = resolve(ROOT_DIR, 'dashboard-config.json');
+  if (existsSync(cfgPath)) {
+    try {
+      warnings.push(...checkConfigRanges(JSON.parse(readFileSync(cfgPath, 'utf-8'))).map(w => `dashboard-config.json: ${w}`));
+    } catch (e) {
+      issues.push(`dashboard-config.json is not valid JSON: ${e.message}`);
+    }
+  }
+
+  const docPath = resolve(ROOT_DIR, 'docs/estimation-parameters.md');
+  const current = existsSync(docPath) ? readFileSync(docPath, 'utf-8') : '';
+  if (current !== renderEstimationParametersDoc()) {
+    issues.push('docs/estimation-parameters.md is out of date — run: node scripts/generate-estimation-docs.js');
+  }
+
+  if (issues.length) { console.log('  ❌ Issues:'); issues.forEach(i => console.log(`     - ${i}`)); }
+  if (warnings.length) { console.log('  ⚠️  Warnings:'); warnings.forEach(w => console.log(`     - ${w}`)); }
+  if (!issues.length && !warnings.length) console.log('  ✅ All checks passed');
+  return { issues: issues.length, warnings: warnings.length };
+}
+
 async function validateAll() {
   console.log('🔍 Validating dashboard structure...\n');
   console.log('='.repeat(60));
@@ -105,6 +133,10 @@ async function validateAll() {
       console.log('  ✅ All checks passed');
     }
   }
+
+  const est = validateEstimationConfig();
+  totalIssues += est.issues;
+  totalWarnings += est.warnings;
 
   console.log('\n' + '='.repeat(60));
   console.log('📊 Validation Summary');

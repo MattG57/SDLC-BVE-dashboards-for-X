@@ -7,6 +7,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { materializeLeverageSummary } from '../../materializers/leverage-summary.js';
+import { CONFIG_REGISTRY } from '../../core/config.js';
 
 // ── Minimal test fixtures ──
 
@@ -89,7 +90,18 @@ function allArtifacts(overrides = {}) {
   };
 }
 
-const BASE_CONFIG = { cfg_total_developers: 100, cfg_total_repos: 10 };
+// Pin estimation constants so these tests exercise the formulas, not the
+// registry defaults (which are covered separately below).
+const BASE_CONFIG = {
+  cfg_total_developers: 100,
+  cfg_total_repos: 10,
+  cfg_pct_time_coding: 0.5,
+  est_interactions_per_hour: 20,
+  est_hrs_per_kloc: 2,
+  est_duration_factor: 2,
+  cfg_time_saved_pct_day: null,
+  cfg_baseline_hours_per_dev_per_week: null,
+};
 
 // ── Tests ──
 
@@ -271,7 +283,7 @@ describe('leverage-summary materializer', () => {
       expect(ids).toContain('manual_daily_pct');
     });
 
-    it('omits manual_daily_pct when not configured', () => {
+    it('omits manual_daily_pct when explicitly unset (null)', () => {
       const result = materializeLeverageSummary(allArtifacts(), BASE_CONFIG);
       const ai = result.elements.find(e => e.elementKey === 'ai-assisted-coding');
       const ids = ai.worksheet.improvementEstimates.map(e => e.estimateId);
@@ -496,7 +508,7 @@ describe('leverage-summary materializer', () => {
       expect(est.timeSavedHours).toBe(44);
     });
 
-    it('manual_daily_pct estimate: pct × baseline_hrs/workdays × dau per day', () => {
+    it('manual_daily_pct estimate: pct × pct_coding × baseline_hrs/workdays × dau per day', () => {
       const cfg = {
         ...BASE_CONFIG,
         cfg_time_saved_pct_day: 0.1,
@@ -506,9 +518,9 @@ describe('leverage-summary materializer', () => {
       const result = materializeLeverageSummary(allArtifacts(), cfg);
       const ai = result.elements.find(e => e.elementKey === 'ai-assisted-coding');
       const est = ai.worksheet.improvementEstimates.find(e => e.estimateId === 'manual_daily_pct');
-      // per-day hrs per dev = 0.1 × 40/5 = 0.8
-      // day1: 0.8 × 50 = 40, day2: 0.8 × 60 = 48, total = 88
-      expect(est.timeSavedHours).toBe(88);
+      // per-day hrs per dev = 0.1 × 0.5 coding × 40/5 = 0.4
+      // day1: 0.4 × 50 = 20, day2: 0.4 × 60 = 24, total = 44
+      expect(est.timeSavedHours).toBeCloseTo(44, 10);
     });
 
     it('row.timeSavedHours changes when different estimate is selected via config', () => {
@@ -720,6 +732,25 @@ describe('leverage-summary materializer', () => {
       const p = result.artifact.profile;
       // AI LoC: 22, Agentic duration: 3 → total = 25
       expect(p.total_time_saved_hours).toBe(22 + 3);
+    });
+  });
+
+  describe('registry defaults', () => {
+    it('uses CONFIG_REGISTRY defaults when constants are not configured', () => {
+      const result = materializeLeverageSummary(allArtifacts(), { cfg_total_developers: 100 });
+      const used = result.artifact.profile.config_used;
+      expect(used.est_hrs_per_kloc).toBe(CONFIG_REGISTRY.est_hrs_per_kloc.default);
+      expect(used.est_duration_factor).toBe(CONFIG_REGISTRY.est_duration_factor.default);
+      expect(used.est_interactions_per_hour).toBe(CONFIG_REGISTRY.est_interactions_per_hour.default);
+      expect(used.cfg_pct_time_coding).toBe(CONFIG_REGISTRY.cfg_pct_time_coding.default);
+      expect(used.cfg_hrs_per_dev_per_day).toBe(CONFIG_REGISTRY.cfg_hrs_per_dev_per_day.default);
+
+      const ai = result.elements.find(e => e.elementKey === 'ai-assisted-coding');
+      const loc = ai.worksheet.improvementEstimates.find(e => e.estimateId === 'loc');
+      // (5000 + 6000) / 1000 × 0.22 = 2.42
+      expect(loc.timeSavedHours).toBeCloseTo(11 * CONFIG_REGISTRY.est_hrs_per_kloc.default, 10);
+      // Manual Daily % is on by default now that the registry supplies its inputs
+      expect(ai.worksheet.improvementEstimates.map(e => e.estimateId)).toContain('manual_daily_pct');
     });
   });
 });

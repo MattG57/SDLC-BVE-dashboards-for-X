@@ -17,6 +17,8 @@
 import { safeDiv } from '../core/math.js';
 import { getAllDefaults } from '../core/config.js';
 
+const REGISTRY_DEFAULTS = getAllDefaults();
+
 /**
  * Build the AI-Assisted leverage element.
  */
@@ -27,10 +29,10 @@ function buildAiAssistedElement(effArt, strArt, config, selections) {
   const strData = strArt?.data || [];
   const prRecords = strArt?._prRecords || [];
   const n = days.length;
-  const totalDevs = config.cfg_total_developers || 100;
-  const pctTimeCoding = config.cfg_pct_time_coding || 0.5;
-  const hrsPerDay = config.cfg_hrs_per_dev_per_day || 8;
-  const defaultWindowDays = config.cfg_window_days || 28;
+  const totalDevs = config.cfg_total_developers || REGISTRY_DEFAULTS.cfg_total_developers;
+  const pctTimeCoding = config.cfg_pct_time_coding || REGISTRY_DEFAULTS.cfg_pct_time_coding;
+  const hrsPerDay = config.cfg_hrs_per_dev_per_day || REGISTRY_DEFAULTS.cfg_hrs_per_dev_per_day;
+  const defaultWindowDays = config.cfg_window_days || REGISTRY_DEFAULTS.cfg_window_days;
 
   // Date range (actual data)
   const sortedDays = days.map(d => d.day).sort();
@@ -74,7 +76,7 @@ function buildAiAssistedElement(effArt, strArt, config, selections) {
   const estimates = [];
 
   // 1. Interactions-based
-  const estInteractionsPerHr = config.est_interactions_per_hour || 20;
+  const estInteractionsPerHr = config.est_interactions_per_hour || REGISTRY_DEFAULTS.est_interactions_per_hour;
   const interactionHrs = totalInteractions / estInteractionsPerHr;
   estimates.push({
     estimateId: 'interactions',
@@ -90,7 +92,7 @@ function buildAiAssistedElement(effArt, strArt, config, selections) {
   });
 
   // 2. LoC-based
-  const estHrsPerKloc = config.est_hrs_per_kloc || 2;
+  const estHrsPerKloc = config.est_hrs_per_kloc || REGISTRY_DEFAULTS.est_hrs_per_kloc;
   const locHrs = (totalLocAdded / 1000) * estHrsPerKloc;
   estimates.push({
     estimateId: 'loc',
@@ -105,19 +107,20 @@ function buildAiAssistedElement(effArt, strArt, config, selections) {
     yieldGain: null,
   });
 
-  // 3. Manual daily % (only if configured)
+  // 3. Manual daily % (only if configured) — pct is a share of *coding* time,
+  // matching the v4 AI-assisted dashboard.
   const pctDay = config.cfg_time_saved_pct_day;
   const baselineHrs = config.cfg_baseline_hours_per_dev_per_week;
-  const wdays = config.cfg_workdays_per_week || 5;
+  const wdays = config.cfg_workdays_per_week || REGISTRY_DEFAULTS.cfg_workdays_per_week;
   if (pctDay != null && baselineHrs != null) {
-    const manualHrs = days.reduce((s, d) => s + (pctDay * baselineHrs / wdays) * (d.daily_active_users || 0), 0);
+    const manualHrs = days.reduce((s, d) => s + (pctDay * pctTimeCoding * baselineHrs / wdays) * (d.daily_active_users || 0), 0);
     estimates.push({
       estimateId: 'manual_daily_pct',
       name: 'Manual Daily %',
       improvementType: 'time',
       method: 'manual_daily_pct',
-      formula: `hours_saved = pct × baseline_hrs / workdays × active_devs`,
-      inputs: { cfg_time_saved_pct_day: pctDay, cfg_baseline_hours_per_dev_per_week: baselineHrs },
+      formula: `hours_saved = pct × pct_coding × baseline_hrs / workdays × active_devs`,
+      inputs: { cfg_time_saved_pct_day: pctDay, cfg_pct_time_coding: pctTimeCoding, cfg_baseline_hours_per_dev_per_week: baselineHrs },
       timeSavedHours: manualHrs,
       timeSavedPerDev: safeDiv(manualHrs, avgDau * n),
       completionGain: null,
@@ -265,9 +268,9 @@ function buildAgenticElement(effArt, sessArt, config, selections, sessionLogs) {
   const allDays = effArt.data;
   const allSessions = sessArt?.data || [];
   const allSessionLogs = sessionLogs?.session_logs || [];
-  const totalDevs = config.cfg_total_developers || 100;
+  const totalDevs = config.cfg_total_developers || REGISTRY_DEFAULTS.cfg_total_developers;
   const totalRepos = config.cfg_total_repos;
-  const defaultWindowDays = config.cfg_window_days || 28;
+  const defaultWindowDays = config.cfg_window_days || REGISTRY_DEFAULTS.cfg_window_days;
 
   // Filter to most recent N days to match the time window
   const sortedAllDays = allDays.map(d => d.day).sort();
@@ -361,7 +364,7 @@ function buildAgenticElement(effArt, sessArt, config, selections, sessionLogs) {
   const estimates = [];
 
   // 1. Duration-based (merged only)
-  const estDurationFactor = config.est_duration_factor || 2;
+  const estDurationFactor = config.est_duration_factor || REGISTRY_DEFAULTS.est_duration_factor;
   const durationHrs = (mergedSessionMins / 60) * estDurationFactor;
   estimates.push({
     estimateId: 'duration',
@@ -377,7 +380,7 @@ function buildAgenticElement(effArt, sessArt, config, selections, sessionLogs) {
   });
 
   // 2. LoC-based (merged only)
-  const estHrsPerKloc = config.est_hrs_per_kloc || 2;
+  const estHrsPerKloc = config.est_hrs_per_kloc || REGISTRY_DEFAULTS.est_hrs_per_kloc;
   const locHrs = (mergedLocAdded / 1000) * estHrsPerKloc;
   estimates.push({
     estimateId: 'loc',
@@ -419,7 +422,7 @@ function buildAgenticElement(effArt, sessArt, config, selections, sessionLogs) {
 
   // 2. Merge rate → 100%
   if (mergeRate != null && mergeRate > 0 && mergeRate < 1) {
-    const estDurationFactor = config.est_duration_factor || 2;
+    const estDurationFactor = config.est_duration_factor || REGISTRY_DEFAULTS.est_duration_factor;
     const projTimeSaved = estDurationFactor * timeSpentHours * (1 - (currentYield || 0));
     projections.push({
       projectionId: 'merge_rate',
@@ -539,7 +542,7 @@ export function materializeLeverageSummary(artifacts, config = {}, options = {})
   const startMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
 
   const defaults = getAllDefaults();
-  const mergedConfig = { ...defaults, cfg_hrs_per_dev_per_day: 8, ...config };
+  const mergedConfig = { ...defaults, ...config };
 
   // Leverage selections (which estimate/projection drives each element's row)
   const selections = {

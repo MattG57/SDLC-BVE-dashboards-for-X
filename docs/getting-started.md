@@ -53,22 +53,32 @@ every leverage calculation:
 ```json
 {
   "cfg_total_developers": 500,
-  "cfg_pct_time_coding": 0.25,
-  "cfg_labor_cost_per_hour": 100,
-  "est_hrs_per_kloc": 1,
-  "est_duration_factor": 10
+  "cfg_total_repos": 200,
+  "cfg_labor_cost_per_hour": 100
 }
 ```
+
+**Customer-supplied facts.** Set these for your organization:
 
 | Key | What It Controls | How to Determine |
 |---|---|---|
 | `cfg_total_developers` | Org capacity denominator | Number of developers in org |
-| `cfg_pct_time_coding` | Hours per dev per day | Fraction of workday spent coding (0.25 = 2h/day) |
 | `cfg_labor_cost_per_hour` | Economic value calculation | Fully loaded cost per developer hour |
 | `cfg_total_repos` | Repo coverage context | Number of active repositories |
-| `est_hrs_per_kloc` | Agentic time saved estimate | Estimated hours to write 1K lines manually |
-| `est_duration_factor` | Agentic duration-based estimate | Wall-clock to dev-hours multiplier |
-| `est_interactions_per_hour` | AI-assisted time saved estimate | Copilot interactions per coding hour |
+
+**Estimation constants.** These are optional. If you omit them, the registry defaults apply:
+
+| Key | Default | What It Controls |
+|---|---|---|
+| `cfg_pct_time_coding` | 0.25 | Fraction of workday spent coding (0.25 = 2h/day) |
+| `est_interactions_per_hour` | 30 | AI-assisted Interactions-Based hours saved |
+| `est_hrs_per_kloc` | 0.22 | LoC-Based hours saved (AI-assisted and agentic) |
+| `est_duration_factor` | 0.2 | Agentic Duration-Based hours saved |
+
+These constants are assumptions, not measurements. Before overriding one, read
+[estimation-parameters.md](estimation-parameters.md), which covers where each
+default came from, its plausible range, and how far the headline moves across
+that range. `npm run validate` warns when a value is outside its range.
 
 Getting `cfg_total_developers` right is critical — it sets the
 denominator for adoption rates and aperture. An incorrect value

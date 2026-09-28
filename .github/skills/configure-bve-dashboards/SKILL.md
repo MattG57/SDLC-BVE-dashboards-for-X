@@ -103,29 +103,29 @@ The canonical registry is in `shared/core/config.js`. All keys use `cfg_` (custo
 | `cfg_total_developers` | number | `100` | Total developers in the organization |
 | `cfg_workdays_per_week` | number | `5` | Working days per week |
 | `cfg_labor_cost_per_hour` | number | `null` | Fully loaded labor cost per developer hour |
-| `cfg_pct_time_coding` | number | `0.5` | Fraction of work time spent coding (0–1) |
+| `cfg_pct_time_coding` | number | `0.25` | Fraction of work time spent coding (0–1) |
 | `cfg_pct_time_reviewing` | number | `0.2` | Fraction of work time on code review (0–1) |
 
 #### AI-Assisted Parameters
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `est_interactions_per_hour` | number | `20` | Copilot interactions per hour of saved time |
-| `cfg_time_saved_pct_day` | number | `null` | Manual daily time saved fraction (0–1) |
-| `cfg_baseline_hours_per_dev_per_week` | number | `null` | Baseline working hours per dev per week |
+| `est_interactions_per_hour` | number | `30` | Copilot interactions per hour of saved time |
+| `cfg_time_saved_pct_day` | number | `0.38` | Fraction of coding time saved per active dev per day (0–1) |
+| `cfg_baseline_hours_per_dev_per_week` | number | `40` | Baseline working hours per dev per week |
 
 #### Agentic Parameters
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `est_duration_factor` | number | `2` | Multiplier for agent PR duration → human-equivalent hours |
+| `est_duration_factor` | number | `0.2` | Dev-hours saved per hour of merged agent session time |
 | `cfg_total_repos` | number | `null` | Total repositories in scope (for repo coverage) |
 
 #### Shared Parameters
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `est_hrs_per_kloc` | number | `2` | Developer hours per 1,000 lines of code |
+| `est_hrs_per_kloc` | number | `0.22` | Developer hours saved per 1,000 lines of code |
 
 #### Structural Analysis
 
@@ -148,12 +148,11 @@ The canonical registry is in `shared/core/config.js`. All keys use `cfg_` (custo
   "cfg_total_developers": 500,
   "cfg_pct_time_coding": 0.25,
   "cfg_labor_cost_per_hour": 100,
-  "cfg_total_repos": 200,
-  "est_hrs_per_kloc": 1,
-  "est_duration_factor": 10,
-  "est_interactions_per_hour": 25
+  "cfg_total_repos": 200
 }
 ```
+
+Omit `est_*` keys to use the registry defaults. If you override one, record why. See [docs/estimation-parameters.md](../../../docs/estimation-parameters.md) for each constant's provenance, plausible range and sensitivity. `npm run validate` and the materializers warn when a value is outside its range.
 
 ## Override Precedence
 

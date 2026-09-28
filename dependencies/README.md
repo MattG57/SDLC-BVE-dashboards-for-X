@@ -240,6 +240,8 @@ Example files are used for validation with `node scripts/validators/validate-dat
 
 Each dashboard accepts optional config JSON files with `cfg_*` (customer-provided) and `est_*` (estimation parameter) keys. These override defaults when uploaded alongside source data.
 
+> The tables below list the defaults built into the **legacy** per-dashboard pages. The pipeline (`leverage-summary`) and v4 dashboards use `CONFIG_REGISTRY` in `shared/core/config.js`. Its defaults, provenance, ranges and sensitivity are in [docs/estimation-parameters.md](../docs/estimation-parameters.md).
+
 ### AI-Assisted Efficiency
 
 | Key | Type | Default | Description |

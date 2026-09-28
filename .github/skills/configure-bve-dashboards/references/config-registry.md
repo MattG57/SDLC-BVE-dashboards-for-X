@@ -2,7 +2,7 @@
 
 Source: `shared/core/config.js`
 
-The CONFIG_REGISTRY is the single source of truth for config key names, defaults, types, and labels. Every dashboard reads defaults from here. The `mergeConfig()` function merges user-provided config over defaults, ignoring unknown keys.
+The CONFIG_REGISTRY is the single source of truth for config key names, defaults, types, labels, and provenance/range/sensitivity metadata. [docs/estimation-parameters.md](../../../../docs/estimation-parameters.md) is generated from it (`node scripts/generate-estimation-docs.js`). Every dashboard reads defaults from here. The `mergeConfig()` function merges user-provided config over defaults, ignoring unknown keys.
 
 ## Key Naming Convention
 
@@ -22,29 +22,32 @@ A JSON object is recognized as a config file if it has any key starting with `cf
 | `cfg_total_developers` | `100` | Total Developers | Total number of developers in the organization |
 | `cfg_workdays_per_week` | `5` | Workdays per Week | Working days per week (excludes weekends) |
 | `cfg_labor_cost_per_hour` | `null` | Labor Cost ($/hr) | Fully loaded labor cost per developer hour |
-| `cfg_pct_time_coding` | `0.5` | % Time Coding | Fraction of work time spent on coding tasks (0–1) |
+| `cfg_pct_time_coding` | `0.25` | % Time Coding | Fraction of work time spent on coding tasks (0–1) |
 | `cfg_pct_time_reviewing` | `0.2` | % Time Reviewing | Fraction of work time spent on code review (0–1) |
+| `cfg_hrs_per_dev_per_day` | `8` | Hours per Dev per Day | Working hours per dev per day (AI-assisted time spent) |
+| `cfg_window_days` | `28` | Window Days | Default reporting window / agentic session cutoff |
 
 ### AI-Assisted (`type: 'ai-assisted'`)
 
 | Key | Default | Label | Description |
 |---|---|---|---|
-| `est_interactions_per_hour` | `20` | Interactions per Hour | Estimated Copilot interactions per hour of saved time |
-| `cfg_time_saved_pct_day` | `null` | Time Saved % / Day | Manual estimate of daily time saved as a fraction (0–1) |
-| `cfg_baseline_hours_per_dev_per_week` | `null` | Baseline Hrs/Dev/Week | Baseline working hours per developer per week |
+| `est_interactions_per_hour` | `30` | Interactions per Hour | Estimated Copilot interactions per hour of saved time |
+| `cfg_time_saved_pct_day` | `0.38` | Time Saved % / Day | Fraction of coding time saved per active dev per day (0–1) |
+| `cfg_baseline_hours_per_dev_per_week` | `40` | Baseline Hrs/Dev/Week | Baseline working hours per developer per week |
 
 ### Agentic (`type: 'agentic'`)
 
 | Key | Default | Label | Description |
 |---|---|---|---|
-| `est_duration_factor` | `2` | Duration Multiplier | Multiplier for agent PR duration → human-equivalent hours |
+| `est_duration_factor` | `0.2` | Duration Multiplier | Dev-hours saved per hour of merged agent session time |
+| `est_human_to_agent_ratio` | `10` | Human-to-Agent Ratio (legacy) | `type: 'legacy'` — read only by v1/v2 agentic dashboards |
 | `cfg_total_repos` | `null` | Total Repos | Total repositories in scope for repo coverage |
 
 ### Shared (`type: 'shared'`)
 
 | Key | Default | Label | Description |
 |---|---|---|---|
-| `est_hrs_per_kloc` | `2` | Hours per KLoC | Developer hours per 1,000 lines of code |
+| `est_hrs_per_kloc` | `0.22` | Hours per KLoC | Developer hours saved per 1,000 lines of code |
 
 ### Structural (`type: 'structural'`)
 
@@ -70,6 +73,12 @@ Returns all config defaults regardless of type.
 
 ### `isConfigObject(obj)`
 Detects if a JSON object is a config file (has any `cfg_` or `est_` key).
+
+### `sensitivityBand(key, base?)`
+Returns `{ atMin, atMax, low, high }`: the multiplier on the affected estimate when `key` moves from `base` (default: registry default) to each end of its `range`. Returns `null` for keys with no range or no proportional effect.
+
+### `checkConfigRanges(config)`
+Returns warning strings for values that are non-numeric or outside the registry `range`. Used by `npm run validate` and the materializers.
 
 ### `mergeConfig(defaults, userConfig)`
 Merges user config over defaults. Only known keys (present in CONFIG_REGISTRY) are accepted; unknown keys are silently ignored.

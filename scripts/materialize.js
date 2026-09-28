@@ -33,7 +33,7 @@ import { isCopilotMetricsSource } from '../shared/sources/copilot-metrics.js';
 import { isAgenticSource } from '../shared/sources/agentic.js';
 import { isPrReviewData } from '../shared/sources/pr-review.js';
 import { isOrgMembersSource, extractOrgMemberLogins, unionOrgMembers } from '../shared/sources/org-members.js';
-import { getAllDefaults } from '../shared/core/config.js';
+import { getAllDefaults, checkConfigRanges } from '../shared/core/config.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -231,6 +231,7 @@ function main() {
     try {
       const orgConfig = JSON.parse(readFileSync(configPath, 'utf-8'));
       Object.assign(config, orgConfig);
+      for (const w of checkConfigRanges(orgConfig)) console.warn(`  ⚠ dashboard-config.json: ${w}`);
     } catch(e) { /* ignore parse errors */ }
   }
 

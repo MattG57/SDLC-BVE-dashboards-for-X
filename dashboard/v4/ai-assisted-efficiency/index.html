@@ -240,13 +240,13 @@ const DEFAULT_CONFIG = {
   // Fallback values — overridden by data/config.json (from dashboard-config.json) at runtime.
   // If config.json is missing, these fallbacks are used and a warning is shown.
   cfg_total_developers: 100,
-  cfg_pct_time_coding: 0.5,
+  cfg_pct_time_coding: 0.25,
   cfg_time_saved_pct_day: 0.38,
   cfg_baseline_hours_per_dev_per_week: 40,
   cfg_workdays_per_week: 5,
   cfg_labor_cost_per_hour: 100,
   est_interactions_per_hour: 30,
-  est_hrs_per_kloc: 1.5,
+  est_hrs_per_kloc: 0.22,
 };
 
 const ESTIMATION_METHODS = [
@@ -256,9 +256,9 @@ const ESTIMATION_METHODS = [
     calc: (d, c) => (d.user_initiated_interaction_count||0) / (c.est_interactions_per_hour||30),
   },
   { key: 'loc', label: 'Lines of Code',
-    desc: (c) => `${c.est_hrs_per_kloc||2} hrs saved per 1K LoC added`,
-    formula: (c) => `hrs = (LoC ÷ 1000) × ${c.est_hrs_per_kloc||2}`,
-    calc: (d, c) => ((d.loc_added_sum||0) / 1000) * (c.est_hrs_per_kloc||2),
+    desc: (c) => `${c.est_hrs_per_kloc||0.22} hrs saved per 1K LoC added`,
+    formula: (c) => `hrs = (LoC ÷ 1000) × ${c.est_hrs_per_kloc||0.22}`,
+    calc: (d, c) => ((d.loc_added_sum||0) / 1000) * (c.est_hrs_per_kloc||0.22),
   },
   { key: 'manual', label: 'Manual %',
     desc: (c) => (((c.cfg_time_saved_pct_day||0)*100).toFixed(0))+'% of coding time saved per active dev',
@@ -361,8 +361,8 @@ function SidePanel({ config, setConfig, method, setMethod, days, users, selected
         <div className="sp-section">
           <div className="sp-title">Assumptions</div>
           <div className="sp-input">
-            <label>Interactions / hr saved <input type="number" value={config.est_interactions_per_hour||20} min="1" step="1" onChange={e => updateCfg('est_interactions_per_hour', parseFloat(e.target.value)||20)} /></label>
-            <label>Hrs / 1K LoC <input type="number" value={config.est_hrs_per_kloc||2} min="0" step="0.5" onChange={e => updateCfg('est_hrs_per_kloc', parseFloat(e.target.value)||2)} /></label>
+            <label>Interactions / hr saved <input type="number" value={config.est_interactions_per_hour||30} min="1" step="1" onChange={e => updateCfg('est_interactions_per_hour', parseFloat(e.target.value)||30)} /></label>
+            <label>Hrs / 1K LoC <input type="number" value={config.est_hrs_per_kloc||0.22} min="0" step="0.01" onChange={e => updateCfg('est_hrs_per_kloc', parseFloat(e.target.value)||0.22)} /></label>
           </div>
         </div>
 
@@ -376,7 +376,7 @@ function SidePanel({ config, setConfig, method, setMethod, days, users, selected
             <label>Workdays / week <input type="number" value={config.cfg_workdays_per_week||5} min="1" max="7" step="1" onChange={e => updateCfg('cfg_workdays_per_week', parseFloat(e.target.value)||5)} /></label>
             <label>% time coding <input type="number" value={config.cfg_pct_time_coding!=null?config.cfg_pct_time_coding:''} min="0" max="1" step="0.05" placeholder="0.25" onChange={e => updateCfg('cfg_pct_time_coding', e.target.value ? parseFloat(e.target.value) : null)} /></label>
             <label>Baseline hrs / week <input type="number" value={config.cfg_baseline_hours_per_dev_per_week!=null?config.cfg_baseline_hours_per_dev_per_week:''} min="0" step="1" placeholder="40" onChange={e => updateCfg('cfg_baseline_hours_per_dev_per_week', e.target.value ? parseFloat(e.target.value) : null)} /></label>
-            <label>% coding time saved <input type="number" value={config.cfg_time_saved_pct_day!=null?config.cfg_time_saved_pct_day:''} min="0" max="1" step="0.05" placeholder="0.30" onChange={e => updateCfg('cfg_time_saved_pct_day', e.target.value ? parseFloat(e.target.value) : null)} /></label>
+            <label>% coding time saved <input type="number" value={config.cfg_time_saved_pct_day!=null?config.cfg_time_saved_pct_day:''} min="0" max="1" step="0.05" placeholder="0.38" onChange={e => updateCfg('cfg_time_saved_pct_day', e.target.value ? parseFloat(e.target.value) : null)} /></label>
           </div>
         </div>
 
@@ -568,7 +568,7 @@ function App() {
   // ── Impact charts (separate per-dev and enterprise) ──
   var xLabels = days.map(d => d.day);
   var tickInt = Math.max(1, Math.floor(n/12));
-  var perDevVal = ((config.cfg_time_saved_pct_day||0) * (config.cfg_pct_time_coding||0.5) * ((config.cfg_baseline_hours_per_dev_per_week||40) / (config.cfg_workdays_per_week||5))).toFixed(1);
+  var perDevVal = ((config.cfg_time_saved_pct_day||0) * (config.cfg_pct_time_coding||0.25) * ((config.cfg_baseline_hours_per_dev_per_week||40) / (config.cfg_workdays_per_week||5))).toFixed(1);
 
   var isManual = method === 'manual';
   var perDevOpts = isManual ? {
@@ -620,7 +620,7 @@ function App() {
 
   // ── Capacity baseline (total org, not just Copilot users) ──
   var totalDevs = config.cfg_total_developers || 100;
-  var codingPct = config.cfg_pct_time_coding || 0.5;
+  var codingPct = config.cfg_pct_time_coding || 0.25;
   var codingHrsPerDev = baseHrsPerDay * codingPct;
   var totalCodingCapacity = totalDevs * codingHrsPerDev * n;
   var avgCodingCapacityPerDay = totalDevs * codingHrsPerDev;

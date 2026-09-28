@@ -46,7 +46,7 @@ Represents the total developer-hours invested in coding activities.
 hours_saved = total_interactions / est_interactions_per_hour
 ```
 - `total_interactions` = sum of `user_initiated_interaction_count` across all days
-- `est_interactions_per_hour` = config parameter (default: 20)
+- `est_interactions_per_hour` = config parameter (default: 30)
 - Per-dev: `hours_saved / (avg_dau × days)`
 
 ### Estimation Method 2: LoC-Based
@@ -54,12 +54,12 @@ hours_saved = total_interactions / est_interactions_per_hour
 hours_saved = (total_loc_added / 1000) × est_hrs_per_kloc
 ```
 - `total_loc_added` = sum of `loc_added_sum` across all days
-- `est_hrs_per_kloc` = config parameter (default: 2)
+- `est_hrs_per_kloc` = config parameter (default: 0.22)
 
 ### Estimation Method 3: Manual Daily %
-Only available when both `cfg_time_saved_pct_day` and `cfg_baseline_hours_per_dev_per_week` are configured.
+Available when `cfg_time_saved_pct_day` and `cfg_baseline_hours_per_dev_per_week` are non-null (registry defaults 0.38 and 40). `cfg_time_saved_pct_day` is a share of *coding* time.
 ```
-hours_saved = Σ(cfg_time_saved_pct_day × cfg_baseline_hours_per_dev_per_week / cfg_workdays_per_week × daily_active_users)
+hours_saved = Σ(cfg_time_saved_pct_day × cfg_pct_time_coding × cfg_baseline_hours_per_dev_per_week / cfg_workdays_per_week × daily_active_users)
 ```
 
 ### Structural Factors
@@ -84,14 +84,14 @@ timeSpentHours = total_session_minutes / 60  (observed agent running time)
 hours_saved = (merged_session_minutes / 60) × est_duration_factor
 ```
 - `merged_session_minutes` = total duration of merged PR sessions
-- `est_duration_factor` = config parameter (default: 2)
+- `est_duration_factor` = config parameter (default: 0.2)
 
 ### Estimation Method 2: LoC-Based (Merged)
 ```
 hours_saved = (merged_loc_added / 1000) × est_hrs_per_kloc
 ```
 - `merged_loc_added` = total lines added in merged PRs
-- `est_hrs_per_kloc` = config parameter (default: 2)
+- `est_hrs_per_kloc` = config parameter (default: 0.22)
 
 ### Structural Factors
 - **Adoption %**: `avg_active_devs / cfg_total_developers`

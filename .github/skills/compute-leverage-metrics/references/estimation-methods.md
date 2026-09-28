@@ -8,7 +8,7 @@ Source: `shared/materializers/leverage-summary.js`
 
 ```
 total_interactions = 50 × 15 × 28 = 21,000
-est_interactions_per_hour = 20 (default)
+est_interactions_per_hour = 20 (example; registry default is 30)
 
 hours_saved = 21,000 / 20 = 1,050 hours
 per_dev_per_day = 1,050 / (50 × 28) = 0.75 hours/dev/day
@@ -22,7 +22,7 @@ per_dev_per_day = 1,050 / (50 × 28) = 0.75 hours/dev/day
 
 ```
 total_loc_added = 200,000
-est_hrs_per_kloc = 2 (default)
+est_hrs_per_kloc = 2 (example; registry default is 0.22)
 
 hours_saved = (200,000 / 1,000) × 2 = 400 hours
 ```
@@ -31,17 +31,18 @@ hours_saved = (200,000 / 1,000) × 2 = 400 hours
 
 ## AI-Assisted: Manual Daily %
 
-**Scenario**: Survey indicates developers save 15% of their time. 40-hour work weeks, 5 workdays.
+**Scenario**: Survey indicates developers save 15% of their coding time. 40-hour work weeks, 5 workdays.
 
 ```
-cfg_time_saved_pct_day = 0.15
+cfg_time_saved_pct_day = 0.15   (share of coding time)
+cfg_pct_time_coding = 0.25
 cfg_baseline_hours_per_dev_per_week = 40
 cfg_workdays_per_week = 5
 
-Per day per active dev = 0.15 × 40 / 5 = 1.2 hours
+Per day per active dev = 0.15 × 0.25 × 40 / 5 = 0.3 hours
 
 For 50 active devs over 28 days:
-hours_saved = 1.2 × 50 × 28 = 1,680 hours
+hours_saved = 0.3 × 50 × 28 = 420 hours
 ```
 
 ## Agentic: Duration-Based (Merged)
@@ -50,7 +51,7 @@ hours_saved = 1.2 × 50 × 28 = 1,680 hours
 
 ```
 merged_session_minutes = 500
-est_duration_factor = 2 (default — assumes agent does 2× what a human would in the same time)
+est_duration_factor = 2 (example; registry default is 0.2)
 
 hours_saved = (500 / 60) × 2 = 16.7 hours
 ```
@@ -63,7 +64,7 @@ hours_saved = (500 / 60) × 2 = 16.7 hours
 
 ```
 merged_loc_added = 15,000
-est_hrs_per_kloc = 2 (default)
+est_hrs_per_kloc = 2 (example; registry default is 0.22)
 
 hours_saved = (15,000 / 1,000) × 2 = 30 hours
 ```
@@ -77,3 +78,5 @@ hours_saved = (15,000 / 1,000) × 2 = 30 hours
 | Manual Daily % | You have survey data on time savings | Relies on self-reported estimates |
 | Duration-Based (Agentic) | Agent session times are representative | Requires calibrating duration_factor |
 | LoC-Based (Agentic) | Merged PR code volume is meaningful | Same LoC ≠ effort caveat |
+
+For each constant's provenance, plausible range and sensitivity, see [docs/estimation-parameters.md](../../../../docs/estimation-parameters.md).

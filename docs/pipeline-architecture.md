@@ -242,7 +242,9 @@ shared/
 
 ### 4.2 Config registry
 
-A single source of truth for config defaults, resolving the current divergences:
+A single source of truth for config defaults, resolving the current divergences.
+
+> This was the original proposal. The live registry adds provenance, range and sensitivity metadata, and its defaults have since changed (e.g. `est_hrs_per_kloc` 0.22, `est_duration_factor` 0.2). See [estimation-parameters.md](estimation-parameters.md).
 
 ```javascript
 export const CONFIG_REGISTRY = {

@@ -224,7 +224,7 @@ const DEFAULT_CONFIG = {
   cfg_workdays_per_week: 5,
   cfg_labor_cost_per_hour: 100,
   est_duration_factor: 0.20,
-  est_hrs_per_kloc: 4,
+  est_hrs_per_kloc: 0.22,
 };
 
 const ESTIMATION_METHODS = [
@@ -238,9 +238,9 @@ const ESTIMATION_METHODS = [
   {
     key: 'loc',
     label: 'LoC-Based (Merged)',
-    desc: (c) => `${c.est_hrs_per_kloc || 4} hrs saved per 1K merged LoC added`,
-    formula: (c) => `hrs = (merged_loc_added ÷ 1000) × ${c.est_hrs_per_kloc || 4}`,
-    calc: (d, c) => ((d.merged_loc_added || 0) / 1000) * (c.est_hrs_per_kloc || 4),
+    desc: (c) => `${c.est_hrs_per_kloc || 0.22} hrs saved per 1K merged LoC added`,
+    formula: (c) => `hrs = (merged_loc_added ÷ 1000) × ${c.est_hrs_per_kloc || 0.22}`,
+    calc: (d, c) => ((d.merged_loc_added || 0) / 1000) * (c.est_hrs_per_kloc || 0.22),
   },
   {
     key: 'dev-time',
@@ -414,7 +414,7 @@ function SidePanel({ config, setConfig, method, setMethod, days, users, selected
           <div className="sp-title">Assumptions</div>
           <div className="sp-input">
             <label>Duration multiplier <input type="number" value={config.est_duration_factor ?? 0.20} min="0" step="0.1" onChange={e => updateCfg('est_duration_factor', parseFloat(e.target.value) || 0)} /></label>
-            <label>Hrs / 1K merged LoC <input type="number" value={config.est_hrs_per_kloc ?? 4} min="0" step="0.5" onChange={e => updateCfg('est_hrs_per_kloc', parseFloat(e.target.value) || 0)} /></label>
+            <label>Hrs / 1K merged LoC <input type="number" value={config.est_hrs_per_kloc ?? 0.22} min="0" step="0.01" onChange={e => updateCfg('est_hrs_per_kloc', parseFloat(e.target.value) || 0)} /></label>
           </div>
         </div>
 

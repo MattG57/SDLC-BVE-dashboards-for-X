@@ -74,6 +74,8 @@ npm run validate          # lint + format + test
 | [data-sources.md](docs/data-sources.md) | API endpoints, data filtering, execution plan |
 | [data-collection.md](docs/data-collection.md) | Pipeline steps, artifacts, dashboard mapping |
 | [query-settings.md](docs/query-settings.md) | Configuration keys and profiles |
+| [estimation-parameters.md](docs/estimation-parameters.md) | Estimation constants: defaults, provenance, ranges, sensitivity |
+| [design-decisions.md](docs/design-decisions.md) | Deliberate measurement choices and their rationale |
 | [config-examples.md](docs/config-examples.md) | Common scheduled and ad-hoc scenarios |
 | [pat-setup.md](docs/pat-setup.md) | PAT creation and SSO authorization |
 | [development.md](docs/development.md) | Contributor workflow |
