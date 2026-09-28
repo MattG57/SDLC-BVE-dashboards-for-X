@@ -136,6 +136,43 @@ The workflow supports `workflow_dispatch` with inputs for `pipeline_steps`,
 `enterprise`, `org`, and `days`. See [config-examples.md](config-examples.md)
 for selective step examples.
 
+### Collection run status (`query-status.json`)
+
+Every `collect-and-materialize.sh` invocation writes a run record to
+`dashboard/dataflow/data/query-status.json`. It is built by
+`scripts/write-query-status.js` (logic in `shared/core/query-status.js`). The
+**Pipeline Status** dashboard (`dashboard/data-status/`) renders it in the
+"Last Collection Run" panel.
+
+| Field | Meaning |
+|---|---|
+| `schema_version` | `2` |
+| `mode` | `collect`, `materialize-only` or `session-logs-only` |
+| `run_started` / `run_finished` | ISO-8601 UTC timestamps for the last *collection* run |
+| `profile` | `query-settings.json` profile used |
+| `targets[]` | One entry per target: `target`, `status` (`success` / `failed` / `skipped`), `script`, `output_file`, `file_size_bytes`, `duration_s`, `warnings[]` (up to 10 `⚠`/warning lines from the script's stderr), `error`, `timestamp` |
+| `updated_at` / `last_invocation` | When the file was last written, and by which mode |
+| `raw_files[]` | Inventory of `_data/raw/` (stripped from the deployed `data-status.json` copy to keep it small) |
+
+How each mode updates the record:
+
+- A **`--materialize-only`** run keeps the previous collection record and
+  updates only `updated_at` and `last_invocation`.
+- A **`--session-logs-only`** run replaces just the `agent-session-logs`
+  target.
+
+The workflow caches the file separately (`pipeline-status-*`), so deploy-only
+runs still show the last collection. It does not share the raw-data cache,
+because changing that cache's paths would invalidate history.
+
+`scripts/build-pages.sh` publishes the file in two places:
+
+- `_site/dataflow/data/query-status.json`
+- embedded as `query_run` in `_site/data-status/data/data-status.json`
+
+`build-pages.sh` reads the legacy `_data-status/query-status.json` location
+only as a fallback.
+
 ## Output Shapes
 
 | Script | Top-level keys |

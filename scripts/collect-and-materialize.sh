@@ -32,8 +32,15 @@ RAW_DIR="${DATA_DIR}/raw"
 MATERIALIZED_DIR="${DATA_DIR}/materialized"
 SETTINGS_FILE="${REPO_ROOT}/query-settings.json"
 
-# Timestamp for this run
-RUN_TS=$(date -u +%Y-%m-%dT%H%MZ)
+# Timestamp for this run: ISO for status records, compact form for filenames
+RUN_STARTED_ISO=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+RUN_TS="${RUN_STARTED_ISO:0:13}${RUN_STARTED_ISO:14:2}Z"
+
+# Per-target results for query-status.json (one JSON object per line)
+STATUS_TMP_DIR=$(mktemp -d)
+TARGET_RESULTS_FILE="${STATUS_TMP_DIR}/targets.ndjson"
+trap 'rm -rf "$STATUS_TMP_DIR"' EXIT
+STATUS_MODE="collect"
 
 # ─── Argument parsing ─────────────────────────────────────────────────────────
 
@@ -131,6 +138,28 @@ register_targets() {
   TARGET_REQUIRED+=("ORG")
 }
 
+# ─── Record a target result for query-status.json ─────────────────────────────
+
+# record_target <target> <status> <script> <output_file> <size_bytes> <duration_s> <stderr_log> <error>
+record_target() {
+  jq -nc \
+    --arg target "$1" --arg status "$2" --arg script "$3" --arg output_file "$4" \
+    --arg size "$5" --arg duration "$6" --arg stderr_log "$7" --arg error "$8" \
+    --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    'def nullable: if . == "" then null else . end;
+     {
+       target: $target,
+       status: $status,
+       script: ($script | nullable),
+       output_file: ($output_file | nullable),
+       file_size_bytes: ($size | nullable | if . == null then null else tonumber end),
+       duration_s: ($duration | nullable | if . == null then null else tonumber end),
+       stderr_log: ($stderr_log | nullable),
+       error: ($error | nullable),
+       timestamp: $timestamp
+     }' >> "$TARGET_RESULTS_FILE"
+}
+
 # ─── Run a single query target ─────────────────────────────────────────────────
 
 run_target() {
@@ -155,12 +184,14 @@ run_target() {
 
   if ! $has_required; then
     echo "  ⚠ Skipping — requires one of: $required"
+    record_target "$name" skipped "$script" "" "" "" "" "requires one of: $required"
     return 1
   fi
 
   local script_path="${REPO_ROOT}/${script}"
   if [[ ! -f "$script_path" ]]; then
     echo "  ⚠ Script not found: $script"
+    record_target "$name" failed "$script" "" "" "" "" "script not found"
     return 1
   fi
 
@@ -172,22 +203,32 @@ run_target() {
   echo "  Script: $script"
   echo "  Output: _data/raw/$output_file"
 
-  # Run the query script — scripts write JSON to stdout, progress to stderr
-  if bash "$script_path" > "$output_path"; then
+  # Run the query script — scripts write JSON to stdout, progress to stderr.
+  # stderr is still streamed to the log, and also captured so warnings can be
+  # recorded in query-status.json.
+  local stderr_log="${STATUS_TMP_DIR}/${name}.stderr"
+  local started=$SECONDS rc=0
+  { bash "$script_path" 2>&1 >&3 | tee "$stderr_log" >&2; } 3>"$output_path" || rc=$?
+  local duration=$((SECONDS - started))
+
+  if [[ $rc -eq 0 ]]; then
     # Validate the output is valid JSON
     if jq -e '.' "$output_path" > /dev/null 2>&1; then
       local fsize
       fsize=$(wc -c < "$output_path" | tr -d ' ')
       echo "  ✔ Captured _data/raw/$output_file ($fsize bytes)"
+      record_target "$name" success "$script" "$output_file" "$fsize" "$duration" "$stderr_log" ""
       return 0
     else
       echo "  ✗ Output is not valid JSON"
       rm -f "$output_path"
+      record_target "$name" failed "$script" "" "" "$duration" "$stderr_log" "output is not valid JSON"
       return 1
     fi
   else
     echo "  ✗ Script failed"
     rm -f "$output_path"
+    record_target "$name" failed "$script" "" "" "$duration" "$stderr_log" "script exited with status $rc"
     return 1
   fi
 }
@@ -260,8 +301,7 @@ collect_existing() {
 
 write_status() {
   local status_file="${DATA_DIR}/query-status.json"
-  local run_finished
-  run_finished=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  local raw_files_json="${STATUS_TMP_DIR}/raw-files.json"
 
   # List raw files with metadata
   local files_json="["
@@ -279,23 +319,17 @@ write_status() {
     files_json="${files_json}{\"file\":\"${fname}\",\"size_bytes\":${fsize},\"metadata\":${fmeta}}"
   done
   files_json="${files_json}]"
+  printf '%s' "$files_json" > "$raw_files_json"
 
-  # Pass the (potentially large) files array via stdin rather than argv to
-  # avoid "Argument list too long" (E2BIG) once _data/raw accumulates many
-  # files. --slurpfile reads the single JSON array from stdin as $files[0].
-  printf '%s' "$files_json" | jq -n \
-    --arg started "$RUN_TS" \
-    --arg finished "$run_finished" \
-    --arg profile "$PROFILE" \
-    --slurpfile files /dev/stdin \
-    '{
-      run_started: $started,
-      run_finished: $finished,
-      profile: $profile,
-      raw_files: $files[0]
-    }' > "$status_file"
-
-  echo "  ✔ query-status.json"
+  # Merges with the previous status for session-logs-only / materialize-only
+  # runs so the last collection's per-target results are preserved.
+  node "${REPO_ROOT}/scripts/write-query-status.js" \
+    --out "$status_file" \
+    --mode "$STATUS_MODE" \
+    --run-started "$RUN_STARTED_ISO" \
+    --profile "$PROFILE" \
+    --targets "$TARGET_RESULTS_FILE" \
+    --raw-files "$raw_files_json"
 }
 
 # ─── Session logs collection ──────────────────────────────────────────────────
@@ -311,6 +345,7 @@ run_session_logs() {
   if [[ -z "$agentic_raw" ]]; then
     echo ""
     echo "  ⚠ No agentic data found — skipping session logs"
+    record_target agent-session-logs skipped "" "" "" "" "" "no coding-agent-pr-metrics data"
     return 0
   fi
 
@@ -319,25 +354,32 @@ run_session_logs() {
   local scope_name="${ENTERPRISE:-${ORG:-unknown}}"
   local sl_output="${RAW_DIR}/${scope_name}-agent-session-logs-${RUN_TS}.json"
   local sl_script="${REPO_ROOT}/BVE-dashboards-for-agentic-ai-coding/data/queries/agent-session-logs.sh"
+  local sl_rel="BVE-dashboards-for-agentic-ai-coding/data/queries/agent-session-logs.sh"
   if [[ ! -f "$sl_script" ]]; then
     echo "  ⚠ Script not found: $sl_script"
+    record_target agent-session-logs failed "$sl_rel" "" "" "" "" "script not found"
     return 0
   fi
 
   echo "  Input: $(basename "$agentic_raw")"
   echo "  Output: _data/raw/$(basename "$sl_output")"
+  local started=$SECONDS
   if bash "$sl_script" --input "$agentic_raw" > "$sl_output" 2>"${sl_output}.log"; then
     if jq -e '.' "$sl_output" > /dev/null 2>&1; then
-      local sl_count
+      local sl_count sl_size
       sl_count=$(jq '.metadata.succeeded // 0' "$sl_output")
+      sl_size=$(wc -c < "$sl_output" | tr -d ' ')
       echo "  ✔ Session logs: $sl_count sessions processed"
+      record_target agent-session-logs success "$sl_rel" "$(basename "$sl_output")" "$sl_size" "$((SECONDS - started))" "${sl_output}.log" ""
     else
       echo "  ✗ Output is not valid JSON"
       rm -f "$sl_output"
+      record_target agent-session-logs failed "$sl_rel" "" "" "$((SECONDS - started))" "${sl_output}.log" "output is not valid JSON"
     fi
   else
     echo "  ✗ Script failed (see ${sl_output}.log)"
     rm -f "$sl_output"
+    record_target agent-session-logs failed "$sl_rel" "" "" "$((SECONDS - started))" "${sl_output}.log" "script failed"
   fi
 }
 
@@ -543,6 +585,7 @@ main() {
   fi
 
   if $SKIP_COLLECTION; then
+    STATUS_MODE="materialize-only"
     echo "Skipping collection (--materialize-only or profile)"
 
     # If _data/raw/ is empty, collect from existing dashboard data dirs
@@ -551,6 +594,7 @@ main() {
       collect_existing
     fi
   elif $SESSION_LOGS_ONLY; then
+    STATUS_MODE="session-logs-only"
     echo "Session logs only (--session-logs-only)"
 
     # If _data/raw/ is empty, collect from existing dashboard data dirs
@@ -584,6 +628,7 @@ main() {
     else
       echo ""
       echo "Skipping session logs (SKIP_SESSION_LOGS=true)"
+      record_target agent-session-logs skipped "" "" "" "" "" "SKIP_SESSION_LOGS=true"
     fi
   fi
 

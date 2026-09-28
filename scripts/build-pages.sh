@@ -183,12 +183,21 @@ fi
 STATUS_JSON="${SITE_DIR}/data-status/data/data-status.json"
 mkdir -p "$(dirname "$STATUS_JSON")"
 
-# Start with query-status.json from run-query.sh if available
-QUERY_STATUS="${REPO_ROOT}/_data-status/query-status.json"
-if [[ -f "$QUERY_STATUS" ]]; then
-  QUERY_INFO=$(cat "$QUERY_STATUS")
+# Last collection run: written by scripts/collect-and-materialize.sh. The legacy
+# _data-status/ path (run-query-legacy.sh) is only a fallback. raw_files is
+# dropped because the dashboard reads the raw inventory from the manifest.
+QUERY_INFO_FILE="$(mktemp)"
+QUERY_STATUS=""
+for candidate in "${REPO_ROOT}/dashboard/dataflow/data/query-status.json" "${REPO_ROOT}/_data-status/query-status.json"; do
+  if [[ -f "$candidate" ]] && jq -e 'type == "object"' "$candidate" >/dev/null 2>&1; then
+    QUERY_STATUS="$candidate"
+    break
+  fi
+done
+if [[ -n "$QUERY_STATUS" ]]; then
+  jq 'del(.raw_files)' "$QUERY_STATUS" > "$QUERY_INFO_FILE"
 else
-  QUERY_INFO='{"run_started":null,"run_finished":null,"profile":null,"targets":[]}'
+  echo '{"run_started":null,"run_finished":null,"profile":null,"targets":[]}' > "$QUERY_INFO_FILE"
 fi
 
 # Build per-dashboard inventory from manifests
@@ -237,20 +246,21 @@ EXPECTED_TARGETS='[
 ]'
 
 jq -n \
-  --argjson query "$QUERY_INFO" \
+  --slurpfile query "$QUERY_INFO_FILE" \
   --argjson dashboards "$DASHBOARD_INVENTORY" \
   --argjson expected "$EXPECTED_TARGETS" \
   --arg build_ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   '{
     build_timestamp: $build_ts,
-    query_run: $query,
+    query_run: $query[0],
     expected_targets: $expected,
     dashboards: $dashboards
   }' > "$STATUS_JSON"
 
 # Generate manifest for data-status dashboard
 echo "{\"files\":[\"data-status.json\"],\"generated\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > "$(dirname "$STATUS_JSON")/manifest.json"
-echo "  ✔ data-status/data/data-status.json"
+rm -f "$QUERY_INFO_FILE"
+echo "  ✔ data-status/data/data-status.json${QUERY_STATUS:+ (query run from ${QUERY_STATUS#"$REPO_ROOT"/})}"
 
 # ─── Generate landing page ────────────────────────────────────────────────────
 

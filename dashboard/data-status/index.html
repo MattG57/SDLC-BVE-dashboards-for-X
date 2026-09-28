@@ -18,6 +18,7 @@
   .badge-missing { background: #6e7681; color: #fff; }
   .badge-success { background: #238636; color: #fff; }
   .badge-failed  { background: #da3633; color: #fff; }
+  .badge-warning { background: #9e6a03; color: #fff; }
   .badge-cached  { background: #1f6feb; color: #fff; }
   .kpi-strip { display: flex; gap: 24px; flex-wrap: wrap; }
   .kpi-item { text-align: center; }
@@ -87,9 +88,19 @@ const ARTIFACT_REGISTRY = {
   },
 };
 
+// Accepts ISO timestamps and the compact run-id form ("2026-09-28T0617Z")
+// written by older pipeline versions.
+function parseTs(ts) {
+  if (!ts) return null;
+  const m = /^(\d{4}-\d{2}-\d{2})T(\d{2})(\d{2})Z$/.exec(ts);
+  const d = new Date(m ? m[1] + 'T' + m[2] + ':' + m[3] + ':00Z' : ts);
+  return isNaN(d.getTime()) ? null : d;
+}
+
 function timeAgo(ts) {
-  if (!ts) return '\u2014';
-  const diff = Date.now() - new Date(ts).getTime();
+  const parsed = parseTs(ts);
+  if (!parsed) return '\u2014';
+  const diff = Date.now() - parsed.getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'just now';
   if (mins < 60) return mins + 'm ago';
@@ -327,30 +338,56 @@ function ArtifactTable({ manifest, artifactData }) {
 }
 
 // ── Collection run summary (compact) ──
+function targetBadgeClass(t) {
+  if (t.status === 'failed') return 'badge-failed';
+  if (t.status === 'success' || t.status === 'cached') {
+    return (t.warnings && t.warnings.length) ? 'badge-warning' : 'badge-success';
+  }
+  return 'badge-missing';
+}
+
 function CollectionSummary({ queryRun }) {
-  if (!queryRun?.run_started) return null;
+  if (!queryRun) return null;
   const targets = queryRun.targets || [];
+  const startDate = parseTs(queryRun.run_started);
+  if (!startDate && targets.length === 0) return null;
   const succeeded = targets.filter(t => t.status === 'success' || t.status === 'cached').length;
   const failed = targets.filter(t => t.status === 'failed').length;
-  const startDate = queryRun.run_started ? new Date(queryRun.run_started) : null;
-  const validStart = startDate && !isNaN(startDate.getTime());
-  if (!validStart && targets.length === 0) return null;
+  const skipped = targets.filter(t => t.status === 'skipped').length;
+  const warned = targets.filter(t => t.warnings && t.warnings.length);
+  const counts = [succeeded + ' success'];
+  if (failed > 0) counts.push(failed + ' failed');
+  if (skipped > 0) counts.push(skipped + ' skipped');
+  if (warned.length > 0) counts.push(warned.length + ' with warnings');
+  const updated = parseTs(queryRun.updated_at);
   return (
     <div className="Box color-shadow-medium p-3 mb-4">
       <h3 className="f5 mb-2">{'\ud83d\udce1'} Last Collection Run</h3>
       <div className="compact-row">
-        {validStart && <span className="compact-stat"><strong>{startDate.toLocaleString()}</strong> ({timeAgo(queryRun.run_started)})</span>}
+        {startDate && <span className="compact-stat"><strong>{startDate.toLocaleString()}</strong> ({timeAgo(queryRun.run_started)})</span>}
         {queryRun.profile && <span className="compact-stat">profile: <code>{queryRun.profile}</code></span>}
-        <span className="compact-stat">{succeeded} success{failed > 0 ? ', ' + failed + ' failed' : ''}</span>
+        <span className="compact-stat">{counts.join(', ')}</span>
+        {queryRun.last_invocation && queryRun.last_invocation !== 'collect' && updated && (
+          <span className="compact-stat color-fg-muted">last {queryRun.last_invocation} run {timeAgo(queryRun.updated_at)}</span>
+        )}
       </div>
       {targets.length > 0 && (
         <div className="mt-2" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-          {targets.map((t, i) => (
-            <span key={i} className={'status-badge badge-' + (t.status === 'success' || t.status === 'cached' ? 'success' : t.status === 'failed' ? 'failed' : 'missing')} title={t.target + ': ' + t.status}>
-              {t.target}
-            </span>
-          ))}
+          {targets.map((t, i) => {
+            const detail = [t.status, t.duration_s != null ? t.duration_s + 's' : null, t.error].filter(Boolean).join(' \u00b7 ');
+            const tip = t.target + ': ' + detail + ((t.warnings || []).length ? '\n\u26a0 ' + t.warnings.join('\n\u26a0 ') : '');
+            return (
+              <span key={i} className={'status-badge ' + targetBadgeClass(t)} title={tip}>
+                {t.target}{(t.warnings || []).length ? ' \u26a0' : ''}
+              </span>
+            );
+          })}
         </div>
+      )}
+      {warned.length > 0 && (
+        <ul className="f6 color-fg-muted mt-2" style={{ paddingLeft: '18px' }}>
+          {warned.flatMap(t => t.warnings.map((w, i) => <li key={t.target + i}><code>{t.target}</code>: {w}</li>))}
+        </ul>
       )}
     </div>
   );
